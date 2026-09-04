@@ -1,0 +1,15 @@
+spring:
+  application:
+    name: adcheck-backend
+  datasource:
+    url: ${DB_URL:jdbc:postgresql://localhost:5432/adcheck}
+    username: ${DB_USERNAME}
+    password: ${DB_PASSWORD}
+  jpa:
+    hibernate:
+      ddl-auto: ${JPA_DDL_AUTO:update}
+    open-in-view: false
+
+jwt:
+  secret: ${JWT_SECRET}
+  expiration: ${JWT_EXPIRATION:3600000}
