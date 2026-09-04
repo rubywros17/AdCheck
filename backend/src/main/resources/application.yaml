@@ -9,6 +9,11 @@ spring:
     hibernate:
       ddl-auto: ${JPA_DDL_AUTO:update}
     open-in-view: false
+  web:
+    error:
+      include-stacktrace: never
+      include-exception: false
+      include-message: never
 
 app:
   cors:

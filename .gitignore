@@ -40,3 +40,10 @@ out/
 .env
 uploads/
 *.log
+
+### Chrome Extension ###
+extension/node_modules/
+extension/dist/
+extension/.env
+extension/.env.*
+!extension/.env.example
