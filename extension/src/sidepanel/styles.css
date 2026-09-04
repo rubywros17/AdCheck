@@ -27,36 +27,19 @@ button {
 }
 
 .brand-header {
-  display: flex;
-  gap: 13px;
-  align-items: flex-start;
   margin-bottom: 26px;
 }
 
-.brand-mark {
-  display: grid;
-  width: 42px;
-  height: 42px;
-  flex: 0 0 auto;
-  place-items: center;
-  border-radius: 13px;
-  color: white;
-  background: #176b4a;
-  box-shadow: 0 8px 20px rgba(23, 107, 74, 0.2);
-  font-size: 21px;
-  font-weight: 800;
+.brand-logo {
+  display: block;
+  width: 150px;
+  height: auto;
 }
 
 h1,
 h2,
 p {
   margin: 0;
-}
-
-.brand-header h1 {
-  font-size: 24px;
-  line-height: 1.1;
-  letter-spacing: -0.03em;
 }
 
 .brand-header p {

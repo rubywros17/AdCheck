@@ -9,6 +9,7 @@ import type {
 } from "../types/message";
 
 type ViewStatus = "IDLE" | "EXTRACTING" | "ANALYZING" | "SUCCESS" | "ERROR";
+const LOGO_URL = chrome.runtime.getURL("icons/adcheck_logo.png");
 
 export function App() {
   const [status, setStatus] = useState<ViewStatus>("IDLE");
@@ -79,9 +80,8 @@ export function App() {
   return (
     <main className="app-shell">
       <header className="brand-header">
-        <div className="brand-mark" aria-hidden="true">A</div>
         <div>
-          <h1>AdCheck</h1>
+          <h1><img className="brand-logo" src={LOGO_URL} alt="AdCheck" /></h1>
           <p>건강기능식품 광고,<br />구매 전에 확인해보세요.</p>
         </div>
       </header>
