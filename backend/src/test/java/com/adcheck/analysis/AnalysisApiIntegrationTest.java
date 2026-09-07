@@ -87,6 +87,38 @@ class AnalysisApiIntegrationTest {
     }
 
     @Test
+    void rejectsNullTextElement() throws Exception {
+        mockMvc.perform(post("/api/v1/analyses")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("""
+                                {
+                                  "pageUrl": "https://example.com/product/null-text",
+                                  "texts": [null],
+                                  "images": []
+                                }
+                                """))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.code").value("VALIDATION_ERROR"))
+                .andExpect(jsonPath("$.fieldErrors").isNotEmpty());
+    }
+
+    @Test
+    void rejectsNullImageElement() throws Exception {
+        mockMvc.perform(post("/api/v1/analyses")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("""
+                                {
+                                  "pageUrl": "https://example.com/product/null-image",
+                                  "texts": [],
+                                  "images": [null]
+                                }
+                                """))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.code").value("VALIDATION_ERROR"))
+                .andExpect(jsonPath("$.fieldErrors").isNotEmpty());
+    }
+
+    @Test
     void returnsNoFindingsForNormalWording() throws Exception {
         mockMvc.perform(post("/api/v1/analyses")
                         .contentType(MediaType.APPLICATION_JSON)

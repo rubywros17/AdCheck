@@ -2,10 +2,13 @@ package com.adcheck.analysis.dto;
 
 import jakarta.validation.Valid;
 import jakarta.validation.constraints.NotBlank;
+import jakarta.validation.constraints.NotNull;
 import jakarta.validation.constraints.Pattern;
 import jakarta.validation.constraints.Size;
 import org.hibernate.validator.constraints.URL;
 
+import java.util.ArrayList;
+import java.util.Collections;
 import java.util.List;
 
 public record CreateAnalysisRequest(
@@ -22,13 +25,13 @@ public record CreateAnalysisRequest(
         String productName,
 
         @Size(max = 500, message = "텍스트 항목은 최대 500개까지 전송할 수 있습니다.")
-        List<@Valid PageTextEvidence> texts,
+        List<@NotNull(message = "텍스트 항목은 null일 수 없습니다.") @Valid PageTextEvidence> texts,
 
         @Size(max = 100, message = "이미지 항목은 최대 100개까지 전송할 수 있습니다.")
-        List<@Valid PageImageEvidence> images
+        List<@NotNull(message = "이미지 항목은 null일 수 없습니다.") @Valid PageImageEvidence> images
 ) {
     public CreateAnalysisRequest {
-        texts = texts == null ? List.of() : List.copyOf(texts);
-        images = images == null ? List.of() : List.copyOf(images);
+        texts = texts == null ? List.of() : Collections.unmodifiableList(new ArrayList<>(texts));
+        images = images == null ? List.of() : Collections.unmodifiableList(new ArrayList<>(images));
     }
 }
