@@ -7,9 +7,11 @@ import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
+import org.springframework.http.HttpStatus;
 import org.springframework.http.MediaType;
 import org.springframework.test.context.ActiveProfiles;
 import org.springframework.test.web.servlet.MockMvc;
+import org.springframework.test.web.servlet.ResultActions;
 import org.springframework.test.web.servlet.setup.MockMvcBuilders;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.web.context.WebApplicationContext;
@@ -17,7 +19,9 @@ import org.springframework.web.context.WebApplicationContext;
 import java.util.List;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
+import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.content;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
@@ -83,6 +87,8 @@ class AnalysisApiIntegrationTest {
                                 """))
                 .andExpect(status().isBadRequest())
                 .andExpect(jsonPath("$.code").value("VALIDATION_ERROR"))
+                .andExpect(jsonPath("$.message").value("요청 값이 올바르지 않습니다."))
+                .andExpect(jsonPath("$.fieldErrors").isMap())
                 .andExpect(jsonPath("$.fieldErrors.pageUrl").exists());
     }
 
@@ -99,6 +105,8 @@ class AnalysisApiIntegrationTest {
                                 """))
                 .andExpect(status().isBadRequest())
                 .andExpect(jsonPath("$.code").value("VALIDATION_ERROR"))
+                .andExpect(jsonPath("$.message").value("요청 값이 올바르지 않습니다."))
+                .andExpect(jsonPath("$.fieldErrors").isMap())
                 .andExpect(jsonPath("$.fieldErrors").isNotEmpty());
     }
 
@@ -115,7 +123,64 @@ class AnalysisApiIntegrationTest {
                                 """))
                 .andExpect(status().isBadRequest())
                 .andExpect(jsonPath("$.code").value("VALIDATION_ERROR"))
+                .andExpect(jsonPath("$.message").value("요청 값이 올바르지 않습니다."))
+                .andExpect(jsonPath("$.fieldErrors").isMap())
                 .andExpect(jsonPath("$.fieldErrors").isNotEmpty());
+    }
+
+    @Test
+    void rejectsMalformedJsonWithUnifiedErrorResponse() throws Exception {
+        expectError(
+                mockMvc.perform(post("/api/v1/analyses")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"pageUrl\":")),
+                HttpStatus.BAD_REQUEST,
+                "INVALID_REQUEST",
+                "요청 형식을 확인해 주세요."
+        );
+    }
+
+    @Test
+    void rejectsEmptyRequestBodyWithUnifiedErrorResponse() throws Exception {
+        expectError(
+                mockMvc.perform(post("/api/v1/analyses")
+                        .contentType(MediaType.APPLICATION_JSON)),
+                HttpStatus.BAD_REQUEST,
+                "INVALID_REQUEST",
+                "요청 형식을 확인해 주세요."
+        );
+    }
+
+    @Test
+    void returnsUnifiedErrorResponseForUnknownEndpoint() throws Exception {
+        expectError(
+                mockMvc.perform(get("/api/v1/unknown")),
+                HttpStatus.NOT_FOUND,
+                "NOT_FOUND",
+                "요청한 API를 찾을 수 없습니다."
+        );
+    }
+
+    @Test
+    void returnsUnifiedErrorResponseForUnsupportedMethod() throws Exception {
+        expectError(
+                mockMvc.perform(get("/api/v1/analyses")),
+                HttpStatus.METHOD_NOT_ALLOWED,
+                "METHOD_NOT_ALLOWED",
+                "지원하지 않는 요청 방식입니다."
+        );
+    }
+
+    @Test
+    void returnsUnifiedErrorResponseForUnsupportedContentType() throws Exception {
+        expectError(
+                mockMvc.perform(post("/api/v1/analyses")
+                        .contentType(MediaType.TEXT_PLAIN)
+                        .content("{}")),
+                HttpStatus.UNSUPPORTED_MEDIA_TYPE,
+                "UNSUPPORTED_MEDIA_TYPE",
+                "지원하지 않는 Content-Type입니다."
+        );
     }
 
     @Test
@@ -160,5 +225,21 @@ class AnalysisApiIntegrationTest {
         assertThat(analysis.getStatus()).isEqualTo(AnalysisStatus.COMPLETED);
         assertThat(analysis.getCreatedAt()).isNotNull();
         assertThat(analysis.getCompletedAt()).isNotNull();
+    }
+
+    private void expectError(
+            ResultActions result,
+            HttpStatus expectedStatus,
+            String expectedCode,
+            String expectedMessage
+    ) throws Exception {
+        result.andExpect(status().is(expectedStatus.value()))
+                .andExpect(content().contentTypeCompatibleWith(MediaType.APPLICATION_JSON))
+                .andExpect(jsonPath("$.code").value(expectedCode))
+                .andExpect(jsonPath("$.message").value(expectedMessage))
+                .andExpect(jsonPath("$.fieldErrors").isMap())
+                .andExpect(jsonPath("$.fieldErrors").isEmpty())
+                .andExpect(jsonPath("$.trace").doesNotExist())
+                .andExpect(jsonPath("$.exception").doesNotExist());
     }
 }
