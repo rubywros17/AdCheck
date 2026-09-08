@@ -40,6 +40,7 @@ out/
 .env
 uploads/
 *.log
+/backend/adcheck_before_flyway.sql
 
 ### Chrome Extension ###
 extension/node_modules/
