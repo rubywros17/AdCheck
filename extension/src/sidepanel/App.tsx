@@ -545,7 +545,7 @@ export function App() {
         )}
       </header>
 
-      <main className="toss-viewport">
+      <main className={`toss-viewport ${status === "DETAIL_LIST" ? "toss-viewport-top" : ""}`}>
         <div className="tab-panel">
           {status === "IDLE" && (
             <div className="toss-hero-box stagger-entry">
@@ -1222,7 +1222,20 @@ export function App() {
           display: inline-block;
         }
 
-        .toss-viewport { flex: 1; display: flex; flex-direction: column; justify-content: flex-start; }
+        /* 💡 기본값: IDLE/ANALYZING/SUMMARY_HERO/BUBBLE_PREVIEW 같은 짧은 카드 화면은 정중앙(50%)이 아니라
+           시각적 중앙(상단 약 40~42% 지점)에 안정적으로 머물도록, 중앙 정렬 + 하단 여백 오프셋을 함께 적용 */
+        .toss-viewport {
+          flex: 1;
+          display: flex;
+          flex-direction: column;
+          justify-content: center;
+          padding-bottom: 56px;
+        }
+        /* 💡 예외: DETAIL_LIST처럼 목록이 길게 이어지는 화면은 상단부터 정상적으로 흐르고 스크롤되어야 하므로 되돌림 */
+        .toss-viewport-top {
+          justify-content: flex-start;
+          padding-bottom: 0;
+        }
         .tab-panel { display: flex; flex-direction: column; width: 100%; }
 
         .toss-hero-box {
