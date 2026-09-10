@@ -7,7 +7,6 @@ type FilterCategory = "ALL" | "DISEASE" | "GUARANTEE";
 
 const SCAN_CYCLE_MS = 2400;
 const SCAN_HISTORY_STORAGE_KEY = "adcheck_scan_histories";
-// 지금 켜져 있는(방금 점검한) 페이지의 목업 이름 — 실제 탭 제목 추출이 연결되기 전까지 쓰는 자리표시자
 const CURRENT_PAGE_TITLE = "프리미엄 눈 건강 루테인 지아잔틴 1000mg";
 
 interface FindingWithKeyword extends FindingResponse {
@@ -183,8 +182,8 @@ interface ReferenceArcGaugeProps {
 function ReferenceArcGauge({ count, level }: ReferenceArcGaugeProps) {
   const rotationAngleMap = {
     SAFE: 0,
-    CAUTION: 90,
-    REVIEW: 155,
+    CAUTION: 85,
+    REVIEW: 160,
   };
 
   const statusColorMap = {
@@ -278,16 +277,18 @@ function ReferenceArcGauge({ count, level }: ReferenceArcGaugeProps) {
         </g>
       </svg>
 
-      <div className="ref-gauge-inner-center" style={{ bottom: "34px" }}>
+      {/* 계기판 중앙: 위쪽 라벨 + 카운트업되는 대형 숫자 */}
+      <div className="ref-gauge-inner-center" style={{ bottom: "26px" }}>
         <span className="ref-count-guide">검토 필요</span>
-        <span className="ref-count-num glass-num-shimmer" style={{ color: activeColor }}>
+        <span className="ref-count-num" style={{ color: activeColor }}>
           {count}
         </span>
       </div>
 
-      <div className="ref-bottom-labels">
-        <span className="lbl-green">안심</span>
-        <span className="lbl-red">검토</span>
+      {/* 양끝 눈금 라벨: 안심(좌측, 초록) / 검토(우측, 빨강) */}
+      <div className="ref-bottom-labels-3stage">
+        <span className="lbl-step-item lbl-step-left">안심</span>
+        <span className="lbl-step-item lbl-step-right">검토</span>
       </div>
     </div>
   );
@@ -304,14 +305,13 @@ export function App() {
   const [isCategoryInfoOpen, setIsCategoryInfoOpen] = useState(false);
   const [pendingScrollIdx, setPendingScrollIdx] = useState<number | null>(null);
 
-  // 점검 기록: sessionStorage에 저장 → 브라우저(탭) 세션이 끝나면 자동으로 사라짐
   const [scanHistories, setScanHistories] = useState<ScanHistoryItem[]>(loadScanHistories);
 
   useEffect(() => {
     try {
       sessionStorage.setItem(SCAN_HISTORY_STORAGE_KEY, JSON.stringify(scanHistories));
     } catch {
-      // 시크릿 모드 등 스토리지 접근이 막힌 환경에서는 그냥 메모리 상태로만 동작
+      // 스토리지 예외 무시
     }
   }, [scanHistories]);
 
@@ -320,15 +320,12 @@ export function App() {
   const scanTitleRef = useRef<HTMLHeadingElement>(null);
 
   const targetCount = viewingHistory ? viewingHistory.count : testTarget === "SAFE" ? 0 : MOCK_FINDINGS.length;
-  // 히스토리 항목을 보고 있으면 그 항목의 실제 페이지 이름을, 아니면 방금 점검한 현재 페이지 이름을 사용
   const currentPageTitle = viewingHistory ? viewingHistory.productName : CURRENT_PAGE_TITLE;
-  // 히스토리 항목을 볼 때는 그 항목의 건수만큼만 목업 문구를 노출해서 배지 숫자와 목록이 어긋나지 않게 함
   const visibleFindings = MOCK_FINDINGS.slice(0, targetCount);
 
   const diseaseFindings = visibleFindings.filter((f) => f.message.includes("의약품"));
   const guaranteeFindings = visibleFindings.filter((f) => f.message.includes("과장"));
 
-  // idx는 visibleFindings 기준 고유 인덱스로 유지 → 탭으로 필터링해도 펼침 상태가 엉키지 않음
   const filteredFindings = visibleFindings
     .map((finding, idx) => ({ finding, idx }))
     .filter(({ finding }) => {
@@ -394,7 +391,6 @@ export function App() {
         currentLevel = targetCount > 3 ? "REVIEW" : "CAUTION";
       }
 
-      // 분석 완료 시 새로운 기록을 히스토리에 추가
       if (testTarget !== "ERROR" && testTarget !== "INVALID") {
         const newHistoryItem: ScanHistoryItem = {
           id: String(Date.now()),
@@ -495,12 +491,14 @@ export function App() {
         <div className="splash-overlay">
           <div className="splash-content">
             <div className="splash-logo-circle">
+              <span className="splash-logo-glow" aria-hidden="true" />
+              <span className="splash-logo-ripple" aria-hidden="true" />
               <img
                 src="/icons/adcheck_icon.png"
                 alt="AdCheck 로고"
                 width="72"
                 height="72"
-                style={{ objectFit: "contain" }}
+                style={{ objectFit: "contain", position: "relative", zIndex: 2 }}
                 onError={(e) => {
                   const target = e.currentTarget;
                   if (target.src.indexOf("./") === -1) {
@@ -532,7 +530,6 @@ export function App() {
             <span className="glass-brand-check">Check</span>
           </div>
         </button>
-        {/* 💡 우측 상단 기록 버튼 추가 (스캔 중/결과 요약/안심 아크 화면에서는 숨김) */}
         {status !== "ANALYZING" && status !== "SUMMARY_HERO" && status !== "EMPTY" && (
           <button
             type="button"
@@ -597,31 +594,38 @@ export function App() {
             </div>
           )}
 
+          {/* 💡 [1단계 종합 진단] 요청하신 '재검토 필요 문구 10건 검출' + 3구간 계기판 창 */}
           {status === "SUMMARY_HERO" && (
             <div className="toss-hero-box alert-hero-box">
-              <h2 className="hero-title hero-title-giant" style={{ marginBottom: "10px" }}>
-                잠깐, 이 표현들을 확인해 보세요
+              <h2 className="hero-title hero-title-giant" style={{ marginBottom: "8px" }}>
+                광고 검토 결과 안내
               </h2>
               <p className="hero-sub hero-sub-clean">
-                식약처 공식 인정 범위를 넘어선 표현이<br />
-                확인되었어요.
+                소비자가 오인하거나 과장될 우려가 있는 표현이에요.
               </p>
 
               <ReferenceArcGauge count={animCount} level={activeLevel} />
 
               <button
-                className="btn-brand-glass-pill btn-summary-margin"
+                className="btn-brand-primary btn-summary-margin"
                 type="button"
                 onClick={() => setStatus("BUBBLE_PREVIEW")}
               >
-                <span>어떤 문구인지 확인하기</span>
+                어떤 문구인지 확인하기
               </button>
             </div>
           )}
 
+          {/* 💡 [2단계 핵심 키워드] 몽글몽글 비눗방울 화면 */}
           {status === "BUBBLE_PREVIEW" && (
             <div className="toss-hero-box bubble-preview-box">
-              <h2 className="hero-title hero-title-giant" style={{ marginBottom: "10px" }}>
+              <div className="unified-step-bar">
+                <button type="button" className="btn-step-back" onClick={() => setStatus("SUMMARY_HERO")} aria-label="이전 단계로">
+                  ←
+                </button>
+              </div>
+
+              <h2 className="hero-title hero-title-giant" style={{ marginBottom: "8px" }}>
                 주요 문구를 먼저 살펴볼까요?
               </h2>
               <p className="hero-sub hero-sub-clean">
@@ -630,7 +634,7 @@ export function App() {
               </p>
 
               <div className="bubble-cloud">
-                {visibleFindings.map((finding, idx) => {
+                {visibleFindings.slice(0, 5).map((finding, idx) => {
                   const isDanger = finding.message.includes("의약품");
                   return (
                     <span
@@ -659,21 +663,20 @@ export function App() {
                   setStatus("DETAIL_LIST");
                 }}
               >
-                전체 목록 보기
+                전체 목록 보기 →
               </button>
             </div>
           )}
 
+          {/* 💡 [3단계 상세 리포트] 피드 및 아코디언 */}
           {status === "DETAIL_LIST" && (
             <div className="toss-result-stream">
               <div className="detail-page-nav stagger-entry" style={{ animationDelay: "0.04s" }}>
-                <button
-                  type="button"
-                  className="btn-nav-back"
-                  onClick={() => setStatus("SUMMARY_HERO")}
-                >
-                  ← 요약
-                </button>
+                <div className="unified-step-bar inline-step-bar">
+                  <button type="button" className="btn-step-back" onClick={() => setStatus("BUBBLE_PREVIEW")} aria-label="2단계로">
+                    ←
+                  </button>
+                </div>
                 <div className="detail-nav-right">
                   <button
                     type="button"
@@ -855,7 +858,7 @@ export function App() {
 
           {status === "EMPTY" && (
             <div className="toss-hero-box safe-box alert-hero-box-safe">
-              <h2 className="hero-title hero-title-giant" style={{ marginBottom: "10px" }}>
+              <h2 className="hero-title hero-title-giant" style={{ marginBottom: "8px" }}>
                 발견된 주의 표현이 없어요
               </h2>
               <p className="hero-sub hero-sub-clean">
@@ -915,7 +918,7 @@ export function App() {
         </div>
       </main>
 
-      {/* 💡 검색 기록 모달(바텀 시트) 영역 */}
+      {/* 검색 기록 모달 (바텀시트) */}
       {isHistoryOpen && (
         <div className="modal-backdrop" onClick={() => setIsHistoryOpen(false)}>
           <div className="modal-bottom-sheet history-sheet" onClick={(e) => e.stopPropagation()}>
@@ -950,7 +953,6 @@ export function App() {
                       if (hist.level === "SAFE") {
                         setStatus("EMPTY");
                       } else {
-                        // 검토/주의 등급은 요약 화면을 거치지 않고 항상 같은 흐름으로 상세 목록으로 바로 이동
                         setStatus("DETAIL_LIST");
                       }
                     }}>
@@ -971,7 +973,7 @@ export function App() {
       )}
 
       <footer className="toss-footer-area">
-        <p className="toss-footer-text">식약처 고시 기준 기반 안내이며, 법적 효력을 갖는 행정처분 결과가 아닙니다.</p>
+        <p className="toss-footer-text">식약처 고시 기준 기반 안내이며 법적 효력을 갖는 행정처분 결과가 아닙니다.</p>
 
         <div className="test-switcher">
           <span className="switcher-lbl">테스트:</span>
@@ -1038,6 +1040,7 @@ export function App() {
           animation: splashPopUp 0.6s cubic-bezier(0.34, 1.56, 0.64, 1) forwards;
         }
         .splash-logo-circle {
+          position: relative;
           width: 88px;
           height: 88px;
           background: #F8FAFC;
@@ -1046,6 +1049,40 @@ export function App() {
           align-items: center;
           justify-content: center;
           box-shadow: 0 12px 32px rgba(15, 23, 42, 0.08);
+          overflow: visible;
+        }
+        /* 💡 앰비언트 글로우: 로고 뒤로 은은하게 번지는 민트빛 방사형 광원, 2.8s 주기로 호흡하듯 커졌다 작아짐 */
+        .splash-logo-glow {
+          position: absolute;
+          inset: -34px;
+          border-radius: 50%;
+          z-index: 0;
+          background: radial-gradient(circle, rgba(20, 184, 166, 0.55) 0%, rgba(45, 212, 191, 0.28) 45%, rgba(94, 234, 212, 0) 72%);
+          filter: blur(3px);
+          animation: splashGlowBreathe 2.8s ease-in-out infinite;
+        }
+        /* 💡 잔물결 파동 링: 글로우 뒤를 따라 은은하게 퍼졌다 사라지는 얇은 링 */
+        .splash-logo-ripple {
+          position: absolute;
+          inset: -14px;
+          border-radius: 50%;
+          z-index: 1;
+          border: 1.5px solid rgba(45, 212, 191, 0.55);
+          animation: splashRingRipple 2.8s ease-out infinite;
+        }
+        @keyframes splashGlowBreathe {
+          0%, 100% { transform: scale(0.85); opacity: 0.55; }
+          50% { transform: scale(1.15); opacity: 0.9; }
+        }
+        @keyframes splashRingRipple {
+          0% { transform: scale(0.75); opacity: 0.6; }
+          70% { opacity: 0.12; }
+          100% { transform: scale(1.55); opacity: 0; }
+        }
+        @media (prefers-reduced-motion: reduce) {
+          .splash-logo-glow, .splash-logo-ripple { animation: none; }
+          .splash-logo-glow { opacity: 0.6; }
+          .splash-logo-ripple { opacity: 0.3; }
         }
         .splash-title-large {
           font-size: 32px !important;
@@ -1148,7 +1185,6 @@ export function App() {
         }
         .brand-group { display: flex; align-items: center; background: none; border: none; padding: 0; cursor: pointer; }
 
-        /* 💡 헤더 우측 기록 아이콘 버튼 스타일 */
         .btn-history-trigger {
           width: 36px;
           height: 36px;
@@ -1192,7 +1228,7 @@ export function App() {
         .toss-hero-box {
           background: #FFFFFF;
           border-radius: 20px;
-          padding: 24px 18px 22px 18px;
+          padding: 20px 18px 22px 18px;
           text-align: center;
           display: flex;
           flex-direction: column;
@@ -1201,13 +1237,42 @@ export function App() {
           border: 1px solid #F1F5F9;
         }
 
+        /* 💡 단계별 공통 헤더/배지 */
+        .unified-step-bar {
+          width: 100%;
+          display: flex;
+          align-items: center;
+          gap: 6px;
+          margin-bottom: 12px;
+        }
+        .inline-step-bar {
+          width: auto;
+          margin-bottom: 0;
+        }
+        .btn-step-back {
+          background: #FFFFFF;
+          border: 1px solid #E2E8F0;
+          border-radius: 50%;
+          width: 24px;
+          height: 24px;
+          display: flex;
+          align-items: center;
+          justify-content: center;
+          font-size: 13px;
+          font-weight: 800;
+          color: #334155;
+          cursor: pointer;
+          transition: background 0.15s ease;
+        }
+        .btn-step-back:hover { background: #F1F5F9; }
+
         .reference-gauge-wrap {
           width: 250px;
           position: relative;
           display: flex;
           flex-direction: column;
           align-items: center;
-          margin: 4px 0 2px 0;
+          margin: 10px 0 2px 0;
         }
 
         .ref-gauge-svg {
@@ -1218,7 +1283,7 @@ export function App() {
 
         .ref-gauge-inner-center {
           position: absolute;
-          bottom: 22px;
+          bottom: 24px;
           left: 50%;
           transform: translateX(-50%);
           display: flex;
@@ -1228,39 +1293,38 @@ export function App() {
         }
 
         .ref-count-guide {
-          font-size: 10px;
+          font-size: 12px;
           font-weight: 700;
           color: #94A3B8;
           letter-spacing: -0.2px;
-          margin-bottom: -1px;
         }
-
         .ref-count-num {
-          font-size: 42px;
-          font-weight: 800;
-          line-height: 1;
-          letter-spacing: -1.5px;
+          font-size: 34px;
+          font-weight: 900;
+          letter-spacing: -1px;
+          line-height: 1.15;
           font-variant-numeric: tabular-nums;
         }
 
-        .ref-bottom-labels {
+        /* 💡 양끝 눈금 라벨 */
+        .ref-bottom-labels-3stage {
           width: 100%;
           display: flex;
           justify-content: space-between;
-          font-size: 11.5px;
-          font-weight: 600;
-          margin-top: -2px;
-          padding: 0 10px;
+          font-size: 12px;
+          font-weight: 700;
+          color: #94A3B8;
+          margin-top: 2px;
+          padding: 0 4px;
         }
-
-        .lbl-green { color: #10B981; }
-        .lbl-red { color: #EF4444; }
+        .lbl-step-left { color: #10B981; }
+        .lbl-step-right { color: #EF4444; }
 
         .alert-hero-box { border: 1px solid rgba(239, 68, 68, 0.12); }
         .alert-hero-box-safe { border: 1px solid rgba(16, 185, 129, 0.2); }
 
-        .hero-title { font-size: 24px; font-weight: 800; line-height: 1.35; color: #0F172A; margin-bottom: 8px; letter-spacing: -0.5px; }
-        .hero-title-giant { font-size: 25px; line-height: 1.32; }
+        .hero-title { font-size: 23px; font-weight: 800; line-height: 1.35; color: #0F172A; margin-bottom: 8px; letter-spacing: -0.5px; }
+        .hero-title-giant { font-size: 23px; line-height: 1.32; }
 
         .hero-sub { font-size: 13px; color: #64748B; line-height: 1.5; }
         .hero-sub-clean { margin-bottom: 8px; line-height: 1.55; }
@@ -1270,24 +1334,6 @@ export function App() {
 
         .btn-summary-margin { margin-top: 20px; }
         .btn-idle-margin { margin-top: 22px; }
-
-        .btn-brand-glass-pill {
-          width: 100%;
-          background: linear-gradient(180deg, #1E293B 0%, #0F172A 100%) !important;
-          color: #FFFFFF !important;
-          border: 1px solid rgba(255, 255, 255, 0.18);
-          padding: 15px 20px;
-          border-radius: 28px;
-          font-size: 15px;
-          font-weight: 600;
-          cursor: pointer;
-          position: relative;
-          display: flex;
-          align-items: center;
-          justify-content: center;
-          box-shadow: inset 0 1px 1px rgba(255, 255, 255, 0.35), 0 4px 14px rgba(15, 23, 42, 0.22);
-          transition: transform 0.18s cubic-bezier(0.34, 1.56, 0.64, 1), box-shadow 0.15s ease;
-        }
 
         .btn-brand-primary {
           width: 100%;
@@ -1330,7 +1376,6 @@ export function App() {
           gap: 12px;
         }
         .detail-page-nav { display: flex; justify-content: space-between; align-items: center; padding: 2px; }
-        .btn-nav-back { background: transparent; border: none; color: #0F172A; font-size: 12px; font-weight: 800; cursor: pointer; padding: 0; }
         .detail-nav-right { display: flex; align-items: center; gap: 10px; }
         .btn-nav-share {
           display: flex;
@@ -1454,7 +1499,7 @@ export function App() {
         .info-popover-item strong { display: block; font-size: 12px; font-weight: 800; color: #0F172A; margin-bottom: 2px; }
         .info-popover-item p { font-size: 11.5px; color: #64748B; line-height: 1.45; }
 
-        .bubble-preview-box { padding: 26px 20px 24px 20px; }
+        .bubble-preview-box { padding: 20px 18px 22px 18px; }
 
         .bubble-cloud {
           display: flex;
@@ -1474,26 +1519,27 @@ export function App() {
           border-radius: 9999px;
           padding: 8px 14px;
           font-size: 12.5px;
-          font-weight: 600;
+          font-weight: 700;
           letter-spacing: -0.1px;
-          border: 1px solid transparent;
+          border: 1px solid rgba(255, 255, 255, 0.6);
           cursor: pointer;
+          backdrop-filter: blur(6px);
+          -webkit-backdrop-filter: blur(6px);
+          box-shadow: inset 0 1px 2px rgba(255, 255, 255, 0.6), inset 0 -6px 8px -6px rgba(15, 23, 42, 0.06), 0 2px 8px rgba(15, 23, 42, 0.06);
           animation: bubbleFloat 3s ease-in-out infinite;
           transition: transform 0.15s cubic-bezier(0.34, 1.56, 0.64, 1), background 0.15s ease, border-color 0.15s ease;
         }
         .preview-bubble:active { transform: scale(0.92); }
         .preview-bubble-disease {
-          background: rgba(169, 68, 56, 0.1);
+          background: linear-gradient(135deg, rgba(169, 68, 56, 0.16) 0%, rgba(169, 68, 56, 0.04) 100%);
           color: #A94438;
-          border-color: rgba(169, 68, 56, 0.22);
         }
-        .preview-bubble-disease:hover { background: rgba(169, 68, 56, 0.18); }
+        .preview-bubble-disease:hover { background: linear-gradient(135deg, rgba(169, 68, 56, 0.24) 0%, rgba(169, 68, 56, 0.07) 100%); }
         .preview-bubble-guarantee {
-          background: rgba(217, 119, 6, 0.1);
+          background: linear-gradient(135deg, rgba(217, 119, 6, 0.16) 0%, rgba(217, 119, 6, 0.04) 100%);
           color: #D97706;
-          border-color: rgba(217, 119, 6, 0.22);
         }
-        .preview-bubble-guarantee:hover { background: rgba(217, 119, 6, 0.18); }
+        .preview-bubble-guarantee:hover { background: linear-gradient(135deg, rgba(217, 119, 6, 0.24) 0%, rgba(217, 119, 6, 0.07) 100%); }
         @media (prefers-reduced-motion: reduce) {
           .preview-bubble { animation: none; }
         }
@@ -1612,7 +1658,6 @@ export function App() {
         .row-value-bold { font-size: 13px; font-weight: 700; color: #0F172A; line-height: 1.45; }
         .row-value-regular { font-size: 12px; color: #334155; line-height: 1.45; }
 
-        /* 💡 기록 모달 전용 스타일 */
         .history-modal-title { font-size: 16px; font-weight: 800; color: #0F172A; }
         .history-list-stack { display: flex; flex-direction: column; gap: 8px; max-height: 320px; overflow-y: auto; margin-top: 4px; }
         .history-item-card {
