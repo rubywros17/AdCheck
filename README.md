@@ -46,3 +46,7 @@ python -m http.server 4173 --directory extension/fixtures
 ```
 
 그 후 `http://localhost:4173/product-page.html`에서 AdCheck Side Panel을 실행합니다.
+
+## Rule Engine
+
+DB 기반 Rule 선택·보수적 평가·공식 출처 조회 서비스의 실행 및 통합 방법은 [Rule Engine 개발 문서](docs/rule-engine.md)를 참고하세요. 기존 분석 API는 계속 `MockClaimAnalyzer`를 사용합니다.
