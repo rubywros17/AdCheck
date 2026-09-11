@@ -1,11 +1,10 @@
 import { useState } from "react";
-import { SCAN_CYCLE_MS } from "./data";
 import { useAdCheck } from "./hooks/useAdCheck";
 import type { ViewStatus } from "./types";
 import { SidepanelHeader } from "./components/SidepanelHeader";
 import { SidepanelFooter } from "./components/SidepanelFooter";
 import { HistoryModal } from "./components/HistoryModal";
-import { SplashView } from "./views/SplashView";
+import { AdCheckIntroScanner } from "./views/SplashView";
 import { IdleView } from "./views/IdleView";
 import { AnalyzingView } from "./views/AnalyzingView";
 import { SummaryHeroView } from "./views/SummaryHeroView";
@@ -16,17 +15,24 @@ export function App() {
   const [status, setStatus] = useState<ViewStatus>("SPLASH");
   const adCheck = useAdCheck(status, setStatus);
 
+  // 스플래시 화면은 공통 헤더/푸터 껍데기를 거치지 않고 단독으로 전체 화면을 차지합니다.
+  if (status === "SPLASH") {
+    return (
+      <div className="toss-root" data-view="splash">
+        <AdCheckIntroScanner onComplete={() => setStatus("IDLE")} />
+      </div>
+    );
+  }
+
   return (
     <div className="toss-root">
-      {status === "SPLASH" && <SplashView onComplete={() => setStatus("IDLE")} />}
-
       <SidepanelHeader showHistory={adCheck.showHistory} onHome={adCheck.goHome} onOpenHistory={adCheck.openHistory} />
 
       <main className={`toss-viewport ${status === "DETAIL_LIST" ? "toss-viewport-top" : ""}`}>
         <div className="tab-panel">
           {status === "IDLE" && <IdleView onAnalyze={adCheck.analyze} onReset={adCheck.goHome} />}
 
-          {status === "ANALYZING" && <AnalyzingView scanCycleMs={SCAN_CYCLE_MS} />}
+          {status === "ANALYZING" && <AnalyzingView onComplete={() => {}} />}
 
           {(status === "SUMMARY_HERO" || status === "EMPTY") && (
             <SummaryHeroView

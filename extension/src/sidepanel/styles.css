@@ -18,6 +18,12 @@ body {
   position: relative;
 }
 
+/* 안전장치: 스플래시 화면에서는 공통 헤더/푸터가 어떤 이유로든 함께 렌더링되더라도 항상 숨깁니다. */
+.toss-root[data-view="splash"] .toss-header,
+.toss-root[data-view="splash"] .toss-footer-area {
+  display: none !important;
+}
+
 .splash-overlay {
   position: fixed;
   top: 0; left: 0; right: 0; bottom: 0;
@@ -93,7 +99,7 @@ body {
 }
 
 .laser-bear-wrap-clean {
-  --laser-scan-duration: 2400ms;
+  --laser-scan-duration: 2200ms;
   width: 78px;
   height: 85px;
   display: flex;
@@ -149,26 +155,43 @@ body {
   height: 5px;
   border-radius: 50%;
   background: #ECFEFF;
-  box-shadow: 0 0 4px #5EEAD4, 0 0 6px rgba(20, 184, 166, 0.45);
+  box-shadow: 0 0 4px #5EEAD4, 0 0 6px rgba(45, 212, 191, 0.45);
   animation: laserEyeGlowPulse var(--laser-scan-duration) ease-in-out infinite alternate;
 }
 
 .laser-beam {
   position: absolute;
   top: 0;
-  left: -15px;
-  width: 30px;
-  height: 88px;
-  clip-path: polygon(47% 0%, 53% 0%, 100% 100%, 0% 100%);
-  background: linear-gradient(180deg, rgba(236, 254, 255, 0.42) 0%, rgba(94, 234, 212, 0.28) 25%, rgba(20, 184, 166, 0.14) 60%, rgba(20, 184, 166, 0) 100%);
-  filter: blur(3.5px) drop-shadow(0 0 4px rgba(20, 184, 166, 0.22));
+  left: -0.75px; /* 1.5px 슬림 라인을 눈 좌표 중심에 정렬 */
+  width: 1.5px;
+  height: 65px;
+  /* 맑은 아쿠아 민트 레이저 그라데이션 */
+  background: linear-gradient(
+    180deg,
+    rgba(45, 212, 191, 1) 0%,
+    rgba(45, 212, 191, 0.7) 60%,
+    rgba(45, 212, 191, 0) 100%
+  );
+  /* 번짐을 최소화한 날카로운 핀포인트 광선 */
+  filter: drop-shadow(0 0 2.5px rgba(45, 212, 191, 0.7));
+  opacity: 0.9;
+  pointer-events: none;
   transform-origin: top center;
+  /* 0%(Ad 시작) -> 100%(Check 끝)까지 한 번만 부드럽게 스캔한 뒤 은은하게 페이드아웃 */
+  animation: laserBeamSweepOnce var(--laser-scan-duration, 2200ms) cubic-bezier(0.4, 0, 0.2, 1) forwards;
 }
 
 @keyframes laserEyeGlowPulse {
   0% { opacity: 0.85; transform: scale(0.95); }
   50% { opacity: 1; transform: scale(1.12); }
   100% { opacity: 0.85; transform: scale(0.95); }
+}
+
+/* 눈에서 아래 글자를 향해 부드럽게 좌우로 왕복하는 삼각 광선 */
+@keyframes laserBeamSweepOnce {
+  0% { transform: rotate(38deg) scaleX(1); opacity: 0.9; }
+  85% { transform: rotate(-38deg) scaleX(1.12); opacity: 1; }
+  100% { transform: rotate(-38deg) scaleX(1.05); opacity: 0; }
 }
 
 .toss-header {
@@ -201,7 +224,7 @@ body {
 .glass-shimmer-title {
   font-size: 19px;
   font-weight: 900;
-  letter-spacing: 0.4px;
+  letter-spacing: -1.2px; /* 스플래시 화면 AdCheck 로고와 동일한 자간 */
   display: flex;
   align-items: center;
   user-select: none;
@@ -218,14 +241,46 @@ body {
   display: inline-block;
 }
 
+/* 스플래시 화면 전용 로고 텍스트 (헤더의 .glass-brand-* 와는 별개) */
+.scanned-brand-ad {
+  color: #0B192C;
+  font-weight: 900;
+  letter-spacing: -1.2px;
+}
+
+.scanned-brand-check {
+  font-family: -apple-system, BlinkMacSystemFont, "Pretendard", sans-serif;
+  font-weight: 900;
+  letter-spacing: -1.2px;
+  /* 캡처 이미지 실측: 아이스 아쿠아 -> 비비드 터키옥 -> 딥 틸 */
+  background: linear-gradient(
+    180deg,
+    #E6FFFA 0%,
+    #5EEAD4 35%,
+    #2DD4BF 65%,
+    #0D9488 100%
+  );
+  -webkit-background-clip: text;
+  background-clip: text;
+  -webkit-text-fill-color: transparent;
+  color: transparent;
+  /* 맑은 청록빛 앰비언트 글로우 */
+  filter: drop-shadow(0 2px 8px rgba(45, 212, 191, 0.45));
+  position: relative;
+  display: inline-block;
+}
+
 /* 💡 기본값: IDLE/ANALYZING/SUMMARY_HERO/BUBBLE_PREVIEW 같은 짧은 카드 화면은 정중앙(50%)이 아니라
    시각적 중앙(상단 약 40~42% 지점)에 안정적으로 머물도록, 중앙 정렬 + 하단 여백 오프셋을 함께 적용 */
 .toss-viewport {
+  width: 100%;
   flex: 1;
   display: flex;
   flex-direction: column;
+  align-items: center;
   justify-content: center;
   padding-bottom: 56px;
+  box-sizing: border-box;
 }
 /* 💡 예외: DETAIL_LIST처럼 목록이 길게 이어지는 화면은 상단부터 정상적으로 흐르고 스크롤되어야 하므로 되돌림 */
 .toss-viewport-top {
@@ -346,14 +401,21 @@ body {
 
 .btn-brand-primary {
   width: 100%;
+  min-height: 58px; /* 납작하게 눌린 느낌 없이 도톰한 볼륨감 확보 */
   background: #1E293B !important;
   color: #FFFFFF !important;
   border: 1px solid rgba(255, 255, 255, 0.06);
-  padding: 15px;
-  border-radius: 28px;
-  font-size: 14.5px;
+  padding: 16px 24px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  border-radius: 16px;
+  font-size: 16px;
   font-weight: 600;
-  letter-spacing: -0.2px;
+  letter-spacing: -0.3px;
+  line-height: 1.3;
+  box-sizing: border-box;
   cursor: pointer;
   box-shadow: 0 4px 14px rgba(15, 23, 42, 0.22);
   transition: transform 0.15s cubic-bezier(0.34, 1.56, 0.64, 1), background 0.15s ease;
@@ -369,7 +431,7 @@ body {
   color: #0F172A;
   border: 1.5px solid #CBD5E1;
   padding: 14.5px;
-  border-radius: 28px;
+  border-radius: 16px;
   font-size: 14.5px;
   font-weight: 600;
   letter-spacing: -0.2px;
@@ -742,4 +804,391 @@ body {
 .ref-gauge-knob {
   transform-origin: 130px 118px;
   transition: transform 0.95s cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+/* ========================================================
+   [진입창] 곰돌이가 눈에서 빔을 쏘며 AdCheck 로고를 스캔하는 모션
+   ======================================================== */
+.intro-scanner-wrap {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  padding: 20px;
+}
+
+/* 🔤 스캔 대상: AdCheck 글씨 (박스/테두리 없이 텍스트만 단독 배치) */
+.scanned-adcheck-logo-wrap {
+  position: relative;
+  display: inline-block;
+}
+
+.scanned-adcheck-logo {
+  position: relative;
+  font-family: -apple-system, BlinkMacSystemFont, "Pretendard", sans-serif;
+  font-size: 36px;
+  font-weight: 900;
+  letter-spacing: -1px;
+  user-select: none;
+}
+
+/* ✨ 빔이 글자를 훑고 지나가는 순간, 세로줄 대신 좌→우 컬러 시머로 표현 */
+.logo-shimmer-overlay {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  pointer-events: none;
+  font-family: inherit;
+  font-size: inherit;
+  font-weight: inherit;
+  letter-spacing: inherit;
+  background: linear-gradient(100deg, transparent 30%, rgba(255, 255, 255, 0.95) 50%, transparent 70%);
+  background-size: 220% 100%;
+  background-position: 160% 0;
+  -webkit-background-clip: text;
+  background-clip: text;
+  color: transparent;
+  mix-blend-mode: overlay;
+  animation: logoShimmerSweep 2.2s cubic-bezier(0.4, 0, 0.2, 1) 1 both;
+}
+
+/* 하단 서브 텍스트 */
+.intro-scanner-sub {
+  margin-top: 18px;
+  font-size: 13px;
+  font-weight: 500;
+  color: #64748B;
+  letter-spacing: -0.3px;
+}
+
+/* ========================================================
+   [애니메이션 키프레임]
+   ======================================================== */
+
+/* 글자 위를 좌에서 우로 은은하게 훑는 컬러 시머 */
+@keyframes logoShimmerSweep {
+  from { background-position: 160% 0; }
+  to { background-position: -60% 0; }
+}
+
+/* ========================================================
+   [분석 화면] 랜덤 애니메이션 + 단독 헤드라인 팁 카드
+   ======================================================== */
+
+/* 로딩 화면: 네모 카드 박스 없이, 일러스트+문구만 떠 있는 미니멀 플로팅 뷰 */
+.analyzing-tip-card {
+  position: relative;
+  width: 100%;
+  max-width: 320px;
+  min-height: 190px; /* 슬라이드 전환 중 내용이 absolute가 되어도 높이가 꺼지지 않도록 고정 */
+  background: transparent !important;
+  border: none !important;
+  box-shadow: none !important;
+  padding: 0 16px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  text-align: center;
+  margin: 0 auto;
+  align-self: center;
+  box-sizing: border-box;
+  overflow: hidden; /* 카드가 좌우로 빠져나갈 때 바깥으로 스크롤바가 생기지 않도록 */
+}
+
+/* 카드 1장(그래픽 + 헤드라인)을 감싸는 슬롯 */
+.analyzing-card-slot {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  width: 100%;
+}
+
+/* 슬라이드 전환 중에는 두 슬롯이 같은 자리에 겹쳐 위치 */
+.analyzing-card-slot.card-slide-exit,
+.analyzing-card-slot.card-slide-enter {
+  position: absolute;
+  inset: 0;
+  box-sizing: border-box;
+}
+
+/* 현재 카드: 왼쪽으로 스르륵 퇴장 */
+.card-slide-exit {
+  animation: cardSlideOutLeft 0.5s cubic-bezier(0.4, 0, 0.2, 1) forwards;
+}
+/* 다음 카드: 오른쪽에서 부드럽게 등장 */
+.card-slide-enter {
+  animation: cardSlideInRight 0.5s cubic-bezier(0.4, 0, 0.2, 1) forwards;
+}
+@keyframes cardSlideOutLeft {
+  from { transform: translateX(0); opacity: 1; }
+  to { transform: translateX(-120%); opacity: 0; }
+}
+@keyframes cardSlideInRight {
+  from { transform: translateX(120%); opacity: 0; }
+  to { transform: translateX(0); opacity: 1; }
+}
+
+/* 상단 그래픽 영역 */
+.analyzing-graphic-wrap {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  margin-bottom: 24px;
+}
+
+/* 메인 단독 문장 (사족 없는 헤드라인) */
+.analyzing-main-headline {
+  margin: 0;
+  font-size: 17px;
+  font-weight: 700;
+  line-height: 1.45;
+  color: #0F172A;
+  letter-spacing: -0.4px;
+  word-break: keep-all; /* 단어가 어색하게 잘리지 않게 줄바꿈 */
+}
+
+/* ========================================================
+   [분석 화면] 랜덤으로 노출되는 4가지 미니 애니메이션
+   (src/sidepanel/components/animations/*)
+   ======================================================== */
+.anim-box {
+  position: relative;
+  width: 104px;
+  height: 104px;
+  margin: 0 auto;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+/* 1. ShieldAnimation: 공인 건강기능식품 인증마크가 둥둥 뜬 채 사선 쉬머가 스쳐 지나감 */
+.health-mark-badge {
+  position: relative;
+  width: 96px;
+  height: 96px;
+  border-radius: 50%;
+  overflow: hidden;
+  animation: floatMark 2.6s ease-in-out infinite;
+  filter: drop-shadow(0 6px 16px rgba(16, 185, 129, 0.35));
+}
+.health-mark-img {
+  display: block;
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+.health-mark-shimmer {
+  position: absolute;
+  top: -60%;
+  left: -60%;
+  width: 55%;
+  height: 220%;
+  background: linear-gradient(115deg, transparent 0%, rgba(255, 255, 255, 0.85) 50%, transparent 100%);
+  transform: rotate(20deg);
+  animation: markShimmerSweep 2.4s ease-in-out infinite;
+  pointer-events: none;
+}
+@keyframes floatMark {
+  0%, 100% { transform: translateY(0); }
+  50% { transform: translateY(-6px); }
+}
+@keyframes markShimmerSweep {
+  0% { left: -60%; }
+  60% { left: 130%; }
+  100% { left: 130%; }
+}
+
+/* 2. WarningAnimation: 문서 위에 통! 튕기며 찍히는 코랄 스탬프 */
+.doc-paper {
+  width: 70px;
+  padding: 12px 10px;
+  background: #FFFFFF;
+  border: 1px solid #E2E8F0;
+  border-radius: 12px;
+  box-shadow: 0 4px 10px rgba(15, 23, 42, 0.06);
+  display: flex;
+  flex-direction: column;
+  gap: 7px;
+}
+.doc-line { height: 6px; border-radius: 3px; background: #E2E8F0; }
+.doc-line.l-long { width: 100%; }
+.doc-line.l-mid { width: 70%; }
+.doc-line.l-short { width: 45%; }
+.stamp-badge {
+  position: absolute;
+  top: -8px;
+  right: -10px;
+  width: 36px;
+  height: 36px;
+  border-radius: 50%;
+  background: linear-gradient(135deg, #FB7185 0%, #F43F5E 100%);
+  color: #FFFFFF;
+  font-size: 19px;
+  font-weight: 800;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  box-shadow: 0 4px 10px rgba(244, 63, 94, 0.35);
+  animation: stampBounce 2.4s cubic-bezier(0.34, 1.56, 0.64, 1) infinite;
+}
+@keyframes stampBounce {
+  0% { transform: rotate(-14deg) scale(0); opacity: 0; }
+  20% { transform: rotate(-14deg) scale(1.15); opacity: 1; }
+  30% { transform: rotate(-14deg) scale(1); }
+  78% { transform: rotate(-14deg) scale(1); opacity: 1; }
+  92% { opacity: 0; }
+  100% { transform: rotate(-14deg) scale(0); opacity: 0; }
+}
+
+/* 3. ReviewAnimation: 별점 리뷰 말풍선 + 콩닥이는 주의 뱃지 */
+.review-bubble {
+  width: 80px;
+  padding: 10px 12px;
+  background: #FFFFFF;
+  border: 1px solid #E2E8F0;
+  border-radius: 14px 14px 14px 5px;
+  box-shadow: 0 4px 10px rgba(15, 23, 42, 0.06);
+  display: flex;
+  flex-direction: column;
+  gap: 7px;
+  animation: reviewPop 2.6s ease-in-out infinite;
+}
+.star-row { display: flex; gap: 2px; color: #F59E0B; font-size: 12px; }
+.star-row span { animation: starTwinkle 1.8s ease-in-out infinite; }
+.star-row span:nth-child(2) { animation-delay: 0.1s; }
+.star-row span:nth-child(3) { animation-delay: 0.2s; }
+.star-row span:nth-child(4) { animation-delay: 0.3s; }
+.star-row span:nth-child(5) { animation-delay: 0.4s; }
+.quote-line { height: 6px; width: 80%; border-radius: 3px; background: #E2E8F0; }
+.review-badge-warn {
+  position: absolute;
+  bottom: -5px;
+  right: 5px;
+  width: 26px;
+  height: 26px;
+  border-radius: 50%;
+  background: linear-gradient(135deg, #FBBF24 0%, #F59E0B 100%);
+  color: #FFFFFF;
+  font-size: 15px;
+  font-weight: 800;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  box-shadow: 0 3px 8px rgba(245, 158, 11, 0.35);
+  animation: warnBadgeThrob 1.3s ease-in-out infinite;
+}
+@keyframes reviewPop {
+  0%, 100% { transform: translateY(0); }
+  50% { transform: translateY(-3px); }
+}
+@keyframes starTwinkle {
+  0%, 100% { opacity: 0.4; }
+  50% { opacity: 1; }
+}
+@keyframes warnBadgeThrob {
+  0%, 100% { transform: scale(1); }
+  50% { transform: scale(1.18); }
+}
+
+/* ========================================================
+   [결과 요약 화면] 중앙 글래스 다이얼 뒤편의 백라이트 글로우
+   ======================================================== */
+.dial-backlight-glow {
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  width: 175px; /* 흰색 원(약 150~152px)보다 바깥으로만 번지도록 */
+  height: 175px;
+  transform: translate(-50%, -50%);
+  border-radius: 50%;
+  pointer-events: none;
+  z-index: 0; /* 흰색 원(z-index:1) 뒤에 완벽히 숨김 */
+  filter: blur(16px);
+  -webkit-filter: blur(16px);
+  /* 빛이 은은하게 숨쉬듯 콩닥거리는 브리딩 애니메이션 (opacity는 크로스페이드 트랜지션과 겹치지 않도록 transform/filter만 사용) */
+  animation: dialGlowBreathe 3s ease-in-out infinite alternate;
+}
+@keyframes dialGlowBreathe {
+  0% { transform: translate(-50%, -50%) scale(0.95); filter: blur(14px); }
+  100% { transform: translate(-50%, -50%) scale(1.08); filter: blur(20px); }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .laser-beam,
+  .laser-eye-dot,
+  .logo-shimmer-overlay,
+  .dial-backlight-glow,
+  .health-mark-badge,
+  .health-mark-shimmer,
+  .stamp-badge,
+  .review-bubble,
+  .star-row span,
+  .review-badge-warn,
+  .pill-3d-img,
+  .pill-3d-shadow {
+    animation: none;
+  }
+  .logo-shimmer-overlay {
+    opacity: 0;
+  }
+  .card-slide-exit,
+  .card-slide-enter {
+    animation: none;
+  }
+  .card-slide-exit { opacity: 0; }
+  .card-slide-enter { opacity: 1; }
+}
+/* ========================================================
+   [4. PillAnimation] 3D 렌더링 알약 이미지의 입체 틸팅 부유 모션
+   ======================================================== */
+.pill-3d-stage {
+  position: relative;
+  width: 80px;
+  height: 80px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.pill-3d-img {
+  display: block;
+  filter: drop-shadow(0 10px 20px rgba(45, 212, 191, 0.35));
+  animation: pill3DFloat 3.4s ease-in-out infinite;
+}
+
+/* 바닥 연동 그림자 */
+.pill-3d-shadow {
+  position: absolute;
+  bottom: 6px;
+  width: 44px;
+  height: 10px;
+  background: radial-gradient(ellipse, rgba(15, 23, 42, 0.2) 0%, transparent 70%);
+  border-radius: 50%;
+  filter: blur(3px);
+  animation: shadow3DBreathe 3.4s ease-in-out infinite;
+}
+
+@keyframes pill3DFloat {
+  0%, 100% {
+    transform: translateY(0) rotate(0deg) scale(1);
+  }
+  30% {
+    transform: translateY(-8px) rotate(8deg) scale(1.03);
+  }
+  70% {
+    transform: translateY(-12px) rotate(-6deg) scale(1.05);
+  }
+}
+
+@keyframes shadow3DBreathe {
+  0%, 100% {
+    transform: scale(1);
+    opacity: 0.6;
+  }
+  50% {
+    transform: scale(0.7);
+    opacity: 0.25;
+  }
 }

@@ -1,3 +1,5 @@
+
+//5. 주요 문구 화면	키워드 버블 둥둥 떠다니는 화면
 import type { FindingWithKeyword } from "../types";
 
 interface Props {
@@ -7,15 +9,10 @@ interface Props {
   onShowAll: () => void;
 }
 
-export function BubblePreviewView({ findings, onBack, onSelect, onShowAll }: Props) {
+export function BubblePreviewView({ findings, onSelect, onShowAll }: Props) {
   return (
     <div className="toss-hero-box bubble-preview-box">
-      <div className="unified-step-bar">
-        <button type="button" className="btn-step-back" onClick={onBack} aria-label="이전 단계로">
-          ←
-        </button>
-      </div>
-      <h2 className="hero-title hero-title-giant hero-title-result">
+      <h2 className="hero-title">
         주요 문구를 먼저 살펴볼까요?
       </h2>
       <p className="hero-sub hero-sub-clean">

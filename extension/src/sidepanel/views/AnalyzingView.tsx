@@ -1,80 +1,138 @@
-import { useEffect, useRef, type CSSProperties } from "react";
+import React, { useEffect, useState } from "react";
+import { ShieldAnimation } from "../components/animations/ShieldAnimation";
+import { WarningAnimation } from "../components/animations/WarningAnimation";
+import { PillAnimation } from "../components/animations/PillAnimation";
+import { ReviewAnimation } from "../components/animations/ReviewAnimation";
 
 interface Props {
-  scanCycleMs: number;
+  onComplete: () => void;
 }
 
-export function AnalyzingView({ scanCycleMs }: Props) {
-  const leftBeamRef = useRef<HTMLSpanElement>(null);
-  const rightBeamRef = useRef<HTMLSpanElement>(null);
-  const scanTitleRef = useRef<HTMLHeadingElement>(null);
+type TipTheme = "shield" | "warning" | "pill" | "review";
 
+interface TipItem {
+  theme: TipTheme;
+  text: string;
+}
+
+const GRAPHIC_BY_THEME: Record<TipTheme, React.ComponentType> = {
+  shield: ShieldAnimation,
+  warning: WarningAnimation,
+  pill: PillAnimation,
+  review: ReviewAnimation,
+};
+
+// 카드 1장이 화면에 머무는 최소 시간
+const CARD_DISPLAY_MS = 3000;
+// 카드가 옆으로 밀려나며 전환되는 데 걸리는 시간
+const SLIDE_MS = 500;
+// 전체 로딩 최소 노출 시간 (카드1 3초 + 전환 0.5초 + 카드2 3초 = 6.5초)
+const TOTAL_LOADING_MS = CARD_DISPLAY_MS + SLIDE_MS + CARD_DISPLAY_MS;
+
+// 14가지 식약처 공인 부당광고 상식 문장
+const ADCHECK_TIPS: TipItem[] = [
+  // 1. 방패 / 인증마크 테마 (shield)
+  { theme: "shield", text: "건강기능식품은 패키지 인증마크로 확인할 수 있어요." },
+  { theme: "shield", text: "인정받은 제품인지 '식품안전나라'에서 검색해보세요." },
+  { theme: "shield", text: "해외직구 영양제는 식약처 인증 건강기능식품이 아니에요." },
+  { theme: "shield", text: "'기능성 표시식품'은 건강기능식품과 달라요." },
+
+  // 2. 경고 도장 테마 (warning)
+  { theme: "warning", text: "일반식품은 '피로회복', '혈당조절' 문구를 쓸 수 없어요." },
+  { theme: "warning", text: "'혈관을 탄력 있고 부드럽게'는 허위 광고예요." },
+  { theme: "warning", text: "원재료 효능 논문을 제품 효능처럼 광고할 수 없어요." },
+  { theme: "warning", text: "'부작용 0%', '100% 천연' 같은 절대적 표현은 금지돼요." },
+  { theme: "warning", text: "호박즙, 효소 등 일반식품은 '붓기 제거' 광고를 못해요." },
+
+  // 3. 알약 / 의약품 오인 테마 (pill)
+  { theme: "pill", text: "건강기능식품은 질병을 치료하는 의약품이 아니에요." },
+  { theme: "pill", text: "멜라토닌 함유 식품은 불면증 치료 효과가 없어요." },
+  { theme: "pill", text: "국내에 탈모 치료 효과를 인정받은 건강기능식품은 없어요." },
+  { theme: "pill", text: "'키 크는 영양제', '수험생 총명환'은 인정된 기능성이 아니에요." },
+
+  // 4. 구매후기 / 체험기 테마 (review)
+  { theme: "review", text: "'먹고 완치됐다'는 체험기·구매후기 광고는 불법이에요." },
+];
+
+function CardContent({ tip }: { tip: TipItem }) {
+  const Graphic = GRAPHIC_BY_THEME[tip.theme];
+  return (
+    <>
+      {/* 상단 쫀득 동적 그래픽 (팁 테마와 매칭) */}
+      <div className="analyzing-graphic-wrap">
+        <Graphic />
+      </div>
+      {/* 한 줄 헤드라인: 일러스트와 세트로 함께 슬라이드 */}
+      <h2 className="analyzing-main-headline">{tip.text}</h2>
+    </>
+  );
+}
+
+// 진입 시 서로 다른 테마의 팁 2개를 무조건 보장하는 선택 함수
+function pickTwoDistinctTips(): [TipItem, TipItem] {
+  // 1. 첫 번째 팁 랜덤 선택
+  const firstIdx = Math.floor(Math.random() * ADCHECK_TIPS.length);
+  const firstTip = ADCHECK_TIPS[firstIdx];
+
+  // 2. 첫 번째 팁과 테마(theme)가 다른 팁들만 필터링
+  const differentThemeTips = ADCHECK_TIPS.filter(
+    (tip) => tip.theme !== firstTip.theme,
+  );
+
+  // 3. 필터링된 목록에서 두 번째 팁 선택 (무조건 다른 테마 보장)
+  const secondIdx = Math.floor(Math.random() * differentThemeTips.length);
+  const secondTip = differentThemeTips[secondIdx];
+
+  return [firstTip, secondTip];
+}
+
+export function AnalyzingView({ onComplete }: Props) {
+  // 마운트 시 서로 다른 테마의 팁 2개를 미리 확정 (1번째 <-> 2번째 이미지 테마 겹침 방지)
+  const [tips] = useState<[TipItem, TipItem]>(pickTwoDistinctTips);
+
+  // 현재 화면에 정착해 있는 카드 (0 = 첫 번째, 1 = 두 번째)
+  const [activeCard, setActiveCard] = useState<0 | 1>(0);
+  // 슬라이드 전환이 진행 중인 0.5초 구간에만 true
+  const [isSliding, setIsSliding] = useState(false);
+
+  // 카드1 → (3초 후) 슬라이드 시작 → (0.5초 후) 카드2로 정착
   useEffect(() => {
-    if (window.matchMedia("(prefers-reduced-motion: reduce)").matches) return;
+    const startSlide = window.setTimeout(() => setIsSliding(true), CARD_DISPLAY_MS);
+    const settleOnCard2 = window.setTimeout(() => {
+      setActiveCard(1);
+      setIsSliding(false);
+    }, CARD_DISPLAY_MS + SLIDE_MS);
 
-    let rafId: number;
-    const startTime = performance.now();
-    const textScanCycleMs = scanCycleMs * 1.18;
+    return () => {
+      window.clearTimeout(startSlide);
+      window.clearTimeout(settleOnCard2);
+    };
+  }, []);
 
-    function tick(now: number) {
-      const elapsed = now - startTime;
-      const cyclePos = elapsed % (scanCycleMs * 2);
-      const progress = cyclePos <= scanCycleMs ? cyclePos / scanCycleMs : 2 - cyclePos / scanCycleMs;
-      const sweepX = 0.5 - 0.5 * Math.cos(progress * Math.PI);
-      const angleDeg = 38 + sweepX * -76;
-      const scaleX = 1 + 0.12 * Math.sin(progress * Math.PI);
-      const opacity = 0.9 + 0.1 * Math.sin(progress * Math.PI);
-
-      for (const beamRef of [leftBeamRef, rightBeamRef]) {
-        if (beamRef.current) {
-          beamRef.current.style.transform = `rotate(${angleDeg}deg) scaleX(${scaleX})`;
-          beamRef.current.style.opacity = String(opacity);
-        }
-      }
-
-      const textCyclePos = elapsed % (textScanCycleMs * 2);
-      const textProgress = textCyclePos <= textScanCycleMs
-        ? textCyclePos / textScanCycleMs
-        : 2 - textCyclePos / textScanCycleMs;
-      const textSweepX = 0.5 - 0.5 * Math.cos(textProgress * Math.PI);
-      const title = scanTitleRef.current;
-      if (title) {
-        const titleWidth = title.getBoundingClientRect().width;
-        title.style.backgroundPosition = `${textSweepX * titleWidth - titleWidth * 1.5}px 0`;
-      }
-
-      rafId = requestAnimationFrame(tick);
-    }
-
-    rafId = requestAnimationFrame(tick);
-    return () => cancelAnimationFrame(rafId);
-  }, [scanCycleMs]);
+  // 최소 6.5초(카드1 3초 + 전환 0.5초 + 카드2 3초) 노출을 보장한 뒤 완료 처리
+  useEffect(() => {
+    const timer = window.setTimeout(onComplete, TOTAL_LOADING_MS);
+    return () => window.clearTimeout(timer);
+  }, [onComplete]);
 
   return (
-    <div className="toss-loading-box" role="status">
-      <div
-        className="laser-bear-wrap-clean"
-        role="img"
-        aria-label="입체 곰돌이 눈에서 빔을 쏘며 스캔 중"
-        style={{ "--laser-scan-duration": `${scanCycleMs}ms` } as CSSProperties}
-      >
-        <span className="laser-bear-shadow" aria-hidden="true" />
-        <div className="laser-bear-face" aria-hidden="true">
-          <img src="/icons/adcheck_icon.png" alt="" className="laser-bear-logo-img" />
-          <span className="laser-eye laser-eye-left">
-            <span className="laser-eye-dot" />
-            <span className="laser-beam" ref={leftBeamRef} />
-          </span>
-          <span className="laser-eye laser-eye-right">
-            <span className="laser-eye-dot" />
-            <span className="laser-beam" ref={rightBeamRef} />
-          </span>
+    <div className="analyzing-tip-card">
+      {isSliding ? (
+        <>
+          {/* 현재 카드: 왼쪽으로 스르륵 퇴장 */}
+          <div className="analyzing-card-slot card-slide-exit">
+            <CardContent tip={tips[activeCard]} />
+          </div>
+          {/* 다음 카드: 오른쪽에서 부드럽게 등장 */}
+          <div className="analyzing-card-slot card-slide-enter">
+            <CardContent tip={tips[activeCard === 0 ? 1 : 0]} />
+          </div>
+        </>
+      ) : (
+        <div className="analyzing-card-slot">
+          <CardContent tip={tips[activeCard]} />
         </div>
-      </div>
-      <h3 className="loading-title loading-title-scan" ref={scanTitleRef}>
-        광고 문구를 꼼꼼히 스캔 중이에요
-      </h3>
-      <p className="loading-sub">식약처 공식 고시 기준과 대조하고 있어요</p>
+      )}
     </div>
   );
 }

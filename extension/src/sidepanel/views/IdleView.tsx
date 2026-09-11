@@ -1,3 +1,5 @@
+//"이 상품 광고 믿고 사도 될까요?" 버튼 있는 첫 화면
+
 interface Props {
   variant?: "IDLE" | "ERROR" | "UNSUPPORTED";
   onAnalyze: () => void;
