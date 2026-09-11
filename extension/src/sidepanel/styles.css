@@ -1000,96 +1000,62 @@ body {
   100% { left: 130%; }
 }
 
-/* 2. WarningAnimation: 문서 위에 통! 튕기며 찍히는 코랄 스탬프 */
-.doc-paper {
-  width: 70px;
-  padding: 12px 10px;
-  background: #FFFFFF;
-  border: 1px solid #E2E8F0;
-  border-radius: 12px;
-  box-shadow: 0 4px 10px rgba(15, 23, 42, 0.06);
-  display: flex;
-  flex-direction: column;
-  gap: 7px;
-}
-.doc-line { height: 6px; border-radius: 3px; background: #E2E8F0; }
-.doc-line.l-long { width: 100%; }
-.doc-line.l-mid { width: 70%; }
-.doc-line.l-short { width: 45%; }
-.stamp-badge {
-  position: absolute;
-  top: -8px;
-  right: -10px;
-  width: 36px;
-  height: 36px;
-  border-radius: 50%;
-  background: linear-gradient(135deg, #FB7185 0%, #F43F5E 100%);
-  color: #FFFFFF;
-  font-size: 19px;
-  font-weight: 800;
+/* 2. WarningAnimation: 3D 렌더링 문서+경고(X) 스탬프 이미지가 둥둥 뜬 채 살짝 갸우뚱 */
+.warning-3d-stage {
+  position: relative;
+  width: 84px;
+  height: 84px;
   display: flex;
   align-items: center;
   justify-content: center;
-  box-shadow: 0 4px 10px rgba(244, 63, 94, 0.35);
-  animation: stampBounce 2.4s cubic-bezier(0.34, 1.56, 0.64, 1) infinite;
 }
-@keyframes stampBounce {
-  0% { transform: rotate(-14deg) scale(0); opacity: 0; }
-  20% { transform: rotate(-14deg) scale(1.15); opacity: 1; }
-  30% { transform: rotate(-14deg) scale(1); }
-  78% { transform: rotate(-14deg) scale(1); opacity: 1; }
-  92% { opacity: 0; }
-  100% { transform: rotate(-14deg) scale(0); opacity: 0; }
+.warning-3d-img {
+  display: block;
+  filter: drop-shadow(0 8px 16px rgba(244, 63, 94, 0.35));
+  animation: warning3DFloat 2.8s ease-in-out infinite;
+}
+.warning-3d-shadow {
+  position: absolute;
+  bottom: 4px;
+  width: 42px;
+  height: 9px;
+  background: radial-gradient(ellipse, rgba(15, 23, 42, 0.2) 0%, transparent 70%);
+  border-radius: 50%;
+  filter: blur(3px);
+  animation: shadow3DBreathe 2.8s ease-in-out infinite;
+}
+@keyframes warning3DFloat {
+  0%, 100% { transform: translateY(0) rotate(0deg); }
+  50% { transform: translateY(-7px) rotate(-4deg); }
 }
 
-/* 3. ReviewAnimation: 별점 리뷰 말풍선 + 콩닥이는 주의 뱃지 */
-.review-bubble {
-  width: 80px;
-  padding: 10px 12px;
-  background: #FFFFFF;
-  border: 1px solid #E2E8F0;
-  border-radius: 14px 14px 14px 5px;
-  box-shadow: 0 4px 10px rgba(15, 23, 42, 0.06);
-  display: flex;
-  flex-direction: column;
-  gap: 7px;
-  animation: reviewPop 2.6s ease-in-out infinite;
-}
-.star-row { display: flex; gap: 2px; color: #F59E0B; font-size: 12px; }
-.star-row span { animation: starTwinkle 1.8s ease-in-out infinite; }
-.star-row span:nth-child(2) { animation-delay: 0.1s; }
-.star-row span:nth-child(3) { animation-delay: 0.2s; }
-.star-row span:nth-child(4) { animation-delay: 0.3s; }
-.star-row span:nth-child(5) { animation-delay: 0.4s; }
-.quote-line { height: 6px; width: 80%; border-radius: 3px; background: #E2E8F0; }
-.review-badge-warn {
-  position: absolute;
-  bottom: -5px;
-  right: 5px;
-  width: 26px;
-  height: 26px;
-  border-radius: 50%;
-  background: linear-gradient(135deg, #FBBF24 0%, #F59E0B 100%);
-  color: #FFFFFF;
-  font-size: 15px;
-  font-weight: 800;
+/* 3. ReviewAnimation: 3D 렌더링 별점 리뷰 말풍선 + 주의 뱃지 이미지가 둥둥 유영 */
+.review-3d-stage {
+  position: relative;
+  width: 88px;
+  height: 88px;
   display: flex;
   align-items: center;
   justify-content: center;
-  box-shadow: 0 3px 8px rgba(245, 158, 11, 0.35);
-  animation: warnBadgeThrob 1.3s ease-in-out infinite;
 }
-@keyframes reviewPop {
-  0%, 100% { transform: translateY(0); }
-  50% { transform: translateY(-3px); }
+.review-3d-img {
+  display: block;
+  filter: drop-shadow(0 8px 16px rgba(245, 158, 11, 0.35));
+  animation: review3DFloat 2.8s ease-in-out infinite;
 }
-@keyframes starTwinkle {
-  0%, 100% { opacity: 0.4; }
-  50% { opacity: 1; }
+.review-3d-shadow {
+  position: absolute;
+  bottom: 2px;
+  width: 46px;
+  height: 9px;
+  background: radial-gradient(ellipse, rgba(15, 23, 42, 0.2) 0%, transparent 70%);
+  border-radius: 50%;
+  filter: blur(3px);
+  animation: shadow3DBreathe 2.8s ease-in-out infinite;
 }
-@keyframes warnBadgeThrob {
-  0%, 100% { transform: scale(1); }
-  50% { transform: scale(1.18); }
+@keyframes review3DFloat {
+  0%, 100% { transform: translateY(0) rotate(0deg); }
+  50% { transform: translateY(-6px) rotate(3deg); }
 }
 
 /* ========================================================
@@ -1122,10 +1088,10 @@ body {
   .dial-backlight-glow,
   .health-mark-badge,
   .health-mark-shimmer,
-  .stamp-badge,
-  .review-bubble,
-  .star-row span,
-  .review-badge-warn,
+  .warning-3d-img,
+  .warning-3d-shadow,
+  .review-3d-img,
+  .review-3d-shadow,
   .pill-3d-img,
   .pill-3d-shadow {
     animation: none;
