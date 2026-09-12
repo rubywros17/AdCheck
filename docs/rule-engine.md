@@ -23,7 +23,7 @@ pg_ctl -D /opt/homebrew/var/postgresql@17 -l /private/tmp/adcheck-postgresql.log
 psql -X -h localhost -U "$USER" -d postgres
 ```
 
-관리자 이름은 설치마다 다르다. 이번 Homebrew 신규 설치의 관리자는 OS 사용자이며 로컬 인증은 기본 `trust`였다. 따라서 이번 접속 성공은 비밀번호 인증 검증을 의미하지 않는다. 기존 인증 설정을 변경하지 않았다.
+관리자 이름은 설치마다 다르다. 이번 Homebrew 신규 설치의 관리자는 OS 사용자이며 로컬 인증은 기본 `trust`였다. 따라서 이번 접속 성공은 비밀번호 인증 검증을 의미하지 않는다. 기존 인증 설정을 변경하지 않았다. 현재 로컬 `trust` 환경에서는 비밀번호 설정이 실행의 필수 조건이 아니며, `export DB_PASSWORD=''`로 빈 값을 지정해도 접속된다. 실제 Spring Boot PostgreSQL 테스트에서도 빈 비밀번호 접속을 확인했다. 공유/운영 환경에는 해당 환경의 인증 방식을 따른다.
 
 psql에서 먼저 존재 여부를 확인한다:
 
@@ -67,17 +67,17 @@ psql -X -h localhost -U adcheck_service -d adcheck \
 
 ## 서비스 입력과 Backend 통합 지점
 
-기존 코드에 독립 `Claim`/`RiskSignalCandidates` DTO는 없다. `ClaimAnalysisResult`는 기존 분석기의 Finding 반환 타입이므로 재사용하지 않았다. Rule Engine 경계에 한 Claim과 후보 ruleCode 집합을 정의했고, Official Function은 기존 `OfficialFunctionReadModel`을 재사용했다.
+`RuleAnalysisRequest`가 매뉴얼의 RuleEvaluationContext 역할을 한다. Claim, `List<RiskSignalContext>`, 확정 IngredientMaster ID 집합, OfficialFunctions를 받는다. `rule.model.RuleOfficialFunctionContext`와 `RiskSignalContext`는 엔진 전용 계약이며 Backend 조회 DTO나 AI 응답 DTO를 import하지 않는다. 기존 `ClaimAnalysisResult`는 Finding 반환 타입이므로 사용하지 않는다. 패키지와 DTO 이름은 기존 관례를 유지하되 책임은 매뉴얼처럼 분리했다.
 
 ```java
 var request = new RuleAnalysisRequest(
     new RuleAnalysisRequest.Claim(
         "claim-42",
-        "이 제품을 섭취하면 누구나 피로 개선 효과를 100% 얻습니다.",
-        RuleAnalysisRequest.Context.PRODUCT_COPY,
-        "page-evidence-7#copy: 전체 문장과 주변 문맥을 확인한 근거 위치"
+        "100% 효과를 보장합니다",
+        RuleAnalysisRequest.Context.PRODUCT_HEALTH_EFFECT_COPY,
+        "page-evidence-7#copy: 전체 문장·주변 문맥에서 제품 건강 효과 보장임을 확인"
     ),
-    Set.of("C07_ABSOLUTE_EFFECT"), // 후보일 뿐 최종 판단이 아님
+    List.of(new RiskSignalContext("ABSOLUTE_EFFECT", "100% 효과")), // 후보일 뿐 최종 판단이 아님
     Set.of(),                    // Backend가 확정한 IngredientMaster ID만 전달
     null                         // 공식 기능성이 미확인되면 null 가능
 );
@@ -89,27 +89,34 @@ RuleAnalysisResult result = ruleAnalysisService.analyze(request);
 ```java
 var functions = officialFunctionQueryService.findAllByIngredientMasterIds(confirmedIds);
 var official = new RuleAnalysisRequest.OfficialFunctions(
-    functions,
+    functions.stream().map(f -> new RuleOfficialFunctionContext(
+        f.ingredientMasterId(), f.canonicalName(), f.officialFunctionText(),
+        f.sourceType() == null ? null : f.sourceType().name(), f.recognitionNo()
+    )).toList(),
     productApplicabilityVerified, // 함량·일일섭취량·제품별 인정문구 적용을 별도로 확인했는가
     allMainIngredientsCovered     // 다른 주원료까지 빠짐없이 확인했는가
 );
-var request = new RuleAnalysisRequest(claim, candidateRuleCodes, Set.copyOf(confirmedIds), official);
+var request = new RuleAnalysisRequest(claim, riskSignals, Set.copyOf(confirmedIds), official);
 var result = ruleAnalysisService.analyze(request);
 ```
 
+위 변환 코드는 Backend Orchestrator에 두며 Rule Engine 내부에서 공식 조회 서비스를 호출하지 않는다. `RuleOfficialFunctionContext`의 sourceType은 원본 enum 이름을 문자열로 보존한다.
+
+Risk Signal은 `{signalType, text}`로 전달한다. `signalType`이 Rule의 `judgmentCategory`와 같으면 candidatePresent=true다. 매뉴얼 예시의 `TIME_GUARANTEE`는 `RESULT_TIME_AMOUNT`에 대응한다. 알 수 없는 signalType과 원본 text도 결과 최상위 `riskSignals` 목록에 보존한다. signalType/text를 위반 판정이나 Rule 선택 필터로 사용하지 않는다. 구버전의 ruleCode 집합 입력은 이 목록으로 바꿔야 한다.
+
 두 boolean은 공식 원문 조회 성공만으로 `true`로 설정하면 안 된다. 현재 공식 기능성 조회 계층은 제품별 적용 조건 검증을 제공하지 않는다. 해당 확인은 Backend 통합 담당자의 별도 책임이며, 미확인 기본값은 `false`다. canonical 세 CSV는 제품/기능성 원문 테이블을 적재하지 않으므로 그것만으로 C05 비교 입력이 완성되지 않는다.
 
-`Claim.context`는 후보 신호와 독립적으로 주변 광고·인용·제품 귀속을 확인한 값이다. `PRODUCT_COPY`는 추출 조각이 아닌 **해당 Claim의 전체 독립 제품 문장**을 확인했을 때만 사용한다. `NON_PRODUCT_INFORMATION`은 제품 효과에 연결되지 않는 독립 정보임을 확인한 경우다. 모르면 `UNKNOWN`을 사용하며, 근거 위치/설명인 `contextEvidence`가 없으면 자동 판단하지 않는다. 엔진은 이 확인을 직접 수행하거나 증빙의 진위를 검증하지 않는다.
+`Claim.context`는 후보 신호와 독립적으로 주변 광고·인용·제품 귀속을 확인한 값이다. `PRODUCT_COPY`는 추출 조각이 아닌 **해당 Claim의 전체 독립 제품 문장**을 확인했을 때만 사용한다. `PRODUCT_HEALTH_EFFECT_COPY`는 여기에 더해 문장의 “효과”가 배송/편의성 등이 아닌 **제품 건강 효과**임을 주변 자료에서 확인한 경우다. 매뉴얼의 짧은 “100% 효과를 보장합니다”는 이 문맥이 있어야 MATCHED가 된다. 후보 신호만으로 이 값을 설정하지 않는다. `NON_PRODUCT_INFORMATION`은 제품 효과에 연결되지 않는 독립 정보임을 확인한 경우다. 모르면 `UNKNOWN`을 사용하며, 근거 위치/설명인 `contextEvidence`가 없으면 자동 판단하지 않는다. 엔진은 이 확인을 직접 수행하거나 증빙의 진위를 검증하지 않는다.
 
-null 후보·원료 집합은 빈 집합, null 공식 기능성은 미확인으로 취급한다. Claim ID 누락·0 이하 원료 ID·null 집합 원소 등 호출 계약 오류는 예외다. Claim 원문/문맥/기능성 부족은 `REVIEW_REQUIRED`다. 원료 ID의 실재·식별 정확성은 Backend 책임이며, 엔진은 이름 추정이나 fuzzy matching을 하지 않는다.
+null 후보 목록·원료 집합은 각각 빈 목록·집합, null 공식 기능성은 미확인으로 취급한다. Claim ID 누락·0 이하 원료 ID·null 집합 원소 등 호출 계약 오류는 예외다. Claim 원문/문맥/기능성 부족은 `REVIEW_REQUIRED`다. 원료 ID의 실재·식별 정확성은 Backend 책임이며, 엔진은 이름 추정이나 fuzzy matching을 하지 않는다.
 
 ## 선택·조회·출력
 
 - `RuleSelector`: COMMON 조회 + `RuleIngredient.ingredientMaster.id` 관계로 INGREDIENT_SPECIFIC 조회. Rule ID로 중복 제거하고 ruleCode 순으로 반환한다.
 - `RuleEvaluatorRegistry`: evaluator의 실제 canonical ruleCode 등록. 중복 등록은 시작 실패, 미지원 Rule은 `REVIEW_REQUIRED`.
 - `CommonRuleEvaluator`: 아래의 한정된 문장 평가. 검토한 0.1 버전·scope·application_conditions·exceptions·required_evidence와 DB가 다르면 `RULE_DEFINITION_CHANGED`.
-- `RuleSourceResolver`: `RuleSource → ReferenceSource` fetch join 일괄 조회. COMMON만 있으면 2회, 원료가 있으면 3회 SELECT로 처리한다.
-- `RuleAnalysisService`: 전체 조회/DTO 변환을 `@Transactional(readOnly=true)` 안에서 수행한다. JPA 엔티티/lazy proxy는 반환하지 않는다. 결과 저장은 하지 않는다.
+- `RuleSourceResolver`: `RuleSource → ReferenceSource` fetch join 일괄 조회. 평가 후 MATCHED/REVIEW_REQUIRED만 한 번 조회한다. 최대 SELECT 수는 COMMON만 있으면 2회, 원료가 있으면 3회이며, 전부 NOT_MATCHED라면 출처 쿼리를 생략한다.
+- `RuleAnalysisService`: 모든 Rule을 먼저 한 번씩 평가한 뒤 출처가 필요한 Rule ID를 모은다. 전체 조회/DTO 변환을 `@Transactional(readOnly=true)` 안에서 수행한다. JPA 엔티티/lazy proxy는 반환하지 않는다. 결과 저장은 하지 않는다.
 
 결과는 Claim ID, 모든 선택 Rule의 ID/code/version/scope/category/severity/reviewStatus, candidatePresent, status/reasonCode/reason, 출처 목록과 진단 목록을 포함한다. 후보가 없는 Rule도 평가하며 후보가 없는 사실을 NOT_MATCHED의 근거로 사용하지 않는다.
 
@@ -131,7 +138,7 @@ match.diagnostics: [DRAFT_RULE]
 result.diagnostics: [INGREDIENT_SPECIFIC_NOT_EVALUATED]
 ```
 
-출처는 `referenceSourceId`, `sourceId`, `title`, `sourceType`, `issuer`, `sourceUrl`, `documentVersion`, `verificationStatus`, `section`, `printedPage`, `pdfPage`를 DB 그대로 보존한다. null URL이나 페이지를 생성하지 않고, 페이지 범위 문자열을 정수로 변환하지 않는다. 출처가 없으면 `sources=[]`, 해당 Rule에 `SOURCE_MISSING`을 명시한다. 평가 status와 출처 완전성은 독립이므로 소비자는 두 필드를 함께 확인해야 한다.
+출처는 `referenceSourceId`, `sourceId`, `title`, `sourceType`, `issuer`, `sourceUrl`, `documentVersion`, `verificationStatus`, `section`, `printedPage`, `pdfPage`를 DB 그대로 보존한다. null URL이나 페이지를 생성하지 않고, 페이지 범위 문자열을 정수로 변환하지 않는다. MATCHED/REVIEW_REQUIRED의 출처가 없으면 `sources=[]`, 해당 Rule에 `SOURCE_MISSING`을 명시한다. NOT_MATCHED는 평가 결과 목록에 남기지만 출처는 조회하지 않고 `sources=[]`로 반환하며, SOURCE_MISSING을 붙이지 않는다. 평가 status와 출처 완전성은 독립이므로 소비자는 두 필드를 함께 확인해야 한다.
 
 확정 원료가 없으면 COMMON 평가를 계속하고 `INGREDIENT_SPECIFIC_NOT_EVALUATED`를 반환한다. 원료별 Rule은 현재 모두 미지원 평가로 반환된다. canonical Rule은 현재 전부 DRAFT이며 `DRAFT_RULE`과 DB reviewStatus를 노출한다. MATCHED는 지원 조건 충족이라는 엔진 결과이며 최종 법적 위반이나 전체 광고 적합 여부를 의미하지 않는다.
 
@@ -141,7 +148,7 @@ result.diagnostics: [INGREDIENT_SPECIFIC_NOT_EVALUATED]
 
 | Rule | MATCHED | NOT_MATCHED | 자동 판단하지 않는 범위 |
 | --- | --- | --- | --- |
-| C07_ABSOLUTE_EFFECT | `이 제품을 섭취하면 누구나 {피로 개선/체지방 감소/기억력 개선} 효과를 {100%/반드시} 얻습니다` | `이 제품은 {동일 효과} 효과를 보장하지 않습니다`; `원료 함량은 100%입니다`; `영양성분 기준치는 100%입니다` | 암시, 배송·복합 수식, 다른 효과·동의어·개인차 문맥 |
+| C07_ABSOLUTE_EFFECT | `100% 효과를 보장합니다` (PRODUCT_HEALTH_EFFECT_COPY 필요); `이 제품을 섭취하면 누구나 {피로 개선/체지방 감소/기억력 개선} 효과를 {100%/반드시} 얻습니다` | `이 제품은 {동일 효과} 효과를 보장하지 않습니다`; `원료 함량은 100%입니다`; `영양성분 기준치는 100%입니다`; `원료 100% 사용`; `100% 효과를 보장하지 않습니다` | 암시, 배송·복합 수식, 다른 효과·동의어·개인차 문맥 |
 | C24_OVERCONSUMPTION | `{균형 잡힌 식사 대신/매일 식사 대신} 이 제품만 {드세요/섭취하세요}` | `이 제품은 균형 잡힌 식사를 대체할 수 없습니다`; `이 제품의 1일 섭취량에는 {비타민 C가/칼슘이/아연이} {숫자} mg 들어 있습니다` | 권장량 초과, 잘못된 식습관 유지, 다른 대체 문구, 실제 함량 진위 |
 | C05_FUNCTION_EXCEED | 현재 없음 | 제품 적용·모든 주원료 확인이 완료되고, 전체 Claim이 해당 원료 중 하나의 공식 기능성 원문과 공백 정규화 후 정확히 일치 | 표현이 다를 때 대상·작용·결과·조건 의미 비교; 더 강하거나 다른 효능 자동 판정 |
 
@@ -203,6 +210,16 @@ unset ADCHECK_POSTGRES_TEST
 - 실제 DB의 C07/C24 MATCHED, C24 부정문 NOT_MATCHED, C05 근거 부족 REVIEW_REQUIRED, 원료 연결 선택과 미지원 원료별 Rule REVIEW_REQUIRED, COMMON 30개 및 연결 출처의 모든 반환 metadata 일치를 검증했다. PostgreSQL 테스트는 SELECT-only/read-only 연결에서 실행했다.
 - DB 장애/프로그래밍 오류 전파, 출처 null/누락, 복수 연결 중복 제거 및 3회 일괄 SELECT는 단위/H2에서 검증했다. 실제 PostgreSQL 데이터에는 없는 출처 누락 fixture를 DB에 삽입하지 않았다.
 - 비밀번호는 저장소 밖의 로컬 입력 파일과 프로세스 환경에만 사용했고 코드/문서/커밋에 포함하지 않았다.
+
+## 매뉴얼 정합성 보완 (2026-09-12)
+
+- 전용 Official Function Context로 Backend DTO 의존성을 제거하고, `{signalType, text}` 후보 입력과 원본 보존을 추가했다. Backend 측 변환 예시는 위와 같다.
+- 모든 Rule을 평가한 후 MATCHED/REVIEW_REQUIRED에 대해서만 출처를 일괄 조회한다. NOT_MATCHED와 출처 누락 진단을 구분한다.
+- CASE 1의 짧은 보장 문구는 건강 효과 문맥을 확인한 경우 MATCHED, CASE 2의 원료 100% 문구는 NOT_MATCHED다. 미확인 문맥·인용·부정·배송 표현 회귀를 추가했다.
+- CASE 3~8은 근거 부족, 후보 없이 직접 검사, 확정 원료 관계, 복수 결과, 실제 출처, 일괄 SELECT 테스트로 검증한다.
+- 최종 전체 실행: **93개 통과, 실패/오류/skip 0개** (기존 38개 + Rule Engine 단위 45개 + 별도 H2 5개 + 실제 PostgreSQL 5개). PostgreSQL을 켠 통합 실행에서도 H2/실제 DB 프로필이 격리된다.
+- 실제 PostgreSQL 테스트는 기존 canonical 데이터에 대해 read-only로 실행했고, 건수 607/15/71/41/97, scope 30/41, 출처·원료 연결 누락 및 FK orphan 0건을 재확인했다. DB 재적재나 schema 변경은 없다.
+- 현재 localhost trust 인증에서 `DB_PASSWORD=''`로 위 전체 실행을 통과했다. 기존 Role 비밀번호와 인증 설정은 변경하지 않았다.
 
 ## 남은 한계
 

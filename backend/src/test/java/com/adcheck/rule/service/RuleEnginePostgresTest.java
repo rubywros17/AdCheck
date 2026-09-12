@@ -79,7 +79,7 @@ class RuleEnginePostgresTest {
         var ids = new HashSet<>(jdbc.queryForList("select distinct ingredient_master_id from rule_ingredients order by ingredient_master_id limit 2", Long.class));
         assertThat(ids).hasSize(2);
         var base = CommonRuleEvaluatorTest.request("매일 식사 대신 이 제품만 드세요.");
-        var result = service.analyze(new RuleAnalysisRequest(base.claim(), Set.of(), ids, null));
+        var result = service.analyze(new RuleAnalysisRequest(base.claim(), List.of(), ids, null));
         var expected = new HashSet<>(jdbc.queryForList("select id from rules where scope_type='COMMON'", Long.class));
         for (Long id : ids) {
             expected.addAll(jdbc.queryForList("select rule_id from rule_ingredients where ingredient_master_id=?", Long.class, id));
@@ -100,6 +100,24 @@ class RuleEnginePostgresTest {
         assertThat(result.matches().stream().filter(m -> m.ruleCode().equals("C05_FUNCTION_EXCEED")))
                 .singleElement().satisfies(m -> assertThat(m.evaluation().reasonCode())
                         .isEqualTo(RuleEvaluation.ReasonCode.OFFICIAL_FUNCTION_DATA_INCOMPLETE));
+    }
+
+    @Test
+    void manualExamplesUseRealRulesAndOnlyRelevantSources() {
+        var matched = service.analyze(CommonRuleEvaluatorTest.healthRequest("100% 효과를 보장합니다"));
+        assertThat(matched.matches().stream().filter(m -> m.ruleCode().equals("C07_ABSOLUTE_EFFECT")))
+                .singleElement().satisfies(m -> {
+                    assertThat(m.evaluation().status()).isEqualTo(RuleEvaluation.Status.MATCHED);
+                    assertThat(m.candidatePresent()).isFalse();
+                    assertThat(m.sources()).hasSize(3);
+                });
+        var exception = service.analyze(CommonRuleEvaluatorTest.request("원료 100% 사용"));
+        assertThat(exception.matches().stream().filter(m -> m.ruleCode().equals("C07_ABSOLUTE_EFFECT")))
+                .singleElement().satisfies(m -> {
+                    assertThat(m.evaluation().status()).isEqualTo(RuleEvaluation.Status.NOT_MATCHED);
+                    assertThat(m.sources()).isEmpty();
+                    assertThat(m.diagnostics()).doesNotContain(RuleAnalysisResult.Diagnostic.SOURCE_MISSING);
+                });
     }
 
     private int count(String sql) { return jdbc.queryForObject(sql, Integer.class); }

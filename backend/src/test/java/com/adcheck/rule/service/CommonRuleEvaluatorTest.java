@@ -1,6 +1,7 @@
 package com.adcheck.rule.service;
 
-import com.adcheck.product.service.OfficialFunctionReadModel;
+import com.adcheck.rule.model.RuleOfficialFunctionContext;
+import com.adcheck.rule.model.RiskSignalContext;
 import java.util.List;
 import java.util.Set;
 import org.junit.jupiter.api.Test;
@@ -19,7 +20,7 @@ class CommonRuleEvaluatorTest {
 
     static RuleAnalysisRequest request(String text) {
         return new RuleAnalysisRequest(new Claim("claim-1", text, PRODUCT_COPY, "page-1#copy: surrounding context checked"),
-                Set.of(), Set.of(), null);
+                List.of(), Set.of(), null);
     }
 
     @ParameterizedTest
@@ -50,10 +51,49 @@ class CommonRuleEvaluatorTest {
                 .isEqualTo(REVIEW_REQUIRED);
     }
 
+    static RuleAnalysisRequest healthRequest(String text) {
+        return new RuleAnalysisRequest(new Claim("claim-1", text, PRODUCT_HEALTH_EFFECT_COPY,
+                "page-1: health effect target and surrounding context verified"), List.of(), Set.of(), null);
+    }
+
+    @Test
+    void manualGuaranteeMatchesWithoutRiskSignalWithHealthContext() {
+        assertThat(evaluator.evaluate(CanonicalRuleFixture.rule("C07_ABSOLUTE_EFFECT"),
+                healthRequest("100% 효과를 보장합니다")).status()).isEqualTo(MATCHED);
+    }
+
+    @Test
+    void manualIngredientExceptionDoesNotClaimGuaranteedEffect() {
+        assertThat(evaluator.evaluate(CanonicalRuleFixture.rule("C07_ABSOLUTE_EFFECT"),
+                request("원료 100% 사용")).status()).isEqualTo(NOT_MATCHED);
+    }
+
+    @Test
+    void unspecifiedEffectRequiresHealthContextEvenWithCandidate() {
+        var input = new RuleAnalysisRequest(request("100% 효과를 보장합니다").claim(),
+                List.of(new RiskSignalContext("ABSOLUTE_EFFECT", "100% 효과")), Set.of(), null);
+        assertThat(evaluator.evaluate(CanonicalRuleFixture.rule("C07_ABSOLUTE_EFFECT"), input).status())
+                .isEqualTo(REVIEW_REQUIRED);
+    }
+
+    @ParameterizedTest
+    @ValueSource(strings = {"100% 효과를 보장합니다라는 말은 사실이 아닙니다", "100% 효과를 보장합니다. 개인차가 있습니다",
+            "‘100% 효과를 보장합니다’라는 광고를 주의하세요", "100% 배송 효과를 보장합니다"})
+    void shortGuaranteeDoesNotIgnoreNegationQuotationOrNonHealthTarget(String text) {
+        assertThat(evaluator.evaluate(CanonicalRuleFixture.rule("C07_ABSOLUTE_EFFECT"), healthRequest(text)).status())
+                .isEqualTo(REVIEW_REQUIRED);
+    }
+
+    @Test
+    void shortGuaranteeNegationIsNotMatched() {
+        assertThat(evaluator.evaluate(CanonicalRuleFixture.rule("C07_ABSOLUTE_EFFECT"),
+                healthRequest("100% 효과를 보장하지 않습니다")).status()).isEqualTo(NOT_MATCHED);
+    }
+
     @Test
     void riskCandidateAloneDoesNotEstablishContextOrViolation() {
         var input = new RuleAnalysisRequest(new Claim("1", "100% 효과", UNKNOWN, null),
-                Set.of("C07_ABSOLUTE_EFFECT"), Set.of(), null);
+                List.of(new RiskSignalContext("ABSOLUTE_EFFECT", "100% 효과")), Set.of(), null);
         assertThat(evaluator.evaluate(CanonicalRuleFixture.rule("C07_ABSOLUTE_EFFECT"), input).reasonCode())
                 .isEqualTo(CONTEXT_UNVERIFIED);
     }
@@ -119,13 +159,13 @@ class CommonRuleEvaluatorTest {
         }
     }
 
-    private static OfficialFunctionReadModel function(Long id, String text) {
-        return new OfficialFunctionReadModel(id, "테스트 원료", text, OfficialFunctionReadModel.SourceType.NOTIFIED, null, "fixture");
+    private static RuleOfficialFunctionContext function(Long id, String text) {
+        return new RuleOfficialFunctionContext(id, "테스트 원료", text, "NOTIFIED", null);
     }
 
     private static RuleAnalysisRequest officialRequest(String text, Set<Long> ids,
-            List<OfficialFunctionReadModel> values, boolean applicable, boolean complete) {
-        return new RuleAnalysisRequest(request(text).claim(), Set.of(), ids, new OfficialFunctions(values, applicable, complete));
+            List<RuleOfficialFunctionContext> values, boolean applicable, boolean complete) {
+        return new RuleAnalysisRequest(request(text).claim(), List.of(), ids, new OfficialFunctions(values, applicable, complete));
     }
 
     @Test

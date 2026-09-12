@@ -28,6 +28,9 @@ public class CommonRuleEvaluator implements RuleEvaluator {
 
     private static final Pattern GUARANTEE = Pattern.compile(
             "이 제품을 섭취하면 누구나 (피로 개선|체지방 감소|기억력 개선) 효과를 (100%|반드시) 얻습니다[.!]?");
+    private static final Pattern SHORT_GUARANTEE = Pattern.compile("100% 효과를 보장합니다[.!]?");
+    private static final Pattern INGREDIENT_ONLY = Pattern.compile("원료 100% 사용[.!]?");
+    private static final Pattern NO_SHORT_GUARANTEE = Pattern.compile("100% 효과를 보장하지 않습니다[.!]?");
     private static final Pattern NO_GUARANTEE = Pattern.compile(
             "이 제품은 (피로 개선|체지방 감소|기억력 개선) 효과를 보장하지 않습니다[.!]?");
     private static final Pattern NON_HEALTH_PERCENT = Pattern.compile(
@@ -61,18 +64,25 @@ public class CommonRuleEvaluator implements RuleEvaluator {
         }
         String text = normalize(claim.text());
         return switch (rule.getRuleCode()) {
-            case "C07_ABSOLUTE_EFFECT" -> evaluateGuarantee(text);
+            case "C07_ABSOLUTE_EFFECT" -> evaluateGuarantee(text, claim.context());
             case "C24_OVERCONSUMPTION" -> evaluateConsumption(text);
             case "C05_FUNCTION_EXCEED" -> evaluateOfficialFunction(text, request);
             default -> throw new IllegalStateException("Registered rule has no evaluator implementation");
         };
     }
 
-    private RuleEvaluation evaluateGuarantee(String text) {
-        if (NO_GUARANTEE.matcher(text).matches()) {
+    private RuleEvaluation evaluateGuarantee(String text, RuleAnalysisRequest.Context context) {
+        if (SHORT_GUARANTEE.matcher(text).matches()) {
+            if (context != PRODUCT_HEALTH_EFFECT_COPY) {
+                return review(CONTEXT_UNVERIFIED, "효과의 대상이 제품의 건강 효과인지 추가 확인이 필요합니다.");
+            }
+            return new RuleEvaluation(MATCHED, SUPPORTED_CONDITION_CONFIRMED,
+                    "주변 문맥에서 제품의 건강 효과임이 확인되었고 전체 문장이 100% 효과를 보장합니다.");
+        }
+        if (NO_GUARANTEE.matcher(text).matches() || NO_SHORT_GUARANTEE.matcher(text).matches()) {
             return new RuleEvaluation(NOT_MATCHED, EXCEPTION_CONFIRMED, "건강 효과 보장을 명시적으로 부정합니다.");
         }
-        if (NON_HEALTH_PERCENT.matcher(text).matches()) {
+        if (NON_HEALTH_PERCENT.matcher(text).matches() || INGREDIENT_ONLY.matcher(text).matches()) {
             return new RuleEvaluation(NOT_MATCHED, CONDITION_NOT_MET, "100%의 대상은 원료함량 또는 영양성분 기준치입니다.");
         }
         if (GUARANTEE.matcher(text).matches()) {

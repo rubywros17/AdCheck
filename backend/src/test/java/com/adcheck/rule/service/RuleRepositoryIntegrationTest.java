@@ -1,6 +1,7 @@
 package com.adcheck.rule.service;
 
 import java.util.Set;
+import java.util.List;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -70,7 +71,7 @@ class RuleRepositoryIntegrationTest {
     @Test
     void selectedUnsupportedRuleWithNoSourceIsExplicit() {
         var base = CommonRuleEvaluatorTest.request("text");
-        var result = service.analyze(new RuleAnalysisRequest(base.claim(), Set.of("FIXTURE_SHARED"), Set.of(9001L), null));
+        var result = service.analyze(new RuleAnalysisRequest(base.claim(), List.of(new com.adcheck.rule.model.RiskSignalContext("ABSOLUTE_EFFECT", "text")), Set.of(9001L), null));
         var match = result.matches().stream().filter(m -> m.ruleCode().equals("FIXTURE_SHARED")).findFirst().orElseThrow();
         assertThat(match.evaluation().status()).isEqualTo(RuleEvaluation.Status.REVIEW_REQUIRED);
         assertThat(match.candidatePresent()).isTrue();
@@ -82,9 +83,22 @@ class RuleRepositoryIntegrationTest {
         var statistics = entityManagerFactory.unwrap(org.hibernate.SessionFactory.class).getStatistics();
         statistics.clear();
         var base = CommonRuleEvaluatorTest.request("text");
-        var result = service.analyze(new RuleAnalysisRequest(base.claim(), Set.of(), Set.of(9001L, 9002L), null));
+        var result = service.analyze(new RuleAnalysisRequest(base.claim(), List.of(), Set.of(9001L, 9002L), null));
         assertThat(result.matches()).hasSize(2);
         assertThat(statistics.getPrepareStatementCount()).isEqualTo(3);
+    }
+
+    @Test
+    void allNotMatchedUsesOnlyCommonQueryAndNoSourceQuery() {
+        var statistics = entityManagerFactory.unwrap(org.hibernate.SessionFactory.class).getStatistics();
+        statistics.clear();
+        var result = service.analyze(CommonRuleEvaluatorTest.request("원료 100% 사용"));
+        assertThat(result.matches()).singleElement().satisfies(m -> {
+            assertThat(m.evaluation().status()).isEqualTo(RuleEvaluation.Status.NOT_MATCHED);
+            assertThat(m.sources()).isEmpty();
+            assertThat(m.diagnostics()).doesNotContain(RuleAnalysisResult.Diagnostic.SOURCE_MISSING);
+        });
+        assertThat(statistics.getPrepareStatementCount()).isEqualTo(1);
     }
 
     private void insertRule(Long id, String code, String scope) {

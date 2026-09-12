@@ -1,6 +1,7 @@
 package com.adcheck.rule.service;
 
-import com.adcheck.product.service.OfficialFunctionReadModel;
+import com.adcheck.rule.model.RuleOfficialFunctionContext;
+import com.adcheck.rule.model.RiskSignalContext;
 import java.util.List;
 import java.util.Objects;
 import java.util.Set;
@@ -8,13 +9,13 @@ import java.util.Set;
 /** One complete claim, with context established by the caller, not by risk candidates. */
 public record RuleAnalysisRequest(
         Claim claim,
-        Set<String> riskSignalCandidates,
+        List<RiskSignalContext> riskSignals,
         Set<Long> confirmedIngredientMasterIds,
         OfficialFunctions officialFunctions
 ) {
     public RuleAnalysisRequest {
         Objects.requireNonNull(claim, "claim");
-        riskSignalCandidates = riskSignalCandidates == null ? Set.of() : Set.copyOf(riskSignalCandidates);
+        riskSignals = riskSignals == null ? List.of() : List.copyOf(riskSignals);
         confirmedIngredientMasterIds = confirmedIngredientMasterIds == null
                 ? Set.of() : Set.copyOf(confirmedIngredientMasterIds);
         if (confirmedIngredientMasterIds.stream().anyMatch(id -> id <= 0)) {
@@ -34,13 +35,15 @@ public record RuleAnalysisRequest(
     public enum Context {
         /** Caller checked the surrounding advertisement and this is the entire standalone product copy. */
         PRODUCT_COPY,
+        /** Caller additionally verified that an otherwise unspecified effect means a health effect. */
+        PRODUCT_HEALTH_EFFECT_COPY,
         /** Caller verified this is independent information, with no product effect attribution. */
         NON_PRODUCT_INFORMATION,
         UNKNOWN
     }
 
     public record OfficialFunctions(
-            List<OfficialFunctionReadModel> values,
+            List<RuleOfficialFunctionContext> values,
             boolean productApplicabilityVerified,
             boolean allMainIngredientsCovered
     ) {

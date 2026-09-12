@@ -40,6 +40,51 @@ class RuleAnalysisServiceTest {
     }
 
     @Test
+    void onlyMatchedAndReviewRulesAreSentToSourceResolverAfterEvaluation() {
+        var common = CanonicalRuleFixture.rule("C07_ABSOLUTE_EFFECT");
+        var unsupported = CanonicalRuleFixture.rule("C01_DISEASE_PREVENTION");
+        when(rules.findAllByScopeTypeOrderByRuleCodeAsc("COMMON")).thenReturn(List.of(common, unsupported));
+        var result = service.analyze(CommonRuleEvaluatorTest.request("원료 100% 사용"));
+        verify(sources).findAllWithSourceByRuleIds(List.of(unsupported.getId()));
+        assertThat(result.matches()).hasSize(2);
+        var notMatched = result.matches().stream().filter(m -> m.ruleId().equals(common.getId())).findFirst().orElseThrow();
+        assertThat(notMatched.evaluation().status()).isEqualTo(NOT_MATCHED);
+        assertThat(notMatched.sources()).isEmpty();
+        assertThat(notMatched.diagnostics()).doesNotContain(SOURCE_MISSING);
+    }
+
+    @Test
+    void allNotMatchedSkipsSourceDatabaseQuery() {
+        when(rules.findAllByScopeTypeOrderByRuleCodeAsc("COMMON"))
+                .thenReturn(List.of(CanonicalRuleFixture.rule("C07_ABSOLUTE_EFFECT")));
+        service.analyze(CommonRuleEvaluatorTest.request("원료 100% 사용"));
+        verifyNoInteractions(sources);
+    }
+
+    @Test
+    void signalTypeAndTextArePreservedButDoNotLimitSelection() {
+        var common = CanonicalRuleFixture.rule("C07_ABSOLUTE_EFFECT");
+        var time = CanonicalRuleFixture.rule("C08_RESULT_TIME_AMOUNT");
+        when(rules.findAllByScopeTypeOrderByRuleCodeAsc("COMMON")).thenReturn(List.of(common, time));
+        var signals = List.of(new com.adcheck.rule.model.RiskSignalContext("TIME_GUARANTEE", "2주 만에"),
+                new com.adcheck.rule.model.RiskSignalContext("FUTURE_TYPE", "원본 표현"));
+        var base = CommonRuleEvaluatorTest.healthRequest("100% 효과를 보장합니다");
+        var result = service.analyze(new RuleAnalysisRequest(base.claim(), signals, Set.of(), null));
+        assertThat(result.riskSignals()).containsExactlyElementsOf(signals);
+        assertThat(result.matches()).hasSize(2);
+        assertThat(result.matches().stream().filter(m -> m.ruleCode().equals("C07_ABSOLUTE_EFFECT")))
+                .singleElement().satisfies(m -> {
+                    assertThat(m.candidatePresent()).isFalse();
+                    assertThat(m.evaluation().status()).isEqualTo(MATCHED);
+                });
+        assertThat(result.matches().stream().filter(m -> m.ruleCode().equals("C08_RESULT_TIME_AMOUNT")))
+                .singleElement().satisfies(m -> {
+                    assertThat(m.candidatePresent()).isTrue();
+                    assertThat(m.evaluation().status()).isEqualTo(REVIEW_REQUIRED);
+                });
+    }
+
+    @Test
     void removesDuplicatesAcrossIngredientLinks() {
         var common = CanonicalRuleFixture.rule("C07_ABSOLUTE_EFFECT");
         var specific = mock(Rule.class);

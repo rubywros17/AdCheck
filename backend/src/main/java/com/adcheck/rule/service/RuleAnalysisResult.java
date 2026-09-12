@@ -1,10 +1,12 @@
 package com.adcheck.rule.service;
 
 import java.util.List;
+import com.adcheck.rule.model.RiskSignalContext;
 
-public record RuleAnalysisResult(String claimId, List<RuleMatch> matches, List<Diagnostic> diagnostics) {
+public record RuleAnalysisResult(String claimId, List<RuleMatch> matches, List<Diagnostic> diagnostics, List<RiskSignalContext> riskSignals) {
     public RuleAnalysisResult {
         matches = List.copyOf(matches);
+        riskSignals = List.copyOf(riskSignals);
         diagnostics = List.copyOf(diagnostics);
     }
 
