@@ -22,3 +22,4 @@ app:
 adcheck:
   analysis:
     pipeline-version: v1
+    reuse-ttl: 7d

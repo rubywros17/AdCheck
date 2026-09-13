@@ -120,7 +120,26 @@ public class Analysis {
 
     public void complete() {
         status = AnalysisStatus.COMPLETED;
+        errorMessage = null;
         completedAt = Instant.now();
+    }
+
+    public void completeWithResult(String resultJson) {
+        if (resultJson == null || resultJson.isBlank()) {
+            throw new IllegalArgumentException("완료할 분석 결과 JSON이 필요합니다.");
+        }
+        this.resultJson = resultJson;
+        complete();
+    }
+
+    public void fail(String errorMessage) {
+        if (errorMessage == null || errorMessage.isBlank()) {
+            throw new IllegalArgumentException("분석 실패 사유가 필요합니다.");
+        }
+        status = AnalysisStatus.FAILED;
+        this.errorMessage = errorMessage;
+        resultJson = null;
+        completedAt = null;
     }
 
     @PrePersist
