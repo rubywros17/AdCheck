@@ -2,7 +2,13 @@ package com.adcheck.analysis;
 
 import com.adcheck.analysis.domain.Analysis;
 import com.adcheck.analysis.domain.AnalysisStatus;
+import com.adcheck.analysis.config.AnalysisProperties;
+import com.adcheck.analysis.dto.CreateAnalysisRequest;
+import com.adcheck.analysis.dto.PageTextEvidence;
 import com.adcheck.analysis.repository.AnalysisRepository;
+import com.adcheck.analysis.result.AnalysisResultJsonCodec;
+import com.adcheck.analysis.service.AnalysisRequestFingerprint;
+import com.adcheck.analysis.service.AnalysisUrlNormalizer;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -13,7 +19,6 @@ import org.springframework.test.context.ActiveProfiles;
 import org.springframework.test.web.servlet.MockMvc;
 import org.springframework.test.web.servlet.ResultActions;
 import org.springframework.test.web.servlet.setup.MockMvcBuilders;
-import org.springframework.transaction.annotation.Transactional;
 import org.springframework.web.context.WebApplicationContext;
 
 import java.util.List;
@@ -27,7 +32,6 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 
 @SpringBootTest
 @ActiveProfiles("test")
-@Transactional
 class AnalysisApiIntegrationTest {
 
     @Autowired
@@ -36,10 +40,23 @@ class AnalysisApiIntegrationTest {
     @Autowired
     private AnalysisRepository analysisRepository;
 
+    @Autowired
+    private AnalysisResultJsonCodec resultJsonCodec;
+
+    @Autowired
+    private AnalysisUrlNormalizer urlNormalizer;
+
+    @Autowired
+    private AnalysisRequestFingerprint requestFingerprint;
+
+    @Autowired
+    private AnalysisProperties analysisProperties;
+
     private MockMvc mockMvc;
 
     @BeforeEach
     void setUp() {
+        analysisRepository.deleteAll();
         mockMvc = MockMvcBuilders.webAppContextSetup(applicationContext).build();
     }
 
@@ -222,9 +239,172 @@ class AnalysisApiIntegrationTest {
         assertThat(analyses).hasSize(1);
         Analysis analysis = analyses.getFirst();
         assertThat(analysis.getPageUrl()).isEqualTo("https://example.com/product/persisted");
+        assertThat(analysis.getNormalizedUrl()).isEqualTo("https://example.com/product/persisted");
+        assertThat(analysis.getContentHash()).hasSize(64);
+        assertThat(analysis.getPipelineVersion()).isEqualTo("v1");
         assertThat(analysis.getStatus()).isEqualTo(AnalysisStatus.COMPLETED);
+        assertThat(analysis.getResultJson()).isNotBlank();
+        assertThat(resultJsonCodec.deserialize(analysis.getResultJson()).summary().findingCount())
+                .isZero();
         assertThat(analysis.getCreatedAt()).isNotNull();
         assertThat(analysis.getCompletedAt()).isNotNull();
+    }
+
+    @Test
+    void reusesFreshCompletedAnalysisWithoutCreatingAnotherRow() throws Exception {
+        String requestBody = requestBody(
+                "https://example.com/product/reused",
+                "시력을 회복하고 노안을 예방합니다."
+        );
+        mockMvc.perform(post("/api/v1/analyses")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(requestBody))
+                .andExpect(status().isCreated());
+        Analysis existing = analysisRepository.findAll().getFirst();
+        var updatedAt = existing.getUpdatedAt();
+
+        mockMvc.perform(post("/api/v1/analyses")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(requestBody))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.analysisId").value(existing.getId()))
+                .andExpect(jsonPath("$.status").value("COMPLETED"))
+                .andExpect(jsonPath("$.summary.findingCount").value(1))
+                .andExpect(jsonPath("$.findings[0].sourceText")
+                        .value("시력을 회복하고 노안을 예방합니다."));
+
+        assertThat(analysisRepository.count()).isOne();
+        assertThat(analysisRepository.findById(existing.getId()).orElseThrow().getUpdatedAt())
+                .isEqualTo(updatedAt);
+    }
+
+    @Test
+    void returnsPendingAnalysisAsAcceptedWithoutChangingIt() throws Exception {
+        assertInProgressResponse(AnalysisStatus.PENDING);
+    }
+
+    @Test
+    void returnsProcessingAnalysisAsAcceptedWithoutChangingIt() throws Exception {
+        assertInProgressResponse(AnalysisStatus.PROCESSING);
+    }
+
+    @Test
+    void createsNewAnalysisWhenContentChanges() throws Exception {
+        String pageUrl = "https://example.com/product/content-change";
+        mockMvc.perform(post("/api/v1/analyses")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(requestBody(pageUrl, "기존 광고 문구")))
+                .andExpect(status().isCreated());
+
+        mockMvc.perform(post("/api/v1/analyses")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(requestBody(pageUrl, "변경된 광고 문구")))
+                .andExpect(status().isCreated());
+
+        assertThat(analysisRepository.count()).isEqualTo(2);
+    }
+
+    @Test
+    void createsNewAnalysisWhenPipelineVersionChanges() throws Exception {
+        String originalVersion = analysisProperties.getPipelineVersion();
+        String requestBody = requestBody(
+                "https://example.com/product/pipeline-change",
+                "동일 광고 문구"
+        );
+        try {
+            mockMvc.perform(post("/api/v1/analyses")
+                            .contentType(MediaType.APPLICATION_JSON)
+                            .content(requestBody))
+                    .andExpect(status().isCreated());
+
+            analysisProperties.setPipelineVersion("v2");
+            mockMvc.perform(post("/api/v1/analyses")
+                            .contentType(MediaType.APPLICATION_JSON)
+                            .content(requestBody))
+                    .andExpect(status().isCreated());
+
+            assertThat(analysisRepository.count()).isEqualTo(2);
+        } finally {
+            analysisProperties.setPipelineVersion(originalVersion);
+        }
+    }
+
+    @Test
+    void reusesAnalysisWhenOnlyTrackingParametersDiffer() throws Exception {
+        mockMvc.perform(post("/api/v1/analyses")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(requestBody(
+                                "https://example.com/product/tracking?item=1&utm_source=first",
+                                "동일 광고 문구"
+                        )))
+                .andExpect(status().isCreated());
+
+        mockMvc.perform(post("/api/v1/analyses")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(requestBody(
+                                "https://example.com/product/tracking?item=1&gclid=second",
+                                "동일 광고 문구"
+                        )))
+                .andExpect(status().isOk());
+
+        assertThat(analysisRepository.count()).isOne();
+    }
+
+    private void assertInProgressResponse(AnalysisStatus status) throws Exception {
+        String pageUrl = "https://example.com/product/in-progress-" + status.name().toLowerCase();
+        String content = "진행 중 광고 문구";
+        CreateAnalysisRequest request = new CreateAnalysisRequest(
+                pageUrl,
+                "상품 페이지",
+                "테스트 상품",
+                List.of(new PageTextEvidence(content, "#claim")),
+                List.of()
+        );
+        Analysis active = Analysis.create(
+                pageUrl,
+                request.pageTitle(),
+                request.productName(),
+                urlNormalizer.normalize(pageUrl),
+                requestFingerprint.generate(request),
+                analysisProperties.getPipelineVersion()
+        );
+        if (status == AnalysisStatus.PROCESSING) {
+            active.startProcessing();
+        }
+        active = analysisRepository.saveAndFlush(active);
+        var updatedAt = analysisRepository.findById(active.getId()).orElseThrow().getUpdatedAt();
+
+        mockMvc.perform(post("/api/v1/analyses")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(requestBody(pageUrl, content)))
+                .andExpect(status().isAccepted())
+                .andExpect(jsonPath("$.analysisId").value(active.getId()))
+                .andExpect(jsonPath("$.status").value(status.name()))
+                .andExpect(jsonPath("$.summary").value((Object) null))
+                .andExpect(jsonPath("$.findings").isEmpty());
+
+        assertThat(analysisRepository.count()).isOne();
+        assertThat(analysisRepository.findById(active.getId()).orElseThrow().getStatus())
+                .isEqualTo(status);
+        assertThat(analysisRepository.findById(active.getId()).orElseThrow().getUpdatedAt())
+                .isEqualTo(updatedAt);
+    }
+
+    private String requestBody(String pageUrl, String content) {
+        return """
+                {
+                  "pageUrl": "%s",
+                  "pageTitle": "상품 페이지",
+                  "productName": "테스트 상품",
+                  "texts": [
+                    {
+                      "content": "%s",
+                      "selector": "#claim"
+                    }
+                  ],
+                  "images": []
+                }
+                """.formatted(pageUrl, content);
     }
 
     private void expectError(

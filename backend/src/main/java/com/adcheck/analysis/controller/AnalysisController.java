@@ -3,6 +3,7 @@ package com.adcheck.analysis.controller;
 import com.adcheck.analysis.dto.AnalysisResponse;
 import com.adcheck.analysis.dto.CreateAnalysisRequest;
 import com.adcheck.analysis.service.AnalysisService;
+import com.adcheck.analysis.service.AnalysisSubmissionResult;
 import jakarta.validation.Valid;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
@@ -23,6 +24,15 @@ public class AnalysisController {
 
     @PostMapping
     public ResponseEntity<AnalysisResponse> analyze(@Valid @RequestBody CreateAnalysisRequest request) {
-        return ResponseEntity.status(HttpStatus.CREATED).body(analysisService.analyze(request));
+        AnalysisSubmissionResult result = analysisService.analyze(request);
+        return ResponseEntity.status(statusFor(result.outcome())).body(result.response());
+    }
+
+    private HttpStatus statusFor(AnalysisSubmissionResult.Outcome outcome) {
+        return switch (outcome) {
+            case CREATED -> HttpStatus.CREATED;
+            case REUSED -> HttpStatus.OK;
+            case IN_PROGRESS -> HttpStatus.ACCEPTED;
+        };
     }
 }
