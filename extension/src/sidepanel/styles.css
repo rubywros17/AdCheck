@@ -963,7 +963,7 @@ body {
   justify-content: center;
 }
 
-/* 1. ShieldAnimation: 공인 건강기능식품 인증마크가 둥둥 뜬 채 사선 쉬머가 스쳐 지나감 */
+/* 1-A. CertMarkAnimation: 공인 건강기능식품 인증마크(실제 이미지)가 둥둥 뜬 채 사선 쉬머가 스쳐 지나감 */
 .health-mark-badge {
   position: relative;
   width: 96px;
@@ -998,6 +998,35 @@ body {
   0% { left: -60%; }
   60% { left: 130%; }
   100% { left: 130%; }
+}
+
+/* 1-B. ShieldAnimation: 3D 렌더링 방패+체크 이미지가 둥둥 뜬 채 살짝 갸우뚱 (기본 shield 그래픽) */
+.shield-3d-stage {
+  position: relative;
+  width: 84px;
+  height: 84px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+.shield-3d-img {
+  display: block;
+  filter: drop-shadow(0 8px 16px rgba(16, 185, 129, 0.35));
+  animation: shield3DFloat 2.8s ease-in-out infinite;
+}
+.shield-3d-shadow {
+  position: absolute;
+  bottom: 2px;
+  width: 42px;
+  height: 9px;
+  background: radial-gradient(ellipse, rgba(15, 23, 42, 0.2) 0%, transparent 70%);
+  border-radius: 50%;
+  filter: blur(3px);
+  animation: shadow3DBreathe 2.8s ease-in-out infinite;
+}
+@keyframes shield3DFloat {
+  0%, 100% { transform: translateY(0) rotate(0deg); }
+  50% { transform: translateY(-7px) rotate(4deg); }
 }
 
 /* 2. WarningAnimation: 3D 렌더링 문서+경고(X) 스탬프 이미지가 둥둥 뜬 채 살짝 갸우뚱 */
@@ -1088,6 +1117,8 @@ body {
   .dial-backlight-glow,
   .health-mark-badge,
   .health-mark-shimmer,
+  .shield-3d-img,
+  .shield-3d-shadow,
   .warning-3d-img,
   .warning-3d-shadow,
   .review-3d-img,

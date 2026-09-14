@@ -1,5 +1,6 @@
 import React, { useEffect, useState } from "react";
 import { ShieldAnimation } from "../components/animations/ShieldAnimation";
+import { CertMarkAnimation } from "../components/animations/CertMarkAnimation";
 import { WarningAnimation } from "../components/animations/WarningAnimation";
 import { PillAnimation } from "../components/animations/PillAnimation";
 import { ReviewAnimation } from "../components/animations/ReviewAnimation";
@@ -13,6 +14,8 @@ type TipTheme = "shield" | "warning" | "pill" | "review";
 interface TipItem {
   theme: TipTheme;
   text: string;
+  // 실제 인증마크 이미지를 보여줘야 하는 팁(예: "인증마크로 확인하세요")에만 표시
+  certMark?: boolean;
 }
 
 const GRAPHIC_BY_THEME: Record<TipTheme, React.ComponentType> = {
@@ -21,6 +24,12 @@ const GRAPHIC_BY_THEME: Record<TipTheme, React.ComponentType> = {
   pill: PillAnimation,
   review: ReviewAnimation,
 };
+
+// 인증마크를 직접 언급하는 팁은 실제 인증마크 이미지로, 나머지는 테마 기본 그래픽으로
+function getGraphicForTip(tip: TipItem): React.ComponentType {
+  if (tip.certMark) return CertMarkAnimation;
+  return GRAPHIC_BY_THEME[tip.theme];
+}
 
 // 카드 1장이 화면에 머무는 최소 시간
 const CARD_DISPLAY_MS = 3000;
@@ -32,7 +41,7 @@ const TOTAL_LOADING_MS = CARD_DISPLAY_MS + SLIDE_MS + CARD_DISPLAY_MS;
 // 14가지 식약처 공인 부당광고 상식 문장
 const ADCHECK_TIPS: TipItem[] = [
   // 1. 방패 / 인증마크 테마 (shield)
-  { theme: "shield", text: "건강기능식품은 패키지 인증마크로 확인할 수 있어요." },
+  { theme: "shield", text: "건강기능식품은 패키지 인증마크로 확인할 수 있어요.", certMark: true },
   { theme: "shield", text: "인정받은 제품인지 '식품안전나라'에서 검색해보세요." },
   { theme: "shield", text: "해외직구 영양제는 식약처 인증 건강기능식품이 아니에요." },
   { theme: "shield", text: "'기능성 표시식품'은 건강기능식품과 달라요." },
@@ -55,7 +64,7 @@ const ADCHECK_TIPS: TipItem[] = [
 ];
 
 function CardContent({ tip }: { tip: TipItem }) {
-  const Graphic = GRAPHIC_BY_THEME[tip.theme];
+  const Graphic = getGraphicForTip(tip);
   return (
     <>
       {/* 상단 쫀득 동적 그래픽 (팁 테마와 매칭) */}
