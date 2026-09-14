@@ -1,3 +1,7 @@
+-- DEPRECATED - V4__LoadIngredientReferenceData.java / V5__LoadRuleData.java(backend/src/main/java/db/migration/)
+-- 로 대체됨, 더 이상 사용하지 않음. 이 스크립트가 적재하는 ingredient_master/reference_sources/rules/
+-- rule_ingredients/rule_sources는 이제 Flyway 마이그레이션(V4/V5)이 동일 CSV로 적재한다.
+
 \set ON_ERROR_STOP on
 
 -- Run this script from the repository root so the relative CSV paths below resolve.
