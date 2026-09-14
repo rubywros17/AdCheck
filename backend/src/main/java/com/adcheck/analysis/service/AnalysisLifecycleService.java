@@ -37,8 +37,8 @@ public class AnalysisLifecycleService {
     }
 
     @Transactional(propagation = Propagation.REQUIRES_NEW)
-    public void completeWithResult(Long analysisId, String resultJson) {
-        findRequired(analysisId).completeWithResult(resultJson);
+    public void completeWithResult(Long analysisId, String resultJson, boolean hasFinding) {
+        findRequired(analysisId).completeWithResult(resultJson, hasFinding);
     }
 
     @Transactional(propagation = Propagation.REQUIRES_NEW)

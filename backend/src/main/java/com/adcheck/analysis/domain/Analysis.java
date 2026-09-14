@@ -56,6 +56,9 @@ public class Analysis {
     @Column(name = "error_message", columnDefinition = "text")
     private String errorMessage;
 
+    @Column(name = "has_finding", nullable = false)
+    private boolean hasFinding;
+
     @Enumerated(EnumType.STRING)
     @Column(nullable = false, length = 20)
     private AnalysisStatus status;
@@ -124,11 +127,12 @@ public class Analysis {
         completedAt = Instant.now();
     }
 
-    public void completeWithResult(String resultJson) {
+    public void completeWithResult(String resultJson, boolean hasFinding) {
         if (resultJson == null || resultJson.isBlank()) {
             throw new IllegalArgumentException("완료할 분석 결과 JSON이 필요합니다.");
         }
         this.resultJson = resultJson;
+        this.hasFinding = hasFinding;
         complete();
     }
 
@@ -194,6 +198,10 @@ public class Analysis {
 
     public String getErrorMessage() {
         return errorMessage;
+    }
+
+    public boolean isHasFinding() {
+        return hasFinding;
     }
 
     public AnalysisStatus getStatus() {

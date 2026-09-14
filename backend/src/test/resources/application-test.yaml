@@ -12,6 +12,8 @@ spring:
 
 adcheck:
   analysis:
+    reuse-ttl-clean: 30d
+    reuse-ttl-with-finding: 7d
     async:
       core-pool-size: 1
       max-pool-size: 1

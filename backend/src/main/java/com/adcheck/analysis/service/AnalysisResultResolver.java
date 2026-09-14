@@ -81,7 +81,7 @@ public class AnalysisResultResolver {
     }
 
     private Optional<AnalysisResultSnapshot> restoreFreshResult(Analysis analysis) {
-        if (!isFresh(analysis.getCompletedAt())) {
+        if (!isFresh(analysis)) {
             return Optional.empty();
         }
         if (analysis.getResultJson() == null || analysis.getResultJson().isBlank()) {
@@ -100,14 +100,21 @@ public class AnalysisResultResolver {
         }
     }
 
-    private boolean isFresh(Instant completedAt) {
+    private boolean isFresh(Analysis analysis) {
+        Instant completedAt = analysis.getCompletedAt();
         if (completedAt == null) {
             return false;
         }
 
-        Duration reuseTtl = properties.getReuseTtl();
+        boolean hasFinding = analysis.isHasFinding();
+        Duration reuseTtl = hasFinding
+                ? properties.getReuseTtlWithFinding()
+                : properties.getReuseTtlClean();
         if (reuseTtl == null || reuseTtl.isNegative()) {
-            throw new IllegalStateException("adcheck.analysis.reuse-ttl은 0 이상이어야 합니다.");
+            String propertyName = hasFinding
+                    ? "adcheck.analysis.reuse-ttl-with-finding"
+                    : "adcheck.analysis.reuse-ttl-clean";
+            throw new IllegalStateException(propertyName + "은 0 이상이어야 합니다.");
         }
 
         Instant freshnessBoundary = clock.instant().minus(reuseTtl);

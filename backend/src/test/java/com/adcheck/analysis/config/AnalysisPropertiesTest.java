@@ -19,7 +19,8 @@ class AnalysisPropertiesTest {
     @Test
     void bindsPipelineVersionAndReuseTtl() {
         assertThat(properties.getPipelineVersion()).isEqualTo("v1");
-        assertThat(properties.getReuseTtl()).isEqualTo(Duration.ofDays(7));
+        assertThat(properties.getReuseTtlClean()).isEqualTo(Duration.ofDays(30));
+        assertThat(properties.getReuseTtlWithFinding()).isEqualTo(Duration.ofDays(7));
         assertThat(properties.getAsync().getCorePoolSize()).isEqualTo(1);
         assertThat(properties.getAsync().getMaxPoolSize()).isEqualTo(1);
         assertThat(properties.getAsync().getQueueCapacity()).isEqualTo(20);

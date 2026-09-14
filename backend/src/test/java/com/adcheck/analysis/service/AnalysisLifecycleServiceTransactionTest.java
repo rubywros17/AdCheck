@@ -14,7 +14,7 @@ class AnalysisLifecycleServiceTransactionTest {
     void lifecycleOperationsUseRequiresNewTransactionsOnSeparateBean() throws Exception {
         assertRequiresNew("createPending", com.adcheck.analysis.dto.CreateAnalysisRequest.class, AnalysisReuseKey.class);
         assertRequiresNew("markProcessing", Long.class);
-        assertRequiresNew("completeWithResult", Long.class, String.class);
+        assertRequiresNew("completeWithResult", Long.class, String.class, boolean.class);
         assertRequiresNew("fail", Long.class, String.class);
         assertRequiresNew("findActive", AnalysisReuseKey.class);
         assertThat(AnalysisLifecycleService.class).isNotEqualTo(AnalysisService.class);

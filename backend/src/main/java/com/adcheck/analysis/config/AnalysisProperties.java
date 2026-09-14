@@ -3,6 +3,7 @@ package com.adcheck.analysis.config;
 import jakarta.validation.Valid;
 import jakarta.validation.constraints.Min;
 import jakarta.validation.constraints.NotBlank;
+import jakarta.validation.constraints.NotNull;
 import org.springframework.boot.context.properties.ConfigurationProperties;
 import org.springframework.stereotype.Component;
 import org.springframework.validation.annotation.Validated;
@@ -15,7 +16,13 @@ import java.time.Duration;
 public class AnalysisProperties {
 
     private String pipelineVersion;
-    private Duration reuseTtl;
+
+    @NotNull(message = "adcheck.analysis.reuse-ttl-clean must not be null")
+    private Duration reuseTtlClean = Duration.ofDays(30);
+
+    @NotNull(message = "adcheck.analysis.reuse-ttl-with-finding must not be null")
+    private Duration reuseTtlWithFinding = Duration.ofDays(7);
+
     @Valid
     private final Async async = new Async();
 
@@ -27,12 +34,20 @@ public class AnalysisProperties {
         this.pipelineVersion = pipelineVersion;
     }
 
-    public Duration getReuseTtl() {
-        return reuseTtl;
+    public Duration getReuseTtlClean() {
+        return reuseTtlClean;
     }
 
-    public void setReuseTtl(Duration reuseTtl) {
-        this.reuseTtl = reuseTtl;
+    public void setReuseTtlClean(Duration reuseTtlClean) {
+        this.reuseTtlClean = reuseTtlClean;
+    }
+
+    public Duration getReuseTtlWithFinding() {
+        return reuseTtlWithFinding;
+    }
+
+    public void setReuseTtlWithFinding(Duration reuseTtlWithFinding) {
+        this.reuseTtlWithFinding = reuseTtlWithFinding;
     }
 
     public Async getAsync() {

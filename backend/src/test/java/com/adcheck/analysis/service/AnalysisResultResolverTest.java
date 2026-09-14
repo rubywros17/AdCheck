@@ -32,7 +32,8 @@ import static org.mockito.Mockito.when;
 class AnalysisResultResolverTest {
 
     private static final Instant NOW = Instant.parse("2026-09-13T03:00:00Z");
-    private static final Duration REUSE_TTL = Duration.ofDays(7);
+    private static final Duration REUSE_TTL_WITH_FINDING = Duration.ofDays(7);
+    private static final Duration REUSE_TTL_CLEAN = Duration.ofDays(30);
     private static final String PIPELINE_VERSION = "v1";
 
     private AnalysisRepository repository;
@@ -47,7 +48,8 @@ class AnalysisResultResolverTest {
         repository = mock(AnalysisRepository.class);
         properties = new AnalysisProperties();
         properties.setPipelineVersion(PIPELINE_VERSION);
-        properties.setReuseTtl(REUSE_TTL);
+        properties.setReuseTtlWithFinding(REUSE_TTL_WITH_FINDING);
+        properties.setReuseTtlClean(REUSE_TTL_CLEAN);
         urlNormalizer = new AnalysisUrlNormalizer();
         requestFingerprint = new AnalysisRequestFingerprint();
         resultJsonCodec = new AnalysisResultJsonCodec(new ObjectMapper());
@@ -121,7 +123,7 @@ class AnalysisResultResolverTest {
                 request,
                 completedAnalysis(
                         1L,
-                        NOW.minus(REUSE_TTL).plusNanos(1),
+                        NOW.minus(REUSE_TTL_WITH_FINDING).plusNanos(1),
                         validResultJson()
                 )
         );
@@ -137,7 +139,7 @@ class AnalysisResultResolverTest {
                 request,
                 completedAnalysis(
                         1L,
-                        NOW.minus(REUSE_TTL).minusNanos(1),
+                        NOW.minus(REUSE_TTL_WITH_FINDING).minusNanos(1),
                         validResultJson()
                 )
         );
@@ -153,7 +155,7 @@ class AnalysisResultResolverTest {
                 request,
                 completedAnalysis(
                         1L,
-                        NOW.minus(REUSE_TTL).minusNanos(1),
+                        NOW.minus(REUSE_TTL_WITH_FINDING).minusNanos(1),
                         validResultJson()
                 )
         );
@@ -168,7 +170,70 @@ class AnalysisResultResolverTest {
         CreateAnalysisRequest request = request("https://shop.example.com/product?id=123", "광고 문구");
         stubCompleted(
                 request,
-                completedAnalysis(1L, NOW.minus(REUSE_TTL), validResultJson())
+                completedAnalysis(1L, NOW.minus(REUSE_TTL_WITH_FINDING), validResultJson())
+        );
+
+        assertThat(resolver.resolve(request).type())
+                .isEqualTo(AnalysisResultResolution.Type.REUSED);
+    }
+
+    @Test
+    void reusesCleanCompletedAnalysisWithinLongerTtl() {
+        CreateAnalysisRequest request = request("https://shop.example.com/product?id=123", "광고 문구");
+        stubCompleted(
+                request,
+                completedAnalysis(
+                        1L,
+                        NOW.minus(REUSE_TTL_CLEAN).plusNanos(1),
+                        validResultJson(),
+                        false
+                )
+        );
+
+        assertThat(resolver.resolve(request).type())
+                .isEqualTo(AnalysisResultResolution.Type.REUSED);
+    }
+
+    @Test
+    void returnsNewWhenCleanCompletedAnalysisExceedsLongerTtl() {
+        CreateAnalysisRequest request = request("https://shop.example.com/product?id=123", "광고 문구");
+        stubCompleted(
+                request,
+                completedAnalysis(
+                        1L,
+                        NOW.minus(REUSE_TTL_CLEAN).minusNanos(1),
+                        validResultJson(),
+                        false
+                )
+        );
+
+        assertThat(resolver.resolve(request).type())
+                .isEqualTo(AnalysisResultResolution.Type.NEW);
+    }
+
+    @Test
+    void treatsExactCleanTtlBoundaryAsFresh() {
+        CreateAnalysisRequest request = request("https://shop.example.com/product?id=123", "광고 문구");
+        stubCompleted(
+                request,
+                completedAnalysis(1L, NOW.minus(REUSE_TTL_CLEAN), validResultJson(), false)
+        );
+
+        assertThat(resolver.resolve(request).type())
+                .isEqualTo(AnalysisResultResolution.Type.REUSED);
+    }
+
+    @Test
+    void cleanAnalysisPastWithFindingTtlIsStillReusedUnderLongerCleanTtl() {
+        CreateAnalysisRequest request = request("https://shop.example.com/product?id=123", "광고 문구");
+        stubCompleted(
+                request,
+                completedAnalysis(
+                        1L,
+                        NOW.minus(REUSE_TTL_WITH_FINDING).minusNanos(1),
+                        validResultJson(),
+                        false
+                )
         );
 
         assertThat(resolver.resolve(request).type())
@@ -343,11 +408,16 @@ class AnalysisResultResolverTest {
     }
 
     private Analysis completedAnalysis(Long id, Instant completedAt, String resultJson) {
+        return completedAnalysis(id, completedAt, resultJson, true);
+    }
+
+    private Analysis completedAnalysis(Long id, Instant completedAt, String resultJson, boolean hasFinding) {
         Analysis analysis = mock(Analysis.class);
         when(analysis.getId()).thenReturn(id);
         when(analysis.getStatus()).thenReturn(AnalysisStatus.COMPLETED);
         when(analysis.getCompletedAt()).thenReturn(completedAt);
         when(analysis.getResultJson()).thenReturn(resultJson);
+        when(analysis.isHasFinding()).thenReturn(hasFinding);
         return analysis;
     }
 

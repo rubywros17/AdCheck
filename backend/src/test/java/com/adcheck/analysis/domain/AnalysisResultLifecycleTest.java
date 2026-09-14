@@ -23,13 +23,24 @@ class AnalysisResultLifecycleTest {
         Analysis analysis = analysis();
         analysis.startProcessing();
 
-        analysis.completeWithResult("{\"summary\":{\"findingCount\":0},\"findings\":[]}");
+        analysis.completeWithResult("{\"summary\":{\"findingCount\":0},\"findings\":[]}", false);
 
         assertThat(analysis.getStatus()).isEqualTo(AnalysisStatus.COMPLETED);
         assertThat(analysis.getResultJson())
                 .isEqualTo("{\"summary\":{\"findingCount\":0},\"findings\":[]}");
         assertThat(analysis.getCompletedAt()).isNotNull();
         assertThat(analysis.getErrorMessage()).isNull();
+        assertThat(analysis.isHasFinding()).isFalse();
+    }
+
+    @Test
+    void completesAnalysisWithHasFindingFlagSetTrue() {
+        Analysis analysis = analysis();
+        analysis.startProcessing();
+
+        analysis.completeWithResult("{\"summary\":{\"findingCount\":1},\"findings\":[{}]}", true);
+
+        assertThat(analysis.isHasFinding()).isTrue();
     }
 
     @Test
@@ -38,7 +49,7 @@ class AnalysisResultLifecycleTest {
         analysis.onCreate();
         var updatedAtBeforeFailure = analysis.getUpdatedAt();
         analysis.startProcessing();
-        analysis.completeWithResult(String.valueOf(1));
+        analysis.completeWithResult(String.valueOf(1), false);
 
         analysis.fail("AI 분석 호출에 실패했습니다.");
 

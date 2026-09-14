@@ -42,13 +42,12 @@ public class AnalysisBackgroundJob {
     public void process(Long analysisId, AnalysisJobInput input) {
         try {
             lifecycleService.markProcessing(analysisId);
-            AnalysisResponse response = responseFrom(
-                    analysisId,
-                    claimAnalyzer.analyze(input.texts())
-            );
+            ClaimAnalysisResult claimResult = claimAnalyzer.analyze(input.texts());
+            AnalysisResponse response = responseFrom(analysisId, claimResult);
             AnalysisResultSnapshot snapshot = snapshotMapper.toSnapshot(response);
             String resultJson = resultJsonCodec.serialize(snapshot);
-            lifecycleService.completeWithResult(analysisId, resultJson);
+            boolean hasFinding = !claimResult.findings().isEmpty();
+            lifecycleService.completeWithResult(analysisId, resultJson, hasFinding);
         } catch (RuntimeException exception) {
             markFailed(analysisId, exception);
             log.error("Background analysis failed. analysisId={}", analysisId, exception);
