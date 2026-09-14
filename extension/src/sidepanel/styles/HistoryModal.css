@@ -1,0 +1,83 @@
+/* ========================================================
+   [components/HistoryModal.tsx] 최근 점검 기록 바텀시트 모달
+   ======================================================== */
+.modal-backdrop {
+  position: fixed; top: 0; left: 0; right: 0; bottom: 0;
+  background: rgba(15, 23, 42, 0.5); display: flex; align-items: flex-end; z-index: 100;
+  backdrop-filter: blur(2px);
+}
+.modal-bottom-sheet {
+  background: #FFFFFF; width: 100%; border-radius: 20px 20px 0 0;
+  padding: 16px 20px 24px 20px; display: flex; flex-direction: column; gap: 12px;
+  animation: slide-up 0.25s ease-out;
+}
+@keyframes slide-up { from { transform: translateY(100%); } to { transform: translateY(0); } }
+.modal-drag-bar { width: 36px; height: 4px; background: #E2E8F0; border-radius: 2px; align-self: center; margin-bottom: 2px; }
+.modal-head { display: flex; justify-content: space-between; align-items: center; }
+.btn-modal-close { background: transparent; border: none; font-size: 16px; color: #94A3B8; cursor: pointer; }
+
+.history-modal-title { font-size: 16px; font-weight: 800; color: #0F172A; }
+.history-list-stack { display: flex; flex-direction: column; gap: 8px; max-height: 320px; overflow-y: auto; margin-top: 4px; }
+.history-item-card {
+  text-align: left;
+  width: 100%;
+  background: #F8FAFC; border: 1px solid #E2E8F0; border-radius: 12px;
+  padding: 12px; display: flex; align-items: center; justify-content: space-between;
+  cursor: pointer; transition: background 0.15s ease;
+}
+.history-item-card:hover { background: #F1F5F9; }
+.history-item-info { display: flex; flex-direction: column; gap: 2px; overflow: hidden; padding-right: 8px; }
+.history-date { font-size: 10.5px; font-weight: 600; color: #94A3B8; }
+.history-prod-name { font-size: 12.5px; font-weight: 700; color: #0F172A; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+
+.no-filtered-item { text-align: center; font-size: 12px; color: #94A3B8; padding: 20px 0; font-weight: 600; }
+
+/* 신호등 원색 대신 차분한 모노톤 캡슐 + 포인트 도트로 상태를 표시 */
+.history-status-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  padding: 5px 10px;
+  border-radius: 9999px;
+  font-size: 11px;
+  font-weight: 600;
+  flex-shrink: 0;
+}
+.history-status-badge::before {
+  content: "";
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  flex-shrink: 0;
+}
+
+/* [안심] 0건: Clean White & Pearl Silver */
+.history-status-badge.safe {
+  background: #FFFFFF !important;
+  color: #475569 !important;
+  border: 1px solid #E2E8F0 !important;
+  box-shadow: 0 1px 3px rgba(15, 23, 42, 0.04);
+}
+.history-status-badge.safe::before {
+  background: #94A3B8; /* 차분한 실버 도트 */
+}
+
+/* [중간 주의] 3~4건: Soft Warm Coral Rose */
+.history-status-badge.warning {
+  background: rgba(251, 113, 133, 0.14) !important;
+  color: #E11D48 !important;
+  border: 1px solid rgba(251, 113, 133, 0.35) !important;
+}
+.history-status-badge.warning::before {
+  background: #FB7185;
+}
+
+/* [집중 검토] 5건 이상: Deep Ruby Crimson */
+.history-status-badge.review {
+  background: rgba(225, 29, 72, 0.12) !important;
+  color: #BE123C !important;
+  border: 1px solid rgba(225, 29, 72, 0.35) !important;
+}
+.history-status-badge.review::before {
+  background: #E11D48;
+}

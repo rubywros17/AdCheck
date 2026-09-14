@@ -1,0 +1,51 @@
+/* ========================================================
+   [views/BubblePreviewView.tsx] 주요 문구 버블 미리보기 화면
+   ======================================================== */
+.bubble-preview-box { padding: 20px 18px 22px 18px; }
+.btn-summary-margin { margin-top: 20px; }
+
+.bubble-cloud {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: center;
+  gap: 8px;
+  margin: 18px 0 22px 0;
+  padding: 4px;
+}
+.bubble-entry { display: inline-flex; }
+
+@keyframes bubbleFloat {
+  0%, 100% { transform: translateY(0); }
+  50% { transform: translateY(-4px); }
+}
+
+/* 카테고리는 뱃지가 아닌 좌측 사이드 컬러 인디케이터로만 구분.
+   실제 색상(border-left-color)은 categoryTheme.ts의 getCategoryTheme()이 골라
+   BubblePreviewView.tsx에서 인라인 style로 꽂아준다(카테고리가 71종+로 열려있어 CSS에 고정할 수 없음). */
+.bubble-tag-item {
+  display: inline-flex;
+  align-items: center;
+  padding: 9px 18px 9px 15px; /* 왼쪽 패딩을 라인에 맞게 미세 조정 */
+  border-radius: 12px; /* 사이드 라인이 돋보이는 둥근 사각(squircle) 형태 */
+  font-size: 14px;
+  font-weight: 600;
+  letter-spacing: -0.1px;
+  background: rgba(255, 255, 255, 0.55) !important;
+  border: 1px solid rgba(255, 255, 255, 0.8);
+  border-left-width: 3.5px;
+  cursor: pointer;
+  backdrop-filter: blur(12px);
+  -webkit-backdrop-filter: blur(12px);
+  box-shadow: 0 4px 14px rgba(15, 23, 42, 0.05);
+  color: #190933;
+  animation: bubbleFloat 3s ease-in-out infinite;
+  transition: background 0.2s ease, border-color 0.2s ease, transform 0.2s ease;
+}
+.bubble-tag-item:hover {
+  background: var(--tag-hover-bg, rgba(255, 255, 255, 0.55)) !important;
+}
+.bubble-tag-item:active { transform: scale(0.92); }
+
+@media (prefers-reduced-motion: reduce) {
+  .bubble-tag-item { animation: none; }
+}

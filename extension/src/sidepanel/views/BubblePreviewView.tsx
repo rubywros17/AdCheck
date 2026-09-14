@@ -1,6 +1,8 @@
 
 //5. 주요 문구 화면	키워드 버블 둥둥 떠다니는 화면
+import type { CSSProperties } from "react";
 import type { FindingWithKeyword } from "../types";
+import { getCategoryTheme } from "../../constants/judgmentCategories";
 
 interface Props {
   findings: FindingWithKeyword[];
@@ -21,7 +23,7 @@ export function BubblePreviewView({ findings, onSelect, onShowAll }: Props) {
       </p>
       <div className="bubble-cloud">
         {findings.slice(0, 5).map((finding, idx) => {
-          const isDanger = finding.message.includes("의약품");
+          const theme = getCategoryTheme(finding.category);
           return (
             <span
               key={idx}
@@ -30,8 +32,12 @@ export function BubblePreviewView({ findings, onSelect, onShowAll }: Props) {
             >
               <button
                 type="button"
-                className={`preview-bubble ${isDanger ? "preview-bubble-disease" : "preview-bubble-guarantee"}`}
-                style={{ animationDelay: `${(idx % 4) * 0.3}s` }}
+                className="bubble-tag-item"
+                style={{
+                  animationDelay: `${(idx % 4) * 0.3}s`,
+                  borderLeftColor: theme.indicatorColor,
+                  ["--tag-hover-bg" as string]: theme.badgeBg,
+                } as CSSProperties}
                 onClick={() => onSelect(finding, idx)}
               >
                 {finding.bubbleLabel}

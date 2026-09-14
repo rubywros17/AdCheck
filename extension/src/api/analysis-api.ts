@@ -81,13 +81,16 @@ function isAnalysisResponse(value: unknown): value is AnalysisResponse {
   );
 }
 
+// riskLevel/category는 DB가 관리하는 Rule Engine 값이라 계속 늘어날 수 있으므로,
+// 여기서 특정 값으로 고정 검증하지 않고 타입만 확인합니다. 클라이언트의 실제 화면
+// 처리(색상/라벨)는 getCategoryTheme()의 fallback이 모르는 값도 안전하게 담당합니다.
 function isFinding(value: unknown): boolean {
   return (
     isRecord(value) &&
     typeof value.sourceText === "string" &&
     (typeof value.selector === "string" || value.selector === null) &&
-    value.riskLevel === "CAUTION" &&
-    value.category === "FUNCTION_CLAIM" &&
+    typeof value.riskLevel === "string" &&
+    typeof value.category === "string" &&
     typeof value.message === "string" &&
     (typeof value.officialFunction === "string" || value.officialFunction === null)
   );

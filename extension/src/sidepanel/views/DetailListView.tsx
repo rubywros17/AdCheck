@@ -1,134 +1,75 @@
 
 // ==========================================
-// 더미 데이터 인터페이스 및 기본값
+// 상세 리포트 아코디언 목록 화면
 // ==========================================
 import React, { useState } from 'react';
-
-export interface ViolationItem {
-  id: string;
-  category: 'MEDICINE' | 'EXAGGERATION';
-  categoryLabel: string;
-  keyword: string;
-  adText: string;
-  officialStandard: string;
-  tip: string;
-}
-
-const DEFAULT_ITEMS: ViolationItem[] = [
-  {
-    id: '1',
-    category: 'MEDICINE',
-    categoryLabel: '의약품 오인 우려',
-    keyword: '염증 완화 효능',
-    adText: '“만성 염증과 관절 통증을 깨끗하게 치료해줍니다”',
-    officialStandard: '건강기능식품은 질병의 예방 및 치료를 위한 의약품이 아닙니다. (식약처 고시)',
-    tip: '질병명(염증, 관절염) 및 치료/완화 표현은 사용할 수 없어요.',
-  },
-  {
-    id: '2',
-    category: 'MEDICINE',
-    categoryLabel: '의약품 오인 우려',
-    keyword: '암세포 억제 효과',
-    adText: '“면역세포를 활성화하여 암세포 성장을 억제하는 효능”',
-    officialStandard: '신체 조직 기능의 영양 공급에 대한 표현만 인정됩니다.',
-    tip: '특정 중증 질병의 억제 및 직접적인 면역 치료 언급은 불가해요.',
-  },
-  {
-    id: '3',
-    category: 'EXAGGERATION',
-    categoryLabel: '과장 표현',
-    keyword: '100% 흡수율',
-    adText: '“체내 흡수율 100%! 먹는 즉시 몸속 끝까지 흡수”',
-    officialStandard: '인체 흡수율 100%에 대한 객관적·과학적 임상 근거 부재.',
-    tip: '‘100%’, ‘완벽’ 등 과학적으로 입증되지 않은 절대적 수치는 시정 대상이에요.',
-  },
-  {
-    id: '4',
-    category: 'EXAGGERATION',
-    categoryLabel: '과장 표현',
-    keyword: '먹자마자 3kg 감량',
-    adText: '“단 일주일 만에 운동 없이 체지방 3kg 감량 보장”',
-    officialStandard: '단기간 체중 감량 보장성 표현 및 소비 유도 과장 광고 금지.',
-    tip: '‘체지방 감소에 도움을 줄 수 있음’ 공인 기능성 표현으로 순화해야 해요.',
-  },
-];
-
-// 카테고리 뱃지: 버블 뷰와 통일된 파우더리 톤
-const getCategoryBadgeStyle = (category: ViolationItem['category']) =>
-  category === 'MEDICINE'
-    ? { background: '#FDE8E8', color: '#BE123C' }
-    : { background: '#FFEDD5', color: '#C2410C' };
+import type { FindingWithKeyword } from '../types';
+import { getCategoryTheme } from '../../constants/judgmentCategories';
 
 export interface DetailListViewProps {
-  items?: ViolationItem[];
-  onGoBack?: () => void;
+  findings: FindingWithKeyword[];
   onShare?: () => void;
-  onRecheck?: () => void;
+  onAnalyze?: () => void;
   onReset?: () => void;
   [key: string]: any;
 }
 
 export const DetailListView: React.FC<DetailListViewProps> = ({
-  items = DEFAULT_ITEMS,
+  findings,
   onShare,
-  onRecheck,
+  onAnalyze,
   onReset,
 }) => {
-  // 카테고리 필터
-  const [filter, setFilter] = useState<'ALL' | 'MEDICINE' | 'EXAGGERATION'>('ALL');
+  // 카테고리 필터: 'ALL' 또는 findings에 실제로 등장하는 category 값(문자열).
+  // Rule Engine 카테고리가 71종+로 열려있어 고정된 유니언 타입 대신 findings에서 동적으로 뽑아낸다.
+  const [filter, setFilter] = useState<string>('ALL');
 
-  // 아코디언 열려있는 항목 ID
-  const [openIds, setOpenIds] = useState<Set<string>>(new Set([items[0]?.id || '1']));
+  // 아코디언 열려있는 항목의 원본 findings 배열 기준 인덱스
+  // 진입 시에는 전부 닫힌 슬림 목록으로 시작해, 스캔 결과를 한눈에 훑을 수 있도록 합니다.
+  const [openIndices, setOpenIndices] = useState<Set<number>>(new Set());
 
-  const filteredItems = items.filter((item) => {
+  const indexedFindings = findings.map((finding, idx) => ({ finding, idx }));
+
+  const filteredFindings = indexedFindings.filter(({ finding }) => {
     if (filter === 'ALL') return true;
-    return item.category === filter;
+    return finding.category === filter;
   });
 
-  const toggleAccordion = (id: string) => {
-    setOpenIds((prev) => {
+  const toggleAccordion = (idx: number) => {
+    setOpenIndices((prev) => {
       const next = new Set(prev);
-      if (next.has(id)) next.delete(id);
-      else next.add(id);
+      if (next.has(idx)) next.delete(idx);
+      else next.add(idx);
       return next;
     });
   };
 
-  const medicineCount = items.filter((i) => i.category === 'MEDICINE').length;
-  const exaggerationCount = items.filter((i) => i.category === 'EXAGGERATION').length;
+  // 실제로 등장하는 카테고리만 필터 칩으로 노출 (등장하지 않는 카테고리는 칩을 만들지 않음)
+  const categoryCounts = new Map<string, number>();
+  findings.forEach((finding) => {
+    categoryCounts.set(finding.category, (categoryCounts.get(finding.category) ?? 0) + 1);
+  });
+  const presentCategories = Array.from(categoryCounts.keys());
 
-  // 필터 칩 공통 스타일 (전체: 다크 슬레이트 모노톤, 도톰한 터치감)
+  // 필터 칩 공통 스타일: 흐릿한 무채색 대신 선택/비선택이 또렷하게 대비되는 스타일
   const filterChipStyle = (active: boolean): React.CSSProperties => ({
     padding: '8px 14px',
     borderRadius: '20px',
-    border: 'none',
     fontSize: '12.5px',
-    fontWeight: 700,
     cursor: 'pointer',
     whiteSpace: 'nowrap',
-    background: active ? '#0F172A' : '#F1F5F9',
+    transition: 'all 0.15s ease',
+    background: active ? '#0F172A' : '#FFFFFF',
     color: active ? '#FFFFFF' : '#64748B',
-    transition: 'all 0.15s ease',
+    fontWeight: active ? 700 : 600,
+    border: active ? 'none' : '1.5px solid #CBD5E1',
   });
 
-  // 카테고리 필터 칩: 버블 뷰와 통일된 파우더리 톤
-  const categoryChipStyle = (category: ViolationItem['category'], active: boolean): React.CSSProperties => ({
-    padding: '8px 14px',
-    borderRadius: '20px',
-    border: 'none',
-    fontSize: '12.5px',
-    fontWeight: 700,
-    cursor: 'pointer',
-    whiteSpace: 'nowrap',
-    transition: 'all 0.15s ease',
-    ...(active ? getCategoryBadgeStyle(category) : { background: '#F8FAFC', color: '#64748B' }),
-  });
-
-  const handleRecheck = onRecheck || onReset || (() => {});
+  const handleRecheck = onAnalyze || onReset || (() => {});
 
   return (
     <div
-      className="tab-panel"
+      className="tab-panel detail-list-container"
       style={{
         width: '100%',
         minHeight: '100%',
@@ -145,48 +86,57 @@ export const DetailListView: React.FC<DetailListViewProps> = ({
     >
 
       {/* 1. 상단 타이틀 & 설명 앵커 */}
-      <div style={{ marginBottom: '2px' }}>
-        <h2 style={{ fontSize: '20px', fontWeight: 800, color: '#0F172A', margin: '0 0 4px 0', letterSpacing: '-0.4px', lineHeight: 1.35 }}>
+      <div style={{ marginBottom: '2px', textAlign: 'center' }}>
+        <h2 style={{ fontSize: '20px', fontWeight: 800, color: '#190933', margin: '0 0 4px 0', letterSpacing: '-0.4px', lineHeight: 1.35 }}>
           광고 점검 상세 리포트
         </h2>
         <p style={{ fontSize: '13px', color: '#64748B', margin: 0, lineHeight: 1.45, wordBreak: 'keep-all' }}>
-          총 {items.length}건의 표현에 대해 식약처 기준을 확인해보세요.
+          총 {findings.length}건의 표현에 대해 식약처 기준을 확인해보세요.
         </p>
       </div>
 
-      {/* 2. 카테고리 필터 칩 */}
+      {/* 2. 카테고리 필터 칩: findings에 실제로 등장하는 category마다 하나씩 동적으로 생성 */}
       <div style={{ display: 'flex', gap: '8px', overflowX: 'auto', margin: '12px 0 16px' }}>
         <button type="button" onClick={() => setFilter('ALL')} style={filterChipStyle(filter === 'ALL')}>
-          전체 {items.length}
+          전체 {findings.length}
         </button>
-        <button type="button" onClick={() => setFilter('MEDICINE')} style={categoryChipStyle('MEDICINE', filter === 'MEDICINE')}>
-          의약품 오인 우려 {medicineCount}
-        </button>
-        <button type="button" onClick={() => setFilter('EXAGGERATION')} style={categoryChipStyle('EXAGGERATION', filter === 'EXAGGERATION')}>
-          과장 표현 {exaggerationCount}
-        </button>
+        {presentCategories.map((category) => {
+          const theme = getCategoryTheme(category);
+          return (
+            <button
+              key={category}
+              type="button"
+              onClick={() => setFilter(category)}
+              style={filterChipStyle(filter === category)}
+            >
+              {theme.label} {categoryCounts.get(category)}
+            </button>
+          );
+        })}
       </div>
 
       {/* 3. 슬림 아코디언 목록 */}
-      <div style={{ display: 'flex', flexDirection: 'column', gap: '10px', flex: '1 1 auto' }}>
-        {filteredItems.map((item, idx) => {
-          const isOpen = openIds.has(item.id);
+      <div className="accordion-list-wrapper" style={{ display: 'flex', flexDirection: 'column', flex: '1 1 auto' }}>
+        {filteredFindings.map(({ finding, idx }, displayIdx) => {
+          const isOpen = openIndices.has(idx);
+          const theme = getCategoryTheme(finding.category);
 
           return (
             <div
-              key={item.id}
-              className="accordion-row-cascade"
+              key={finding.selector ?? idx}
+              className="detail-accordion-item"
               style={{
                 background: '#FFFFFF',
-                borderRadius: '14px',
-                border: '1px solid #E2E8F0',
-                boxShadow: '0 4px 12px rgba(15, 23, 42, 0.05)',
+                borderRadius: '16px',
+                border: '1.5px solid #E2E8F0',
+                boxShadow: '0 4px 16px rgba(15, 23, 42, 0.05)',
+                marginBottom: '14px',
                 overflow: 'hidden',
-                animationDelay: `${idx * 0.05}s`,
+                animationDelay: `${displayIdx * 0.055}s`,
               }}
             >
               <div
-                onClick={() => toggleAccordion(item.id)}
+                onClick={() => toggleAccordion(idx)}
                 style={{
                   padding: '13px 14px',
                   display: 'flex',
@@ -209,13 +159,15 @@ export const DetailListView: React.FC<DetailListViewProps> = ({
                       fontSize: '11px',
                       fontWeight: 700,
                       flexShrink: 0,
-                      ...getCategoryBadgeStyle(item.category),
+                      transition: 'background 0.2s ease, color 0.2s ease',
+                      background: isOpen ? theme.badgeText : theme.badgeBg,
+                      color: isOpen ? '#FFFFFF' : theme.badgeText,
                     }}
                   >
-                    {idx + 1}
+                    {displayIdx + 1}
                   </span>
-                  <span style={{ fontSize: '14px', fontWeight: 500, color: '#0F172A', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
-                    {item.keyword}
+                  <span style={{ fontSize: '14px', fontWeight: 500, color: '#190933', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                    {finding.bubbleLabel}
                   </span>
                 </div>
 
@@ -257,16 +209,33 @@ export const DetailListView: React.FC<DetailListViewProps> = ({
                   }}
                 >
                   <div style={{ padding: '4px 14px 14px', display: 'flex', flexDirection: 'column', gap: '8px' }}>
-                    {/* 광고 속 문제 문구: 소프트 로즈 + 코랄 라인 인디케이터 */}
-                    <div style={{ background: '#FFF1F2', borderRadius: '8px', padding: '10px 11px', borderLeft: '3px solid #F43F5E' }}>
-                      <div style={{ fontSize: '11px', fontWeight: 700, color: '#E11D48', marginBottom: '3px' }}>광고 본문</div>
-                      <div style={{ fontSize: '13px', color: '#0F172A', fontWeight: 700, lineHeight: 1.45 }}>{item.adText}</div>
+                    {/* 광고 속 문제 문구: 카테고리 테마 틴트 + 라인 인디케이터 + 카테고리 배지 칩 */}
+                    <div style={{ background: theme.badgeBg, borderRadius: '8px', padding: '10px 11px', borderLeft: `3px solid ${theme.indicatorColor}` }}>
+                      <span
+                        className="category-badge"
+                        style={{
+                          display: 'inline-block',
+                          backgroundColor: theme.badgeBg,
+                          color: theme.badgeText,
+                          border: `1px solid ${theme.badgeBorder}`,
+                          borderRadius: '9999px',
+                          padding: '2px 8px',
+                          fontSize: '10.5px',
+                          fontWeight: 700,
+                          marginBottom: '5px',
+                        }}
+                      >
+                        {theme.label}
+                      </span>
+                      <div style={{ fontSize: '13px', color: '#190933', fontWeight: 700, lineHeight: 1.45 }}>{finding.sourceText}</div>
                     </div>
 
-                    {/* 식약처 공식 기준: 소프트 슬레이트 + 틸/민트 라인 인디케이터 */}
-                    <div style={{ background: '#F8FAFC', borderRadius: '8px', padding: '10px 11px', borderLeft: '3px solid #10B981' }}>
-                      <div style={{ fontSize: '11px', fontWeight: 700, color: '#059669', marginBottom: '3px' }}>식약처 고시 기준</div>
-                      <div style={{ fontSize: '12px', color: '#334155', fontWeight: 400, lineHeight: 1.45 }}>{item.officialStandard}</div>
+                    {/* 식약처 공식 기준: 카테고리와 무관하게 항상 동일한 민트 틴트(상단 브랜드 컬러와 통일) */}
+                    <div style={{ background: '#F2FDF9', borderRadius: '8px', padding: '10px 11px', borderLeft: '3px solid #5DD9C1' }}>
+                      <div style={{ fontSize: '11px', fontWeight: 700, color: '#0D9488', marginBottom: '3px' }}>식약처 고시 기준</div>
+                      <div style={{ fontSize: '12px', color: '#334155', fontWeight: 400, lineHeight: 1.45 }}>
+                        {finding.officialFunction ?? '해당 표현에 대응하는 공인 기능성 문구가 없어요.'}
+                      </div>
                     </div>
                   </div>
                 </div>
@@ -285,7 +254,7 @@ export const DetailListView: React.FC<DetailListViewProps> = ({
             width: '100%',
             height: '47px',
             borderRadius: '16px',
-            background: '#0F172A',
+            background: '#190933',
             border: 'none',
             color: '#FFFFFF',
             fontSize: '15px',

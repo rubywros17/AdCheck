@@ -4,7 +4,7 @@ import type { ViewStatus } from "./types";
 import { SidepanelHeader } from "./components/SidepanelHeader";
 import { SidepanelFooter } from "./components/SidepanelFooter";
 import { HistoryModal } from "./components/HistoryModal";
-import { AdCheckIntroScanner } from "./views/SplashView";
+import { SplashView } from "./views/SplashView";
 import { IdleView } from "./views/IdleView";
 import { AnalyzingView } from "./views/AnalyzingView";
 import { SummaryHeroView } from "./views/SummaryHeroView";
@@ -19,7 +19,7 @@ export function App() {
   if (status === "SPLASH") {
     return (
       <div className="toss-root" data-view="splash">
-        <AdCheckIntroScanner onComplete={() => setStatus("IDLE")} />
+        <SplashView onFinish={() => setStatus("IDLE")} />
       </div>
     );
   }

@@ -61,7 +61,7 @@ export function HistoryModal({ histories, onClose, onSelect }: Props) {
             <p className="no-filtered-item">저장된 점검 기록이 없어요.</p>
           ) : (
             histories.map((history) => {
-              const badgeColor = history.level === "SAFE" ? "history-badge-safe" : history.level === "CAUTION" ? "history-badge-caution" : "history-badge-review";
+              const badgeState = history.level === "SAFE" ? "safe" : history.level === "CAUTION" ? "warning" : "review";
               const badgeText = history.level === "SAFE" ? "안심" : history.level === "CAUTION" ? `주의 ${history.count}건` : `검토 ${history.count}건`;
 
               return (
@@ -70,7 +70,7 @@ export function HistoryModal({ histories, onClose, onSelect }: Props) {
                     <span className="history-date">{history.dateStr}</span>
                     <strong className="history-prod-name">{history.productName}</strong>
                   </span>
-                  <span className={`history-status-badge ${badgeColor}`}>{badgeText}</span>
+                  <span className={`history-status-badge ${badgeState}`}>{badgeText}</span>
                 </button>
               );
             })

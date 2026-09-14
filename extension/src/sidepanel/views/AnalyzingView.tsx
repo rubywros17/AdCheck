@@ -4,12 +4,13 @@ import { CertMarkAnimation } from "../components/animations/CertMarkAnimation";
 import { WarningAnimation } from "../components/animations/WarningAnimation";
 import { PillAnimation } from "../components/animations/PillAnimation";
 import { ReviewAnimation } from "../components/animations/ReviewAnimation";
+import { AirplaneAnimation } from "../components/animations/AirplaneAnimation";
 
 interface Props {
   onComplete: () => void;
 }
 
-type TipTheme = "shield" | "warning" | "pill" | "review";
+type TipTheme = "shield" | "warning" | "pill" | "review" | "airplane";
 
 interface TipItem {
   theme: TipTheme;
@@ -23,6 +24,7 @@ const GRAPHIC_BY_THEME: Record<TipTheme, React.ComponentType> = {
   warning: WarningAnimation,
   pill: PillAnimation,
   review: ReviewAnimation,
+  airplane: AirplaneAnimation,
 };
 
 // 인증마크를 직접 언급하는 팁은 실제 인증마크 이미지로, 나머지는 테마 기본 그래픽으로
@@ -43,26 +45,28 @@ const ADCHECK_TIPS: TipItem[] = [
   // 1. 방패 / 인증마크 테마 (shield)
   { theme: "shield", text: "건강기능식품은 패키지 인증마크로 확인할 수 있어요.", certMark: true },
   { theme: "shield", text: "인정받은 제품인지 '식품안전나라'에서 검색해보세요." },
-  { theme: "shield", text: "해외직구 영양제는 식약처 인증 건강기능식품이 아니에요." },
-  { theme: "shield", text: "해외직구 식품과 일반식품은 건강기능식품이 아니에요." },
   { theme: "shield", text: "'기능성 표시식품'은 건강기능식품과 달라요." },
 
-  // 2. 경고 도장 테마 (warning)
-  { theme: "warning", text: "일반식품은 '피로회복', '혈당조절' 문구를 쓸 수 없어요." },
-  { theme: "warning", text: "일반식품에 '항산화' 등의 문구를 쓰면 건강기능식품 오인 광고예요." },
-  { theme: "warning", text: "'혈관을 탄력 있고 부드럽게'는 허위 광고예요." },
-  { theme: "warning", text: "원재료 효능 논문을 제품 효능처럼 광고할 수 없어요." },
-  { theme: "warning", text: "'부작용 0%', '100% 천연' 같은 절대적 표현은 금지돼요." },
-  { theme: "warning", text: "호박즙, 효소 등 일반식품은 '붓기 제거' 광고를 못해요." },
+  // 2. 해외직구 비행기 테마 (airplane)
+  { theme: "airplane", text: "해외직구 영양제는\n식약처 인증 건강기능식품이 아니에요." },
+  { theme: "airplane", text: "해외직구 식품과 일반식품은\n건강기능식품이 아니에요." },
 
-  // 3. 알약 / 의약품 오인 테마 (pill)
+  // 3. 경고 도장 테마 (warning)
+  { theme: "warning", text: "일반식품은 '피로회복', '혈당조절' 문구를 쓸 수 없어요." },
+  { theme: "warning", text: "일반식품에 '항산화' 등의 문구를 쓰면\n건강기능식품 오인 광고예요." },
+  { theme: "warning", text: "'혈관을 탄력 있고 부드럽게'는 허위 광고예요." },
+  { theme: "warning", text: "원재료 효능 논문을\n제품 효능처럼 광고할 수 없어요." },
+  { theme: "warning", text: "'부작용 0%', '100% 천연' 같은 절대적 표현은 금지돼요." },
+  { theme: "warning", text: "호박즙, 효소 등 일반식품은\n붓기 제거 광고를 할 수 없어요." },
+
+  // 4. 알약 / 의약품 오인 테마 (pill)
   { theme: "pill", text: "건강기능식품은 질병을 치료하는 의약품이 아니에요." },
   { theme: "pill", text: "건강기능식품은 질병을 예방하는 의약품처럼 광고할 수 없어요." },
   { theme: "pill", text: "멜라토닌 함유 식품은 불면증 치료 효과가 없어요." },
   { theme: "pill", text: "국내에 탈모 치료 효과를 인정받은 건강기능식품은 없어요." },
   { theme: "pill", text: "'키 크는 영양제', '수험생 총명환'은 인정된 기능성이 아니에요." },
 
-  // 4. 구매후기 / 체험기 테마 (review)
+  // 5. 구매후기 / 체험기 테마 (review)
   { theme: "review", text: "'먹고 완치됐다'는 체험기·구매후기 광고는 불법이에요." },
 ];
 
