@@ -309,6 +309,82 @@ class AnalysisApiIntegrationTest {
     }
 
     @Test
+    void getReturnsPendingAnalysisWithMinimalResponse() throws Exception {
+        Analysis pending = Analysis.create(
+                "https://example.com/product/get-pending",
+                "상품 페이지",
+                "테스트 상품"
+        );
+        pending = analysisRepository.saveAndFlush(pending);
+
+        mockMvc.perform(get("/api/v1/analyses/{id}", pending.getId()))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.analysisId").value(pending.getId()))
+                .andExpect(jsonPath("$.status").value("PENDING"))
+                .andExpect(jsonPath("$.summary").value((Object) null))
+                .andExpect(jsonPath("$.findings").isEmpty());
+    }
+
+    @Test
+    void getReturnsProcessingAnalysisWithMinimalResponse() throws Exception {
+        Analysis processing = Analysis.create(
+                "https://example.com/product/get-processing",
+                "상품 페이지",
+                "테스트 상품"
+        );
+        processing.startProcessing();
+        processing = analysisRepository.saveAndFlush(processing);
+
+        mockMvc.perform(get("/api/v1/analyses/{id}", processing.getId()))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.analysisId").value(processing.getId()))
+                .andExpect(jsonPath("$.status").value("PROCESSING"))
+                .andExpect(jsonPath("$.summary").value((Object) null))
+                .andExpect(jsonPath("$.findings").isEmpty());
+    }
+
+    @Test
+    void getReturnsCompletedAnalysisWithSameShapeAsPostReuse() throws Exception {
+        String requestBody = requestBody(
+                "https://example.com/product/get-completed",
+                "시력을 회복하고 노안을 예방합니다."
+        );
+        mockMvc.perform(post("/api/v1/analyses")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(requestBody))
+                .andExpect(status().isAccepted());
+        awaitBackgroundJobs();
+        Analysis completed = analysisRepository.findAll().getFirst();
+
+        String getResponseJson = mockMvc.perform(get("/api/v1/analyses/{id}", completed.getId()))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.analysisId").value(completed.getId()))
+                .andExpect(jsonPath("$.status").value("COMPLETED"))
+                .andExpect(jsonPath("$.summary.findingCount").value(1))
+                .andExpect(jsonPath("$.findings[0].sourceText")
+                        .value("시력을 회복하고 노안을 예방합니다."))
+                .andReturn().getResponse().getContentAsString();
+
+        String postReuseResponseJson = mockMvc.perform(post("/api/v1/analyses")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(requestBody))
+                .andExpect(status().isOk())
+                .andReturn().getResponse().getContentAsString();
+
+        assertThat(getResponseJson).isEqualTo(postReuseResponseJson);
+    }
+
+    @Test
+    void getReturns404ForUnknownAnalysisId() throws Exception {
+        expectError(
+                mockMvc.perform(get("/api/v1/analyses/{id}", 999_999_999L)),
+                HttpStatus.NOT_FOUND,
+                "ANALYSIS_NOT_FOUND",
+                "분석 결과를 찾을 수 없습니다. analysisId=999999999"
+        );
+    }
+
+    @Test
     void returnsPendingAnalysisAsAcceptedWithoutChangingIt() throws Exception {
         assertInProgressResponse(AnalysisStatus.PENDING);
     }

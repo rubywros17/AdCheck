@@ -4,6 +4,7 @@ import com.adcheck.analysis.domain.Analysis;
 import com.adcheck.analysis.domain.AnalysisStatus;
 import com.adcheck.analysis.dto.AnalysisResponse;
 import com.adcheck.analysis.dto.CreateAnalysisRequest;
+import com.adcheck.analysis.result.AnalysisResultJsonCodec;
 import com.adcheck.analysis.result.AnalysisResultSnapshotMapper;
 import org.springframework.core.task.TaskRejectedException;
 import org.springframework.dao.DataIntegrityViolationException;
@@ -21,19 +22,36 @@ public class AnalysisService {
     private final AnalysisBackgroundJob backgroundJob;
     private final AnalysisResultSnapshotMapper snapshotMapper;
     private final AnalysisActiveReuseConstraintDetector activeReuseConstraintDetector;
+    private final AnalysisResultJsonCodec resultJsonCodec;
 
     public AnalysisService(
             AnalysisResultResolver resultResolver,
             AnalysisLifecycleService lifecycleService,
             AnalysisBackgroundJob backgroundJob,
             AnalysisResultSnapshotMapper snapshotMapper,
-            AnalysisActiveReuseConstraintDetector activeReuseConstraintDetector
+            AnalysisActiveReuseConstraintDetector activeReuseConstraintDetector,
+            AnalysisResultJsonCodec resultJsonCodec
     ) {
         this.resultResolver = resultResolver;
         this.lifecycleService = lifecycleService;
         this.backgroundJob = backgroundJob;
         this.snapshotMapper = snapshotMapper;
         this.activeReuseConstraintDetector = activeReuseConstraintDetector;
+        this.resultJsonCodec = resultJsonCodec;
+    }
+
+    public AnalysisResponse getAnalysis(Long analysisId) {
+        Analysis analysis = lifecycleService.findById(analysisId)
+                .orElseThrow(() -> new AnalysisNotFoundException(analysisId));
+
+        if (analysis.getStatus() == AnalysisStatus.COMPLETED) {
+            return snapshotMapper.toResponse(
+                    analysisId,
+                    AnalysisStatus.COMPLETED,
+                    resultJsonCodec.deserialize(analysis.getResultJson())
+            );
+        }
+        return new AnalysisResponse(analysisId, analysis.getStatus(), null, List.of());
     }
 
     public AnalysisSubmissionResult analyze(CreateAnalysisRequest request) {

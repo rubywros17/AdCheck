@@ -25,6 +25,7 @@ import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.ArgumentMatchers.anyList;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
@@ -106,6 +107,21 @@ class AnalysisFailureApiIntegrationTest {
             assertThat(failed.getErrorMessage()).isEqualTo("RuntimeException");
             assertThat(failed.getErrorMessage()).isNotBlank();
         });
+    }
+
+    @Test
+    void getReturnsMinimalResponseForFailedAnalysisWithoutExposingErrorMessage() throws Exception {
+        when(claimAnalyzer.analyze(anyList())).thenThrow(new IllegalStateException("Mock 분석 실패"));
+
+        performFailingAnalysis("get-failed");
+
+        Analysis failed = analysisRepository.findAll().getFirst();
+        mockMvc.perform(get("/api/v1/analyses/{id}", failed.getId()))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.analysisId").value(failed.getId()))
+                .andExpect(jsonPath("$.status").value("FAILED"))
+                .andExpect(jsonPath("$.summary").value((Object) null))
+                .andExpect(jsonPath("$.findings").isEmpty());
     }
 
     @Test

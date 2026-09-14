@@ -47,6 +47,22 @@ class AnalysisControllerTest {
         assertStatus(AnalysisSubmissionResult.Outcome.IN_PROGRESS, HttpStatus.ACCEPTED);
     }
 
+    @Test
+    void returnsOkWithAnalysisServiceResponseForGetById() {
+        AnalysisResponse response = new AnalysisResponse(
+                5L,
+                AnalysisStatus.COMPLETED,
+                new AnalysisSummary(1, 1),
+                List.of()
+        );
+        when(analysisService.getAnalysis(5L)).thenReturn(response);
+
+        ResponseEntity<AnalysisResponse> entity = controller.getAnalysis(5L);
+
+        assertThat(entity.getStatusCode()).isEqualTo(HttpStatus.OK);
+        assertThat(entity.getBody()).isSameAs(response);
+    }
+
     private void assertStatus(AnalysisSubmissionResult.Outcome outcome, HttpStatus expectedStatus) {
         AnalysisResponse response = new AnalysisResponse(
                 1L,

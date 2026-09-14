@@ -4,6 +4,7 @@ import com.adcheck.analysis.domain.Analysis;
 import com.adcheck.analysis.domain.AnalysisStatus;
 import com.adcheck.analysis.dto.CreateAnalysisRequest;
 import com.adcheck.analysis.dto.PageTextEvidence;
+import com.adcheck.analysis.result.AnalysisResultJsonCodec;
 import com.adcheck.analysis.result.AnalysisResultSnapshot;
 import com.adcheck.analysis.result.AnalysisResultSnapshotMapper;
 import com.adcheck.finding.domain.FindingCategory;
@@ -15,6 +16,7 @@ import org.mockito.InOrder;
 import org.springframework.core.task.TaskRejectedException;
 import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.http.HttpStatus;
+import tools.jackson.databind.ObjectMapper;
 
 import java.util.List;
 import java.util.Optional;
@@ -39,6 +41,7 @@ class AnalysisServiceTest {
     private AnalysisResultResolver resultResolver;
     private AnalysisLifecycleService lifecycleService;
     private AnalysisBackgroundJob backgroundJob;
+    private AnalysisResultJsonCodec resultJsonCodec;
     private AnalysisService analysisService;
 
     @BeforeEach
@@ -46,12 +49,14 @@ class AnalysisServiceTest {
         resultResolver = mock(AnalysisResultResolver.class);
         lifecycleService = mock(AnalysisLifecycleService.class);
         backgroundJob = mock(AnalysisBackgroundJob.class);
+        resultJsonCodec = new AnalysisResultJsonCodec(new ObjectMapper());
         analysisService = new AnalysisService(
                 resultResolver,
                 lifecycleService,
                 backgroundJob,
                 new AnalysisResultSnapshotMapper(),
-                new AnalysisActiveReuseConstraintDetector()
+                new AnalysisActiveReuseConstraintDetector(),
+                resultJsonCodec
         );
     }
 
@@ -207,6 +212,73 @@ class AnalysisServiceTest {
 
         verify(lifecycleService).findActive(REUSE_KEY);
         verify(backgroundJob, never()).process(any(), any());
+    }
+
+    @Test
+    void returnsMinimalResponseForPendingAnalysis() {
+        Analysis pending = mock(Analysis.class);
+        when(pending.getStatus()).thenReturn(AnalysisStatus.PENDING);
+        when(lifecycleService.findById(30L)).thenReturn(Optional.of(pending));
+
+        var response = analysisService.getAnalysis(30L);
+
+        assertThat(response.analysisId()).isEqualTo(30L);
+        assertThat(response.status()).isEqualTo(AnalysisStatus.PENDING);
+        assertThat(response.summary()).isNull();
+        assertThat(response.findings()).isEmpty();
+    }
+
+    @Test
+    void returnsMinimalResponseForProcessingAnalysis() {
+        Analysis processing = mock(Analysis.class);
+        when(processing.getStatus()).thenReturn(AnalysisStatus.PROCESSING);
+        when(lifecycleService.findById(31L)).thenReturn(Optional.of(processing));
+
+        var response = analysisService.getAnalysis(31L);
+
+        assertThat(response.status()).isEqualTo(AnalysisStatus.PROCESSING);
+        assertThat(response.summary()).isNull();
+        assertThat(response.findings()).isEmpty();
+    }
+
+    @Test
+    void returnsMinimalResponseForFailedAnalysis() {
+        Analysis failed = mock(Analysis.class);
+        when(failed.getStatus()).thenReturn(AnalysisStatus.FAILED);
+        when(lifecycleService.findById(32L)).thenReturn(Optional.of(failed));
+
+        var response = analysisService.getAnalysis(32L);
+
+        assertThat(response.status()).isEqualTo(AnalysisStatus.FAILED);
+        assertThat(response.summary()).isNull();
+        assertThat(response.findings()).isEmpty();
+    }
+
+    @Test
+    void returnsRestoredResultForCompletedAnalysis() {
+        Analysis completed = mock(Analysis.class);
+        when(completed.getStatus()).thenReturn(AnalysisStatus.COMPLETED);
+        when(completed.getResultJson()).thenReturn(resultJsonCodec.serialize(snapshot()));
+        when(lifecycleService.findById(33L)).thenReturn(Optional.of(completed));
+
+        var response = analysisService.getAnalysis(33L);
+
+        assertThat(response.analysisId()).isEqualTo(33L);
+        assertThat(response.status()).isEqualTo(AnalysisStatus.COMPLETED);
+        assertThat(response.summary().findingCount()).isEqualTo(1);
+        assertThat(response.findings()).hasSize(1);
+        assertThat(response.findings().getFirst().sourceText()).isEqualTo("시력을 회복합니다.");
+    }
+
+    @Test
+    void throwsNotFoundWhenAnalysisDoesNotExist() {
+        when(lifecycleService.findById(99L)).thenReturn(Optional.empty());
+
+        assertThatThrownBy(() -> analysisService.getAnalysis(99L))
+                .isInstanceOfSatisfying(AnalysisNotFoundException.class, exception -> {
+                    assertThat(exception.getStatus()).isEqualTo(HttpStatus.NOT_FOUND);
+                    assertThat(exception.getCode()).isEqualTo("ANALYSIS_NOT_FOUND");
+                });
     }
 
     private AnalysisResultSnapshot snapshot() {

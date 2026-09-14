@@ -55,6 +55,11 @@ public class AnalysisLifecycleService {
         );
     }
 
+    @Transactional(propagation = Propagation.REQUIRES_NEW, readOnly = true)
+    public Optional<Analysis> findById(Long analysisId) {
+        return analysisRepository.findById(analysisId);
+    }
+
     private Analysis findRequired(Long analysisId) {
         return analysisRepository.findById(analysisId)
                 .orElseThrow(() -> new IllegalStateException(
