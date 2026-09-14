@@ -38,16 +38,18 @@ const SLIDE_MS = 500;
 // 전체 로딩 최소 노출 시간 (카드1 3초 + 전환 0.5초 + 카드2 3초 = 6.5초)
 const TOTAL_LOADING_MS = CARD_DISPLAY_MS + SLIDE_MS + CARD_DISPLAY_MS;
 
-// 14가지 식약처 공인 부당광고 상식 문장
+// 17가지 식약처 공인 부당광고 상식 문장
 const ADCHECK_TIPS: TipItem[] = [
   // 1. 방패 / 인증마크 테마 (shield)
   { theme: "shield", text: "건강기능식품은 패키지 인증마크로 확인할 수 있어요.", certMark: true },
   { theme: "shield", text: "인정받은 제품인지 '식품안전나라'에서 검색해보세요." },
   { theme: "shield", text: "해외직구 영양제는 식약처 인증 건강기능식품이 아니에요." },
+  { theme: "shield", text: "해외직구 식품과 일반식품은 건강기능식품이 아니에요." },
   { theme: "shield", text: "'기능성 표시식품'은 건강기능식품과 달라요." },
 
   // 2. 경고 도장 테마 (warning)
   { theme: "warning", text: "일반식품은 '피로회복', '혈당조절' 문구를 쓸 수 없어요." },
+  { theme: "warning", text: "일반식품에 '항산화' 등의 문구를 쓰면 건강기능식품 오인 광고예요." },
   { theme: "warning", text: "'혈관을 탄력 있고 부드럽게'는 허위 광고예요." },
   { theme: "warning", text: "원재료 효능 논문을 제품 효능처럼 광고할 수 없어요." },
   { theme: "warning", text: "'부작용 0%', '100% 천연' 같은 절대적 표현은 금지돼요." },
@@ -55,6 +57,7 @@ const ADCHECK_TIPS: TipItem[] = [
 
   // 3. 알약 / 의약품 오인 테마 (pill)
   { theme: "pill", text: "건강기능식품은 질병을 치료하는 의약품이 아니에요." },
+  { theme: "pill", text: "건강기능식품은 질병을 예방하는 의약품처럼 광고할 수 없어요." },
   { theme: "pill", text: "멜라토닌 함유 식품은 불면증 치료 효과가 없어요." },
   { theme: "pill", text: "국내에 탈모 치료 효과를 인정받은 건강기능식품은 없어요." },
   { theme: "pill", text: "'키 크는 영양제', '수험생 총명환'은 인정된 기능성이 아니에요." },
