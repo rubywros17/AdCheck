@@ -11,8 +11,8 @@ public record AnalysisSubmissionResult(Outcome outcome, AnalysisResponse respons
         response = Objects.requireNonNull(response, "analysis response는 null일 수 없습니다.");
     }
 
-    public static AnalysisSubmissionResult created(AnalysisResponse response) {
-        return new AnalysisSubmissionResult(Outcome.CREATED, response);
+    public static AnalysisSubmissionResult submitted(AnalysisResponse response) {
+        return new AnalysisSubmissionResult(Outcome.SUBMITTED, response);
     }
 
     public static AnalysisSubmissionResult reused(AnalysisResponse response) {
@@ -24,7 +24,7 @@ public record AnalysisSubmissionResult(Outcome outcome, AnalysisResponse respons
     }
 
     public enum Outcome {
-        CREATED,
+        SUBMITTED,
         REUSED,
         IN_PROGRESS
     }

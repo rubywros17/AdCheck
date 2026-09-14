@@ -30,7 +30,7 @@ public class AnalysisController {
 
     private HttpStatus statusFor(AnalysisSubmissionResult.Outcome outcome) {
         return switch (outcome) {
-            case CREATED -> HttpStatus.CREATED;
+            case SUBMITTED -> HttpStatus.ACCEPTED;
             case REUSED -> HttpStatus.OK;
             case IN_PROGRESS -> HttpStatus.ACCEPTED;
         };

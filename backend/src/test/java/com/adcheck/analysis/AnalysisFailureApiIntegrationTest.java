@@ -1,19 +1,25 @@
 package com.adcheck.analysis;
 
+import com.adcheck.analysis.config.AnalysisAsyncConfiguration;
 import com.adcheck.analysis.domain.Analysis;
 import com.adcheck.analysis.domain.AnalysisStatus;
 import com.adcheck.analysis.repository.AnalysisRepository;
 import com.adcheck.analysis.service.ClaimAnalyzer;
 import org.junit.jupiter.api.BeforeEach;
+import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.beans.factory.annotation.Qualifier;
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.http.MediaType;
 import org.springframework.test.context.ActiveProfiles;
 import org.springframework.test.context.bean.override.mockito.MockitoBean;
+import org.springframework.scheduling.concurrent.ThreadPoolTaskExecutor;
 import org.springframework.test.web.servlet.MockMvc;
 import org.springframework.test.web.servlet.setup.MockMvcBuilders;
 import org.springframework.web.context.WebApplicationContext;
+
+import java.util.concurrent.TimeUnit;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.ArgumentMatchers.anyList;
@@ -36,12 +42,22 @@ class AnalysisFailureApiIntegrationTest {
     @MockitoBean
     private ClaimAnalyzer claimAnalyzer;
 
+    @Autowired
+    @Qualifier(AnalysisAsyncConfiguration.EXECUTOR_NAME)
+    private ThreadPoolTaskExecutor analysisTaskExecutor;
+
     private MockMvc mockMvc;
 
     @BeforeEach
-    void setUp() {
+    void setUp() throws Exception {
+        awaitBackgroundJobs();
         analysisRepository.deleteAll();
         mockMvc = MockMvcBuilders.webAppContextSetup(applicationContext).build();
+    }
+
+    @AfterEach
+    void tearDown() throws Exception {
+        awaitBackgroundJobs();
     }
 
     @Test
@@ -63,9 +79,12 @@ class AnalysisFailureApiIntegrationTest {
                                   "images": []
                                 }
                                 """))
-                .andExpect(status().isInternalServerError())
-                .andExpect(jsonPath("$.code").value("INTERNAL_SERVER_ERROR"));
+                .andExpect(status().isAccepted())
+                .andExpect(jsonPath("$.status").value("PENDING"))
+                .andExpect(jsonPath("$.summary").value((Object) null))
+                .andExpect(jsonPath("$.findings").isEmpty());
 
+        awaitBackgroundJobs();
         verify(claimAnalyzer).analyze(anyList());
         assertThat(analysisRepository.findAll()).singleElement().satisfies(failed -> {
             assertThat(failed.getStatus()).isEqualTo(AnalysisStatus.FAILED);
@@ -116,7 +135,14 @@ class AnalysisFailureApiIntegrationTest {
                                   "images": []
                                 }
                                 """.formatted(requestKey)))
-                .andExpect(status().isInternalServerError())
-                .andExpect(jsonPath("$.code").value("INTERNAL_SERVER_ERROR"));
+                .andExpect(status().isAccepted())
+                .andExpect(jsonPath("$.status").value("PENDING"));
+
+        awaitBackgroundJobs();
+    }
+
+    private void awaitBackgroundJobs() throws Exception {
+        analysisTaskExecutor.submit(() -> {
+        }).get(5, TimeUnit.SECONDS);
     }
 }

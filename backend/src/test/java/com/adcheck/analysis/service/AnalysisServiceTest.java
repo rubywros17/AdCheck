@@ -2,21 +2,19 @@ package com.adcheck.analysis.service;
 
 import com.adcheck.analysis.domain.Analysis;
 import com.adcheck.analysis.domain.AnalysisStatus;
-import com.adcheck.analysis.dto.AnalysisResponse;
 import com.adcheck.analysis.dto.CreateAnalysisRequest;
 import com.adcheck.analysis.dto.PageTextEvidence;
-import com.adcheck.analysis.result.AnalysisResultJsonCodec;
 import com.adcheck.analysis.result.AnalysisResultSnapshot;
 import com.adcheck.analysis.result.AnalysisResultSnapshotMapper;
-import com.adcheck.finding.domain.Finding;
 import com.adcheck.finding.domain.FindingCategory;
 import com.adcheck.finding.domain.RiskLevel;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.mockito.ArgumentCaptor;
 import org.mockito.InOrder;
+import org.springframework.core.task.TaskRejectedException;
 import org.springframework.dao.DataIntegrityViolationException;
-import tools.jackson.databind.ObjectMapper;
+import org.springframework.http.HttpStatus;
 
 import java.util.List;
 import java.util.Optional;
@@ -24,7 +22,6 @@ import java.util.Optional;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.any;
-import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.Mockito.inOrder;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.never;
@@ -41,63 +38,51 @@ class AnalysisServiceTest {
 
     private AnalysisResultResolver resultResolver;
     private AnalysisLifecycleService lifecycleService;
-    private ClaimAnalyzer claimAnalyzer;
-    private AnalysisResultJsonCodec resultJsonCodec;
+    private AnalysisBackgroundJob backgroundJob;
     private AnalysisService analysisService;
 
     @BeforeEach
     void setUp() {
         resultResolver = mock(AnalysisResultResolver.class);
         lifecycleService = mock(AnalysisLifecycleService.class);
-        claimAnalyzer = mock(ClaimAnalyzer.class);
-        AnalysisResultSnapshotMapper snapshotMapper = new AnalysisResultSnapshotMapper();
-        resultJsonCodec = new AnalysisResultJsonCodec(new ObjectMapper());
+        backgroundJob = mock(AnalysisBackgroundJob.class);
         analysisService = new AnalysisService(
                 resultResolver,
                 lifecycleService,
-                claimAnalyzer,
-                snapshotMapper,
-                resultJsonCodec,
+                backgroundJob,
+                new AnalysisResultSnapshotMapper(),
                 new AnalysisActiveReuseConstraintDetector()
         );
     }
 
     @Test
-    void createsAnalysisAndPersistsRestorableResultInLifecycleOrder() {
+    void commitsPendingBeforeSubmittingBackgroundJobAndReturnsPending() {
         CreateAnalysisRequest request = request("광고 문구");
         when(resultResolver.resolve(request))
                 .thenReturn(new AnalysisResultResolution.NewAnalysis(REUSE_KEY));
         when(lifecycleService.createPending(request, REUSE_KEY)).thenReturn(7L);
-        when(claimAnalyzer.analyze(request.texts())).thenReturn(claimResult());
 
         AnalysisSubmissionResult result = analysisService.analyze(request);
 
-        assertThat(result.outcome()).isEqualTo(AnalysisSubmissionResult.Outcome.CREATED);
+        assertThat(result.outcome()).isEqualTo(AnalysisSubmissionResult.Outcome.SUBMITTED);
         assertThat(result.response().analysisId()).isEqualTo(7L);
-        assertThat(result.response().status()).isEqualTo(AnalysisStatus.COMPLETED);
+        assertThat(result.response().status()).isEqualTo(AnalysisStatus.PENDING);
+        assertThat(result.response().summary()).isNull();
+        assertThat(result.response().findings()).isEmpty();
 
-        ArgumentCaptor<String> resultJson = ArgumentCaptor.forClass(String.class);
-        InOrder order = inOrder(lifecycleService, claimAnalyzer);
+        ArgumentCaptor<AnalysisJobInput> input = ArgumentCaptor.forClass(AnalysisJobInput.class);
+        InOrder order = inOrder(lifecycleService, backgroundJob);
         order.verify(lifecycleService).createPending(request, REUSE_KEY);
-        order.verify(lifecycleService).markProcessing(7L);
-        order.verify(claimAnalyzer).analyze(request.texts());
-        order.verify(lifecycleService).completeWithResult(
-                org.mockito.ArgumentMatchers.eq(7L),
-                resultJson.capture()
-        );
-
-        AnalysisResultSnapshot restored = resultJsonCodec.deserialize(resultJson.getValue());
-        assertThat(restored.summary().findingCount()).isEqualTo(1);
-        assertThat(restored.summary().officialFunctionMatchedCount()).isEqualTo(1);
-        assertThat(restored.findings()).hasSize(1);
+        order.verify(backgroundJob).process(org.mockito.ArgumentMatchers.eq(7L), input.capture());
+        assertThat(input.getValue().texts()).isEqualTo(request.texts());
+        assertThat(input.getValue().images()).isEqualTo(request.images());
     }
 
     @Test
-    void returnsRestoredResultWithoutCreatingOrRunningAnalyzer() {
+    void returnsRestoredResultWithoutCreatingOrSubmittingJob() {
         CreateAnalysisRequest request = request("광고 문구");
-        AnalysisResultSnapshot snapshot = snapshot();
         when(resultResolver.resolve(request)).thenReturn(
-                new AnalysisResultResolution.Reused(21L, snapshot, REUSE_KEY)
+                new AnalysisResultResolution.Reused(21L, snapshot(), REUSE_KEY)
         );
 
         AnalysisSubmissionResult result = analysisService.analyze(request);
@@ -108,11 +93,11 @@ class AnalysisServiceTest {
         assertThat(result.response().summary().findingCount()).isEqualTo(1);
         assertThat(result.response().findings()).hasSize(1);
         verify(lifecycleService, never()).createPending(any(), any());
-        verify(claimAnalyzer, never()).analyze(any());
+        verify(backgroundJob, never()).process(any(), any());
     }
 
     @Test
-    void returnsInProgressWithoutCreatingOrRunningAnalyzer() {
+    void returnsInProgressWithoutCreatingOrSubmittingJob() {
         CreateAnalysisRequest request = request("광고 문구");
         when(resultResolver.resolve(request)).thenReturn(
                 new AnalysisResultResolution.InProgress(22L, AnalysisStatus.PROCESSING, REUSE_KEY)
@@ -126,27 +111,11 @@ class AnalysisServiceTest {
         assertThat(result.response().summary()).isNull();
         assertThat(result.response().findings()).isEmpty();
         verify(lifecycleService, never()).createPending(any(), any());
-        verify(claimAnalyzer, never()).analyze(any());
+        verify(backgroundJob, never()).process(any(), any());
     }
 
     @Test
-    void marksCommittedAnalysisFailedAndRethrowsAnalyzerFailure() {
-        CreateAnalysisRequest request = request("광고 문구");
-        IllegalStateException failure = new IllegalStateException("Mock 분석 실패");
-        when(resultResolver.resolve(request))
-                .thenReturn(new AnalysisResultResolution.NewAnalysis(REUSE_KEY));
-        when(lifecycleService.createPending(request, REUSE_KEY)).thenReturn(23L);
-        when(claimAnalyzer.analyze(request.texts())).thenThrow(failure);
-
-        assertThatThrownBy(() -> analysisService.analyze(request)).isSameAs(failure);
-
-        verify(lifecycleService).markProcessing(23L);
-        verify(lifecycleService).fail(23L, "Mock 분석 실패");
-        verify(lifecycleService, never()).completeWithResult(any(), anyString());
-    }
-
-    @Test
-    void recoversNamedActiveReuseConflictAsInProgress() {
+    void recoversNamedActiveReuseConflictWithoutSubmittingDuplicateJob() {
         CreateAnalysisRequest request = request("광고 문구");
         DataIntegrityViolationException conflict = new DataIntegrityViolationException(
                 "duplicate key violates unique constraint uk_analyses_active_result_reuse"
@@ -164,7 +133,45 @@ class AnalysisServiceTest {
         assertThat(result.outcome()).isEqualTo(AnalysisSubmissionResult.Outcome.IN_PROGRESS);
         assertThat(result.response().analysisId()).isEqualTo(24L);
         verify(lifecycleService).findActive(REUSE_KEY);
-        verify(claimAnalyzer, never()).analyze(any());
+        verify(backgroundJob, never()).process(any(), any());
+    }
+
+    @Test
+    void marksPendingFailedAndReturnsServiceUnavailableWhenQueueRejects() {
+        CreateAnalysisRequest request = request("광고 문구");
+        TaskRejectedException rejection = new TaskRejectedException("queue full");
+        when(resultResolver.resolve(request))
+                .thenReturn(new AnalysisResultResolution.NewAnalysis(REUSE_KEY));
+        when(lifecycleService.createPending(request, REUSE_KEY)).thenReturn(25L);
+        org.mockito.Mockito.doThrow(rejection)
+                .when(backgroundJob).process(org.mockito.ArgumentMatchers.eq(25L), any());
+
+        assertThatThrownBy(() -> analysisService.analyze(request))
+                .isInstanceOfSatisfying(AnalysisQueueFullException.class, exception -> {
+                    assertThat(exception.getStatus()).isEqualTo(HttpStatus.SERVICE_UNAVAILABLE);
+                    assertThat(exception.getCode()).isEqualTo("ANALYSIS_QUEUE_FULL");
+                    assertThat(exception.getCause()).isSameAs(rejection);
+                });
+
+        verify(lifecycleService).fail(25L, "분석 작업 대기열이 가득 찼습니다.");
+    }
+
+    @Test
+    void preservesFailurePersistenceErrorAsSuppressedWhenQueueRejects() {
+        CreateAnalysisRequest request = request("광고 문구");
+        TaskRejectedException rejection = new TaskRejectedException("queue full");
+        IllegalStateException failurePersistence = new IllegalStateException("failed to persist FAILED");
+        when(resultResolver.resolve(request))
+                .thenReturn(new AnalysisResultResolution.NewAnalysis(REUSE_KEY));
+        when(lifecycleService.createPending(request, REUSE_KEY)).thenReturn(26L);
+        org.mockito.Mockito.doThrow(rejection)
+                .when(backgroundJob).process(org.mockito.ArgumentMatchers.eq(26L), any());
+        org.mockito.Mockito.doThrow(failurePersistence)
+                .when(lifecycleService).fail(26L, "분석 작업 대기열이 가득 찼습니다.");
+
+        assertThatThrownBy(() -> analysisService.analyze(request))
+                .isInstanceOfSatisfying(AnalysisQueueFullException.class, exception ->
+                        assertThat(exception.getSuppressed()).containsExactly(failurePersistence));
     }
 
     @Test
@@ -179,6 +186,7 @@ class AnalysisServiceTest {
         assertThatThrownBy(() -> analysisService.analyze(request)).isSameAs(failure);
 
         verify(lifecycleService, never()).findActive(any());
+        verify(backgroundJob, never()).process(any(), any());
     }
 
     @Test
@@ -198,21 +206,7 @@ class AnalysisServiceTest {
                 .hasMessage("동일한 분석 요청의 진행 상태를 확인하지 못했습니다.");
 
         verify(lifecycleService).findActive(REUSE_KEY);
-        verify(claimAnalyzer, never()).analyze(any());
-    }
-
-    private ClaimAnalysisResult claimResult() {
-        return new ClaimAnalysisResult(
-                List.of(new Finding(
-                        "시력을 회복합니다.",
-                        "#claim",
-                        RiskLevel.CAUTION,
-                        FindingCategory.FUNCTION_CLAIM,
-                        "확인이 필요합니다.",
-                        "눈 건강에 도움을 줄 수 있음"
-                )),
-                1
-        );
+        verify(backgroundJob, never()).process(any(), any());
     }
 
     private AnalysisResultSnapshot snapshot() {

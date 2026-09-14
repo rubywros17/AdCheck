@@ -33,8 +33,8 @@ class AnalysisControllerTest {
     }
 
     @Test
-    void returnsCreatedForNewAnalysis() {
-        assertStatus(AnalysisSubmissionResult.Outcome.CREATED, HttpStatus.CREATED);
+    void returnsAcceptedForSubmittedAnalysis() {
+        assertStatus(AnalysisSubmissionResult.Outcome.SUBMITTED, HttpStatus.ACCEPTED);
     }
 
     @Test

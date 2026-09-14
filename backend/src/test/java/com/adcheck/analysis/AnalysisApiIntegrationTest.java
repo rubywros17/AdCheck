@@ -7,11 +7,14 @@ import com.adcheck.analysis.dto.CreateAnalysisRequest;
 import com.adcheck.analysis.dto.PageTextEvidence;
 import com.adcheck.analysis.repository.AnalysisRepository;
 import com.adcheck.analysis.result.AnalysisResultJsonCodec;
+import com.adcheck.analysis.config.AnalysisAsyncConfiguration;
 import com.adcheck.analysis.service.AnalysisRequestFingerprint;
 import com.adcheck.analysis.service.AnalysisUrlNormalizer;
 import org.junit.jupiter.api.BeforeEach;
+import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.beans.factory.annotation.Qualifier;
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.MediaType;
@@ -19,9 +22,11 @@ import org.springframework.test.context.ActiveProfiles;
 import org.springframework.test.web.servlet.MockMvc;
 import org.springframework.test.web.servlet.ResultActions;
 import org.springframework.test.web.servlet.setup.MockMvcBuilders;
+import org.springframework.scheduling.concurrent.ThreadPoolTaskExecutor;
 import org.springframework.web.context.WebApplicationContext;
 
 import java.util.List;
+import java.util.concurrent.TimeUnit;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
@@ -52,16 +57,26 @@ class AnalysisApiIntegrationTest {
     @Autowired
     private AnalysisProperties analysisProperties;
 
+    @Autowired
+    @Qualifier(AnalysisAsyncConfiguration.EXECUTOR_NAME)
+    private ThreadPoolTaskExecutor analysisTaskExecutor;
+
     private MockMvc mockMvc;
 
     @BeforeEach
-    void setUp() {
+    void setUp() throws Exception {
+        awaitBackgroundJobs();
         analysisRepository.deleteAll();
         mockMvc = MockMvcBuilders.webAppContextSetup(applicationContext).build();
     }
 
+    @AfterEach
+    void tearDown() throws Exception {
+        awaitBackgroundJobs();
+    }
+
     @Test
-    void createsCompletedAnalysisWithoutAuthentication() throws Exception {
+    void submitsPendingAnalysisWithoutAuthenticationAndCompletesInBackground() throws Exception {
         mockMvc.perform(post("/api/v1/analyses")
                         .contentType(MediaType.APPLICATION_JSON)
                         .content("""
@@ -82,13 +97,20 @@ class AnalysisApiIntegrationTest {
                                   "images": []
                                 }
                                 """))
-                .andExpect(status().isCreated())
+                .andExpect(status().isAccepted())
                 .andExpect(jsonPath("$.analysisId").isNumber())
-                .andExpect(jsonPath("$.status").value("COMPLETED"))
-                .andExpect(jsonPath("$.summary.findingCount").value(1))
-                .andExpect(jsonPath("$.summary.officialFunctionMatchedCount").value(1))
-                .andExpect(jsonPath("$.findings[0].riskLevel").value("CAUTION"))
-                .andExpect(jsonPath("$.findings[0].category").value("FUNCTION_CLAIM"));
+                .andExpect(jsonPath("$.status").value("PENDING"))
+                .andExpect(jsonPath("$.summary").value((Object) null))
+                .andExpect(jsonPath("$.findings").isEmpty());
+
+        awaitBackgroundJobs();
+        assertThat(analysisRepository.findAll()).singleElement().satisfies(completed -> {
+            assertThat(completed.getStatus()).isEqualTo(AnalysisStatus.COMPLETED);
+            assertThat(completed.getResultJson()).isNotBlank();
+            var snapshot = resultJsonCodec.deserialize(completed.getResultJson());
+            assertThat(snapshot.summary().findingCount()).isEqualTo(1);
+            assertThat(snapshot.summary().officialFunctionMatchedCount()).isEqualTo(1);
+        });
     }
 
     @Test
@@ -215,9 +237,15 @@ class AnalysisApiIntegrationTest {
                                   ]
                                 }
                                 """))
-                .andExpect(status().isCreated())
-                .andExpect(jsonPath("$.summary.findingCount").value(0))
+                .andExpect(status().isAccepted())
+                .andExpect(jsonPath("$.status").value("PENDING"))
+                .andExpect(jsonPath("$.summary").value((Object) null))
                 .andExpect(jsonPath("$.findings").isEmpty());
+
+        awaitBackgroundJobs();
+        Analysis completed = analysisRepository.findAll().getFirst();
+        assertThat(resultJsonCodec.deserialize(completed.getResultJson()).summary().findingCount())
+                .isZero();
     }
 
     @Test
@@ -233,8 +261,9 @@ class AnalysisApiIntegrationTest {
                                   "images": null
                                 }
                                 """))
-                .andExpect(status().isCreated());
+                .andExpect(status().isAccepted());
 
+        awaitBackgroundJobs();
         List<Analysis> analyses = analysisRepository.findAll();
         assertThat(analyses).hasSize(1);
         Analysis analysis = analyses.getFirst();
@@ -259,7 +288,8 @@ class AnalysisApiIntegrationTest {
         mockMvc.perform(post("/api/v1/analyses")
                         .contentType(MediaType.APPLICATION_JSON)
                         .content(requestBody))
-                .andExpect(status().isCreated());
+                .andExpect(status().isAccepted());
+        awaitBackgroundJobs();
         Analysis existing = analysisRepository.findAll().getFirst();
         var updatedAt = existing.getUpdatedAt();
 
@@ -294,13 +324,14 @@ class AnalysisApiIntegrationTest {
         mockMvc.perform(post("/api/v1/analyses")
                         .contentType(MediaType.APPLICATION_JSON)
                         .content(requestBody(pageUrl, "기존 광고 문구")))
-                .andExpect(status().isCreated());
+                .andExpect(status().isAccepted());
 
         mockMvc.perform(post("/api/v1/analyses")
                         .contentType(MediaType.APPLICATION_JSON)
                         .content(requestBody(pageUrl, "변경된 광고 문구")))
-                .andExpect(status().isCreated());
+                .andExpect(status().isAccepted());
 
+        awaitBackgroundJobs();
         assertThat(analysisRepository.count()).isEqualTo(2);
     }
 
@@ -315,14 +346,15 @@ class AnalysisApiIntegrationTest {
             mockMvc.perform(post("/api/v1/analyses")
                             .contentType(MediaType.APPLICATION_JSON)
                             .content(requestBody))
-                    .andExpect(status().isCreated());
+                    .andExpect(status().isAccepted());
 
             analysisProperties.setPipelineVersion("v2");
             mockMvc.perform(post("/api/v1/analyses")
                             .contentType(MediaType.APPLICATION_JSON)
                             .content(requestBody))
-                    .andExpect(status().isCreated());
+                    .andExpect(status().isAccepted());
 
+            awaitBackgroundJobs();
             assertThat(analysisRepository.count()).isEqualTo(2);
         } finally {
             analysisProperties.setPipelineVersion(originalVersion);
@@ -337,7 +369,9 @@ class AnalysisApiIntegrationTest {
                                 "https://example.com/product/tracking?item=1&utm_source=first",
                                 "동일 광고 문구"
                         )))
-                .andExpect(status().isCreated());
+                .andExpect(status().isAccepted());
+
+        awaitBackgroundJobs();
 
         mockMvc.perform(post("/api/v1/analyses")
                         .contentType(MediaType.APPLICATION_JSON)
@@ -348,6 +382,11 @@ class AnalysisApiIntegrationTest {
                 .andExpect(status().isOk());
 
         assertThat(analysisRepository.count()).isOne();
+    }
+
+    private void awaitBackgroundJobs() throws Exception {
+        analysisTaskExecutor.submit(() -> {
+        }).get(5, TimeUnit.SECONDS);
     }
 
     private void assertInProgressResponse(AnalysisStatus status) throws Exception {

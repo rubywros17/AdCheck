@@ -9,3 +9,11 @@ spring:
   jpa:
     hibernate:
       ddl-auto: create-drop
+
+adcheck:
+  analysis:
+    async:
+      core-pool-size: 1
+      max-pool-size: 1
+      queue-capacity: 20
+      thread-name-prefix: analysis-test-

@@ -3,12 +3,9 @@ package com.adcheck.analysis.service;
 import com.adcheck.analysis.domain.Analysis;
 import com.adcheck.analysis.domain.AnalysisStatus;
 import com.adcheck.analysis.dto.AnalysisResponse;
-import com.adcheck.analysis.dto.AnalysisSummary;
 import com.adcheck.analysis.dto.CreateAnalysisRequest;
-import com.adcheck.analysis.dto.FindingResponse;
-import com.adcheck.analysis.result.AnalysisResultJsonCodec;
-import com.adcheck.analysis.result.AnalysisResultSnapshot;
 import com.adcheck.analysis.result.AnalysisResultSnapshotMapper;
+import org.springframework.core.task.TaskRejectedException;
 import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.stereotype.Service;
 
@@ -17,28 +14,25 @@ import java.util.List;
 @Service
 public class AnalysisService {
 
-    private static final String DEFAULT_FAILURE_MESSAGE = "분석 처리 중 오류가 발생했습니다.";
+    private static final String QUEUE_REJECTION_FAILURE_MESSAGE = "분석 작업 대기열이 가득 찼습니다.";
 
     private final AnalysisResultResolver resultResolver;
     private final AnalysisLifecycleService lifecycleService;
-    private final ClaimAnalyzer claimAnalyzer;
+    private final AnalysisBackgroundJob backgroundJob;
     private final AnalysisResultSnapshotMapper snapshotMapper;
-    private final AnalysisResultJsonCodec resultJsonCodec;
     private final AnalysisActiveReuseConstraintDetector activeReuseConstraintDetector;
 
     public AnalysisService(
             AnalysisResultResolver resultResolver,
             AnalysisLifecycleService lifecycleService,
-            ClaimAnalyzer claimAnalyzer,
+            AnalysisBackgroundJob backgroundJob,
             AnalysisResultSnapshotMapper snapshotMapper,
-            AnalysisResultJsonCodec resultJsonCodec,
             AnalysisActiveReuseConstraintDetector activeReuseConstraintDetector
     ) {
         this.resultResolver = resultResolver;
         this.lifecycleService = lifecycleService;
-        this.claimAnalyzer = claimAnalyzer;
+        this.backgroundJob = backgroundJob;
         this.snapshotMapper = snapshotMapper;
-        this.resultJsonCodec = resultJsonCodec;
         this.activeReuseConstraintDetector = activeReuseConstraintDetector;
     }
 
@@ -71,6 +65,7 @@ public class AnalysisService {
     }
 
     private AnalysisSubmissionResult create(CreateAnalysisRequest request, AnalysisReuseKey reuseKey) {
+        AnalysisJobInput jobInput = AnalysisJobInput.from(request);
         Long analysisId;
         try {
             analysisId = lifecycleService.createPending(request, reuseKey);
@@ -82,19 +77,17 @@ public class AnalysisService {
         }
 
         try {
-            lifecycleService.markProcessing(analysisId);
-            AnalysisResponse response = responseFrom(
-                    analysisId,
-                    claimAnalyzer.analyze(request.texts())
-            );
-            AnalysisResultSnapshot snapshot = snapshotMapper.toSnapshot(response);
-            String resultJson = resultJsonCodec.serialize(snapshot);
-            lifecycleService.completeWithResult(analysisId, resultJson);
-            return AnalysisSubmissionResult.created(response);
-        } catch (RuntimeException exception) {
-            markFailed(analysisId, exception);
-            throw exception;
+            backgroundJob.process(analysisId, jobInput);
+        } catch (TaskRejectedException exception) {
+            throw rejectSubmission(analysisId, exception);
         }
+
+        return AnalysisSubmissionResult.submitted(new AnalysisResponse(
+                analysisId,
+                AnalysisStatus.PENDING,
+                null,
+                List.of()
+        ));
     }
 
     private AnalysisSubmissionResult recoverConcurrentRequest(AnalysisReuseKey reuseKey) {
@@ -107,39 +100,16 @@ public class AnalysisService {
         ));
     }
 
-    private AnalysisResponse responseFrom(Long analysisId, ClaimAnalysisResult result) {
-        List<FindingResponse> findings = result.findings().stream()
-                .map(FindingResponse::from)
-                .toList();
-        AnalysisSummary summary = new AnalysisSummary(
-                findings.size(), result.officialFunctionMatchedCount()
-        );
-
-        return new AnalysisResponse(
-                analysisId,
-                AnalysisStatus.COMPLETED,
-                summary,
-                findings
-        );
-    }
-
-    private void markFailed(Long analysisId, RuntimeException originalException) {
+    private AnalysisQueueFullException rejectSubmission(
+            Long analysisId,
+            TaskRejectedException rejection
+    ) {
+        AnalysisQueueFullException exception = new AnalysisQueueFullException(rejection);
         try {
-            lifecycleService.fail(analysisId, failureMessage(originalException));
+            lifecycleService.fail(analysisId, QUEUE_REJECTION_FAILURE_MESSAGE);
         } catch (RuntimeException failurePersistenceException) {
-            originalException.addSuppressed(failurePersistenceException);
+            exception.addSuppressed(failurePersistenceException);
         }
-    }
-
-    private String failureMessage(RuntimeException exception) {
-        String message = exception.getMessage();
-        if (message != null && !message.isBlank()) {
-            return message;
-        }
-
-        String simpleName = exception.getClass().getSimpleName();
-        return simpleName == null || simpleName.isBlank()
-                ? DEFAULT_FAILURE_MESSAGE
-                : simpleName;
+        return exception;
     }
 }

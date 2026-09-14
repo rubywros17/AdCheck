@@ -20,5 +20,9 @@ class AnalysisPropertiesTest {
     void bindsPipelineVersionAndReuseTtl() {
         assertThat(properties.getPipelineVersion()).isEqualTo("v1");
         assertThat(properties.getReuseTtl()).isEqualTo(Duration.ofDays(7));
+        assertThat(properties.getAsync().getCorePoolSize()).isEqualTo(1);
+        assertThat(properties.getAsync().getMaxPoolSize()).isEqualTo(1);
+        assertThat(properties.getAsync().getQueueCapacity()).isEqualTo(20);
+        assertThat(properties.getAsync().getThreadNamePrefix()).isEqualTo("analysis-test-");
     }
 }
