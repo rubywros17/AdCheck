@@ -62,7 +62,7 @@
   background: #94A3B8; /* 차분한 실버 도트 */
 }
 
-/* [중간 주의] 3~4건: Soft Warm Coral Rose */
+/* [중간 검토] 3~4건: Soft Warm Coral Rose */
 .history-status-badge.warning {
   background: rgba(251, 113, 133, 0.14) !important;
   color: #E11D48 !important;
@@ -72,7 +72,7 @@
   background: #FB7185;
 }
 
-/* [집중 검토] 5건 이상: Deep Ruby Crimson */
+/* [집중 주의] 5건 이상: Deep Ruby Crimson */
 .history-status-badge.review {
   background: rgba(225, 29, 72, 0.12) !important;
   color: #BE123C !important;

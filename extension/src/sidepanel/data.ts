@@ -1,8 +1,9 @@
 import type { FindingWithKeyword, ScanHistoryItem } from "./types";
 
 // Existing demo fixtures used by the sidepanel test controls.
-// AnalyzingView의 카드 시퀀스(3초 + 0.5초 전환 + 3초 = 6.5초)와 맞춰, 로딩 화면이 최소 6.5초 이상 노출되도록 합니다.
-export const SCAN_CYCLE_MS = 6500;
+// AnalyzingView의 단계 시퀀스(PENDING 0.7초 + 카드1 3초 + 0.5초 전환 + 카드2 3초 = 7.2초)와 맞춰,
+// 로딩 화면이 최소 7.2초 이상 노출되도록 합니다.
+export const SCAN_CYCLE_MS = 7200;
 export const SCAN_HISTORY_STORAGE_KEY = "adcheck_scan_histories";
 export const CURRENT_PAGE_TITLE = "프리미엄 눈 건강 루테인 지아잔틴 1000mg";
 

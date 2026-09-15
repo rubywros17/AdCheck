@@ -33,12 +33,14 @@ function getGraphicForTip(tip: TipItem): React.ComponentType {
   return GRAPHIC_BY_THEME[tip.theme];
 }
 
+// 1단계: 분석 요청이 접수되는 짧은 PENDING 구간 (아직 팁을 보여줄 만한 실제 분석 진행 전)
+const PENDING_MS = 700;
 // 카드 1장이 화면에 머무는 최소 시간
 const CARD_DISPLAY_MS = 3000;
 // 카드가 옆으로 밀려나며 전환되는 데 걸리는 시간
 const SLIDE_MS = 500;
-// 전체 로딩 최소 노출 시간 (카드1 3초 + 전환 0.5초 + 카드2 3초 = 6.5초)
-const TOTAL_LOADING_MS = CARD_DISPLAY_MS + SLIDE_MS + CARD_DISPLAY_MS;
+// 전체 로딩 최소 노출 시간 (PENDING 0.7초 + 카드1 3초 + 전환 0.5초 + 카드2 3초 = 7.2초)
+const TOTAL_LOADING_MS = PENDING_MS + CARD_DISPLAY_MS + SLIDE_MS + CARD_DISPLAY_MS;
 
 // 17가지 식약처 공인 부당광고 상식 문장
 const ADCHECK_TIPS: TipItem[] = [
@@ -69,6 +71,22 @@ const ADCHECK_TIPS: TipItem[] = [
   // 5. 구매후기 / 체험기 테마 (review)
   { theme: "review", text: "'먹고 완치됐다'는 체험기·구매후기 광고는 불법이에요." },
 ];
+
+// PENDING 단계: 분석 요청이 막 접수된 순간 — 아직 보여줄 팁이 없어 단순한 점 3개 로딩만 표시
+function PendingContent() {
+  return (
+    <>
+      <div className="analyzing-graphic-wrap">
+        <div className="analyzing-pending-dots">
+          <span />
+          <span />
+          <span />
+        </div>
+      </div>
+      <h2 className="analyzing-main-headline">분석을 요청하고 있어요</h2>
+    </>
+  );
+}
 
 function CardContent({ tip }: { tip: TipItem }) {
   const Graphic = getGraphicForTip(tip);
@@ -106,13 +124,23 @@ export function AnalyzingView({ onComplete }: Props) {
   // 마운트 시 서로 다른 테마의 팁 2개를 미리 확정 (1번째 <-> 2번째 이미지 테마 겹침 방지)
   const [tips] = useState<[TipItem, TipItem]>(pickTwoDistinctTips);
 
+  // PENDING(분석 요청 접수, 팁 없이 점 3개만) -> PROCESSING(실제 분석 중, 팁 카드 노출) 2단계
+  const [phase, setPhase] = useState<'PENDING' | 'PROCESSING'>('PENDING');
   // 현재 화면에 정착해 있는 카드 (0 = 첫 번째, 1 = 두 번째)
   const [activeCard, setActiveCard] = useState<0 | 1>(0);
   // 슬라이드 전환이 진행 중인 0.5초 구간에만 true
   const [isSliding, setIsSliding] = useState(false);
 
-  // 카드1 → (3초 후) 슬라이드 시작 → (0.5초 후) 카드2로 정착
+  // PENDING -> PROCESSING 전환
   useEffect(() => {
+    const timer = window.setTimeout(() => setPhase('PROCESSING'), PENDING_MS);
+    return () => window.clearTimeout(timer);
+  }, []);
+
+  // PROCESSING에 들어선 뒤에만 카드1 → (3초 후) 슬라이드 시작 → (0.5초 후) 카드2로 정착
+  useEffect(() => {
+    if (phase !== 'PROCESSING') return;
+
     const startSlide = window.setTimeout(() => setIsSliding(true), CARD_DISPLAY_MS);
     const settleOnCard2 = window.setTimeout(() => {
       setActiveCard(1);
@@ -123,9 +151,9 @@ export function AnalyzingView({ onComplete }: Props) {
       window.clearTimeout(startSlide);
       window.clearTimeout(settleOnCard2);
     };
-  }, []);
+  }, [phase]);
 
-  // 최소 6.5초(카드1 3초 + 전환 0.5초 + 카드2 3초) 노출을 보장한 뒤 완료 처리
+  // 최소 7.2초(PENDING 0.7초 + 카드1 3초 + 전환 0.5초 + 카드2 3초) 노출을 보장한 뒤 완료 처리
   useEffect(() => {
     const timer = window.setTimeout(onComplete, TOTAL_LOADING_MS);
     return () => window.clearTimeout(timer);
@@ -133,7 +161,11 @@ export function AnalyzingView({ onComplete }: Props) {
 
   return (
     <div className="analyzing-tip-card">
-      {isSliding ? (
+      {phase === 'PENDING' ? (
+        <div className="analyzing-card-slot">
+          <PendingContent />
+        </div>
+      ) : isSliding ? (
         <>
           {/* 현재 카드: 왼쪽으로 스르륵 퇴장 */}
           <div className="analyzing-card-slot card-slide-exit">

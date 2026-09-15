@@ -62,7 +62,7 @@ export function HistoryModal({ histories, onClose, onSelect }: Props) {
           ) : (
             histories.map((history) => {
               const badgeState = history.level === "SAFE" ? "safe" : history.level === "CAUTION" ? "warning" : "review";
-              const badgeText = history.level === "SAFE" ? "안심" : history.level === "CAUTION" ? `주의 ${history.count}건` : `검토 ${history.count}건`;
+              const badgeText = history.level === "SAFE" ? "안심" : history.level === "CAUTION" ? `검토 ${history.count}건` : `주의 ${history.count}건`;
 
               return (
                 <button key={history.id} type="button" className="history-item-card" onClick={() => onSelect(history)}>

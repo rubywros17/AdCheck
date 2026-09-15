@@ -76,11 +76,13 @@ export const SplashView: React.FC<SplashViewProps> = ({ onFinish }) => {
           animation: sweepLeftToRight 1.6s cubic-bezier(0.3, 0, 0.25, 1) forwards;
         }
 
-        /* 눈 위치를 축으로 회전: A쪽(-30deg) -> k쪽(+40deg) */
+        /* 눈 위치를 축으로 회전: A쪽(30deg) -> k쪽(-40deg)
+           (원뿔의 꼭짓점이 회전축과 같은 지점이라, 부호가 반대일수록 오히려 반대 방향으로 기울어짐.
+           30deg가 왼쪽/A, -40deg가 오른쪽/k을 향하도록 실제 좌표 계산으로 검증한 값) */
         @keyframes sweepLeftToRight {
           0% {
             opacity: 0;
-            transform: rotate(-30deg);
+            transform: rotate(30deg);
           }
           15% {
             opacity: 0.85;
@@ -90,7 +92,7 @@ export const SplashView: React.FC<SplashViewProps> = ({ onFinish }) => {
           }
           100% {
             opacity: 0;
-            transform: rotate(40deg);
+            transform: rotate(-40deg);
           }
         }
 

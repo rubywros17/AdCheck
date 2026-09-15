@@ -6,7 +6,7 @@ interface Props {
 }
 
 const TEST_TARGETS: { value: TestTarget; label: string }[] = [
-  { value: "NORMAL", label: "검토(10건)" },
+  { value: "NORMAL", label: "주의(10건)" },
   { value: "SAFE", label: "안심(0건)" },
   { value: "ERROR", label: "서버오류" },
   { value: "INVALID", label: "분석불가" },

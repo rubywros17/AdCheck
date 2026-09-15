@@ -1,405 +1,330 @@
-import React, { useEffect, useId, useState } from 'react';
+import React, { useEffect, useState } from 'react';
+import type { ReviewLevel } from '../types';
+import { MoodFace } from '../components/MoodFace';
 
 // ==========================================
-// 결과 안내 화면 게이지(건수) 화면
+// 결과 안내 화면: 위험 감지 문구 개수 우선 + 3단계 위험도 라벨 + 컬러 곰돌이 얼굴 + 반원 계기판
 // ==========================================
-interface SmartDialGaugeProps {
-  score: number;
-  maxScore?: number;
-  label?: string;
-  isSafe: boolean;
+interface SummaryHeroViewProps {
+  count: number;
+  level?: ReviewLevel;
+  onContinue?: () => void;
 }
 
-const SmartDialGauge: React.FC<SmartDialGaugeProps> = ({
-  score,
-  maxScore = 10,
-  label = '검토 필요',
-  isSafe,
-}) => {
-  const gradientId = useId();
-  const size = 240;
-  const height = 216;
-  const strokeWidth = 9;
-  const radius = 108;
-  const center = size / 2;
-  const innerDiameter = 152;
+type RiskTier = 'SAFE' | 'CAUTION' | 'REVIEW';
 
-  // 위쪽을 감싸는 200도 아크: 양 끝은 수평선에서 10도만 내려옵니다.
-  const totalAngle = 200;
-  const startAngle = 270 - totalAngle / 2;
-  const endAngle = 270 + totalAngle / 2;
-  const startRadians = (startAngle * Math.PI) / 180;
-  const endRadians = (endAngle * Math.PI) / 180;
-  const startX = center + radius * Math.cos(startRadians);
-  const startY = center + radius * Math.sin(startRadians);
-  const endX = center + radius * Math.cos(endRadians);
-  const endY = center + radius * Math.sin(endRadians);
-  const labelGap = 20;
-  const arcPath = `M ${startX} ${startY} A ${radius} ${radius} 0 1 1 ${endX} ${endY}`;
+// count 기준 3단계 위험도 (안심 / 검토 / 주의)
+function getRiskTier(count: number): RiskTier {
+  if (count === 0) return 'SAFE';
+  if (count <= 4) return 'CAUTION';
+  return 'REVIEW';
+}
 
-  const ratio = Math.min(Math.max(score / maxScore, 0), 1);
-  const statusColor = isSafe ? '#10B981' : '#F43F5E';
-  const knobColor = isSafe ? '#10B981' : '#F43F5E';
-
-  // 화면이 열릴 때 왼쪽 끝(0)에서 실제 결과 지점까지 부드럽게 미끄러지는 노브 모션
-  const [animatedRatio, setAnimatedRatio] = useState(0);
-
-  useEffect(() => {
-    let targetFrame = 0;
-    const startFrame = requestAnimationFrame(() => {
-      targetFrame = requestAnimationFrame(() => {
-        setAnimatedRatio(ratio);
-      });
-    });
-
-    return () => {
-      cancelAnimationFrame(startFrame);
-      cancelAnimationFrame(targetFrame);
-    };
-  }, [ratio]);
-
-  return (
-    <div
-      style={{
-        position: 'relative',
-        width: size,
-        height,
-        margin: '0 auto',
-      }}
-    >
-      {/* 1. AdCheck 시그니처 민트 후광 -> 노브가 진행되는 만큼 코랄 레드로 자연스럽게 블렌딩 */}
-      <div
-        style={{
-          position: 'absolute',
-          top: center,
-          left: center,
-          transform: 'translate(-50%, -50%)',
-          width: radius * 2,
-          height: radius * 2,
-          borderRadius: '50%',
-          background: 'radial-gradient(circle, rgba(16, 185, 129, 0.4) 0%, rgba(16, 185, 129, 0) 70%)',
-          opacity: 1 - animatedRatio,
-          filter: 'blur(28px)',
-          zIndex: 0,
-          pointerEvents: 'none',
-          transition: 'opacity 1.2s cubic-bezier(0.16, 1, 0.3, 1)',
-        }}
-      />
-      <div
-        style={{
-          position: 'absolute',
-          top: center,
-          left: center,
-          transform: 'translate(-50%, -50%)',
-          width: radius * 2,
-          height: radius * 2,
-          borderRadius: '50%',
-          background: 'radial-gradient(circle, rgba(244, 63, 94, 0.42) 0%, rgba(244, 63, 94, 0) 70%)',
-          opacity: animatedRatio,
-          filter: 'blur(28px)',
-          zIndex: 0,
-          pointerEvents: 'none',
-          transition: 'opacity 1.2s cubic-bezier(0.16, 1, 0.3, 1)',
-        }}
-      />
-
-      {/* 2. 외곽 아치 게이지 트랙 SVG (유리알 너머로 영롱하게 퍼지는 앰비언트 글로우 포함) */}
-      <svg
-        aria-hidden="true"
-        width={size}
-        height={height}
-        viewBox={`0 0 ${size} ${height}`}
-        style={{
-          display: 'block',
-          position: 'relative',
-          zIndex: 1,
-          filter: `drop-shadow(0 0 16px ${isSafe ? 'rgba(16, 185, 129, 0.45)' : 'rgba(244, 63, 94, 0.45)'})`,
-        }}
-      >
-        <defs>
-          {/* AdCheck 시그니처 민트 -> 웜 앰버 -> 로즈 코랄 그라데이션 */}
-          <linearGradient
-            id={gradientId}
-            gradientUnits="userSpaceOnUse"
-            x1={center - radius}
-            y1={center}
-            x2={center + radius}
-            y2={center}
-          >
-            <stop offset="0%" stopColor="#10B981" />
-            <stop offset="50%" stopColor="#F59E0B" />
-            <stop offset="100%" stopColor="#F43F5E" />
-          </linearGradient>
-        </defs>
-
-        {/* 아주 연한 소프트 그레이 배경 트랙 */}
-        <path
-          d={arcPath}
-          fill="none"
-          stroke="#F1F5F9"
-          strokeWidth={strokeWidth}
-          strokeLinecap="round"
-        />
-
-        {/* 색상 눈금은 고정하고 포인터가 왼쪽에서 오른쪽으로 이동 */}
-        <path
-          d={arcPath}
-          fill="none"
-          stroke={`url(#${gradientId})`}
-          strokeWidth={strokeWidth}
-          strokeLinecap="round"
-        />
-
-        {/* 3. 게이지 끝단 포인터 노브 (동그란 점, 왼쪽 끝에서 결과 위치까지 슬라이딩) */}
-        <g
-          className="smart-dial-pointer"
-          style={{
-            transform: `rotate(${animatedRatio * totalAngle}deg)`,
-            transformOrigin: `${center}px ${center}px`,
-            transition: 'transform 1.2s cubic-bezier(0.16, 1, 0.3, 1)',
-          }}
-        >
-          <circle
-            cx={startX}
-            cy={startY}
-            r={5.5}
-            fill="#FFFFFF"
-            stroke={knobColor}
-            strokeWidth={2.5}
-            style={{
-              filter: 'drop-shadow(0 2px 3px rgba(148, 163, 184, 0.16))',
-            }}
-          />
-        </g>
-      </svg>
-
-      {/* 4. 백라이트 글로우 + 초영롱한 크리스탈 글래스모피즘 중앙 다이얼 */}
-      <div
-        className="gauge-dial-container"
-        style={{
-          position: 'absolute',
-          top: center,
-          left: center,
-          transform: 'translate(-50%, -50%)',
-          width: innerDiameter,
-          height: innerDiameter,
-          zIndex: 2,
-        }}
-      >
-        {/* 🌟 흰색 원 뒤편(바깥)에서만 360도로 번지는 백라이트: 0건일 땐 아쿠아 민트, 채워질수록 로즈+앰버로 크로스페이드 */}
-        <div
-          className="dial-backlight-glow"
-          aria-hidden="true"
-          style={{
-            background:
-              'radial-gradient(circle, rgba(45, 212, 191, 0.45) 0%, rgba(45, 212, 191, 0.25) 40%, transparent 70%)',
-            opacity: 1 - animatedRatio,
-            transition: 'opacity 1.8s cubic-bezier(0.16, 1, 0.3, 1)',
-          }}
-        />
-        <div
-          className="dial-backlight-glow"
-          aria-hidden="true"
-          style={{
-            background:
-              'radial-gradient(circle, rgba(244, 63, 94, 0.45) 0%, rgba(245, 158, 11, 0.25) 40%, transparent 70%)',
-            opacity: animatedRatio,
-            transition: 'opacity 1.8s cubic-bezier(0.16, 1, 0.3, 1)',
-          }}
-        />
-
-        {/* 💎 전면 다이얼: 빛이 안쪽으로 침범하지 않는 깨끗한 솔리드 화이트 */}
-        <div
-          className="summary-hero-dial"
-          style={{
-            position: 'relative',
-            width: '100%',
-            height: '100%',
-            borderRadius: '50%',
-            background: '#FFFFFF',
-            border: '1px solid rgba(226, 232, 240, 0.8)',
-            boxShadow: '0 8px 20px rgba(15, 23, 42, 0.06)',
-            display: 'flex',
-            flexDirection: 'column',
-            alignItems: 'center',
-            justifyContent: 'center',
-            padding: '18px 16px 24px',
-            boxSizing: 'border-box',
-            zIndex: 1,
-          }}
-        >
-          {/* 상단 라벨 */}
-          <span
-            style={{
-              fontSize: '12px',
-              fontWeight: 700,
-              color: statusColor,
-              letterSpacing: '-0.2px',
-              margin: 0,
-            }}
-          >
-            {label}
-          </span>
-
-          {/* 메인 숫자: 부담스럽지 않은 세련된 크기 */}
-          <span
-            style={{
-              fontSize: '38px',
-              fontWeight: 800,
-              color: '#0F172A',
-              fontFamily: 'system-ui, -apple-system, sans-serif',
-              letterSpacing: '-1px',
-              lineHeight: 1,
-              margin: 0,
-              marginTop: '4px',
-            }}
-          >
-            {score}
-          </span>
-        </div>
-      </div>
-
-      {/* 5. 양 끝점 바로 아래에 중심을 맞춘 눈금 라벨 */}
-      <div
-        style={{
-          position: 'absolute',
-          top: startY + labelGap,
-          left: startX,
-          transform: 'translateX(-50%)',
-          fontSize: '11px',
-          fontWeight: 500,
-          lineHeight: 1.4,
-          whiteSpace: 'nowrap',
-          color: '#10B981',
-          zIndex: 2,
-        }}
-      >
-        안심
-      </div>
-      <div
-        style={{
-          position: 'absolute',
-          top: endY + labelGap,
-          left: endX,
-          transform: 'translateX(-50%)',
-          fontSize: '11px',
-          fontWeight: 500,
-          lineHeight: 1.4,
-          whiteSpace: 'nowrap',
-          color: '#F43F5E',
-          zIndex: 2,
-        }}
-      >
-        검토
-      </div>
-    </div>
-  );
+const RISK_BADGE: Record<RiskTier, { label: string; text: string }> = {
+  SAFE: { label: '안심', text: '#065F46' },
+  CAUTION: { label: '검토', text: '#92400E' },
+  REVIEW: { label: '주의', text: '#991B1B' },
 };
 
 // ==========================================
-// SummaryHeroView 화면 뷰
+// 레퍼런스 스타일 반원 계기판: 3색 밴드 + 바깥 눈금 + 활성 구간 라벨
+// (다리(띠) 모양 밴드는 기존 게이지와 동일한 "바깥 호 -> 안쪽 호" 기법을 재사용)
 // ==========================================
-export interface SummaryHeroViewProps {
-  [key: string]: any;
+const GAUGE_CX = 130;
+const GAUGE_CY = 128;
+const GAUGE_OUTER_R = 118;
+const GAUGE_ACTIVE_OUTER_R = GAUGE_OUTER_R + 8; // 활성 구간만 살짝 바깥으로 튀어나오게
+const GAUGE_INNER_R = 76;
+const GAUGE_SWEEP_DEG = 160;
+const GAUGE_START_DEG = 270 - GAUGE_SWEEP_DEG / 2;
+const GAUGE_GAP_DEG = 1;
+
+function gaugePoint(angleDeg: number, radius: number) {
+  const rad = (angleDeg * Math.PI) / 180;
+  return { x: GAUGE_CX + radius * Math.cos(rad), y: GAUGE_CY + radius * Math.sin(rad) };
 }
 
-export const SummaryHeroView: React.FC<SummaryHeroViewProps> = (props) => {
-  const handleNext =
-    props.onNext ||
-    props.onConfirm ||
-    props.onGoNext ||
-    props.onGoDetail ||
-    props.onClickNext ||
-    props.onContinue ||
-    (() => {});
+// 바깥 호 -> 안쪽 호를 잇는 두꺼운 띠(밴드) 경로. outerR을 구간마다 다르게 줘서
+// 활성 구간만 살짝 부풀어 오르게 할 수 있다.
+function bandPath(startDeg: number, endDeg: number, outerR: number) {
+  const outerStart = gaugePoint(startDeg, outerR);
+  const outerEnd = gaugePoint(endDeg, outerR);
+  const innerEnd = gaugePoint(endDeg, GAUGE_INNER_R);
+  const innerStart = gaugePoint(startDeg, GAUGE_INNER_R);
+  return [
+    `M ${outerStart.x.toFixed(2)} ${outerStart.y.toFixed(2)}`,
+    `A ${outerR} ${outerR} 0 0 1 ${outerEnd.x.toFixed(2)} ${outerEnd.y.toFixed(2)}`,
+    `L ${innerEnd.x.toFixed(2)} ${innerEnd.y.toFixed(2)}`,
+    `A ${GAUGE_INNER_R} ${GAUGE_INNER_R} 0 0 0 ${innerStart.x.toFixed(2)} ${innerStart.y.toFixed(2)}`,
+    'Z',
+  ].join(' ');
+}
 
-  const displayCount = props.score ?? props.count ?? props.issueCount ?? 10;
-  const isSafe = props.level ? props.level === 'SAFE' : displayCount === 0;
-  const label = props.label ?? (isSafe ? '안심' : '검토 필요');
+// 왼쪽부터 안심(초록) → 검토(노랑) → 주의(빨강)
+const GAUGE_ZONE_STYLES: { tier: RiskTier; fill: string }[] = [
+  { tier: 'SAFE', fill: '#10B981' },
+  { tier: 'CAUTION', fill: '#F59E0B' },
+  { tier: 'REVIEW', fill: '#EF4444' },
+];
+
+const GAUGE_ZONE_RAW_SPAN = GAUGE_SWEEP_DEG / GAUGE_ZONE_STYLES.length;
+
+const GAUGE_ZONES = GAUGE_ZONE_STYLES.map((style, i) => {
+  const rawStart = GAUGE_START_DEG + i * GAUGE_ZONE_RAW_SPAN;
+  const rawEnd = rawStart + GAUGE_ZONE_RAW_SPAN;
+  return {
+    ...style,
+    startDeg: rawStart + GAUGE_GAP_DEG,
+    endDeg: rawEnd - GAUGE_GAP_DEG,
+    midDeg: (rawStart + rawEnd) / 2,
+  };
+});
+
+// 바깥 둘레를 따라 도는 작은 눈금 (스피도미터 느낌)
+const GAUGE_TICK_COUNT = 28;
+const GAUGE_TICKS = Array.from({ length: GAUGE_TICK_COUNT + 1 }, (_, i) => {
+  const angle = GAUGE_START_DEG + (i * GAUGE_SWEEP_DEG) / GAUGE_TICK_COUNT;
+  const inner = gaugePoint(angle, GAUGE_OUTER_R + 6);
+  const outer = gaugePoint(angle, GAUGE_OUTER_R + 12);
+  return { angle, inner, outer };
+});
+
+// 포인터: 기본(0deg)이 아래쪽을 가리키는 기준으로, 각 구간 중앙(midDeg)을 향하는 회전각
+function getPointerAngle(tier: RiskTier) {
+  const zone = GAUGE_ZONES.find((z) => z.tier === tier)!;
+  return zone.midDeg - 90;
+}
+
+// 포인터가 스핀 중에도 절대 호(arc) 밖으로 나가지 않도록, 왕복 스윙의 양 끝을
+// 호의 실제 시작/끝 각도에 맞춰 제한한다 (호 밖으로 나가는 360도 풀회전 금지)
+const GAUGE_POINTER_MIN_ANGLE = GAUGE_START_DEG - 90;
+const GAUGE_POINTER_MAX_ANGLE = GAUGE_START_DEG + GAUGE_SWEEP_DEG - 90;
+
+const GAUGE_SPIN_MS = 1300;
+
+export const SummaryHeroView: React.FC<SummaryHeroViewProps> = ({ count, onContinue }) => {
+  const tier = getRiskTier(count);
+  const badge = RISK_BADGE[tier];
+  const isSafe = count === 0;
+  const targetPointerAngle = getPointerAngle(tier);
+
+  // 계기판이 왼쪽으로 계속 돌아가다가(룰렛처럼) 현재 등급에 감속 정지하면, 그 순간 결과 곰돌이가 팡 튀어오름
+  const [isSpinning, setIsSpinning] = useState(true);
+
+  useEffect(() => {
+    const prefersReducedMotion =
+      typeof window !== 'undefined' && window.matchMedia?.('(prefers-reduced-motion: reduce)').matches;
+
+    if (prefersReducedMotion) {
+      setIsSpinning(false);
+      return;
+    }
+
+    setIsSpinning(true);
+    const timer = window.setTimeout(() => setIsSpinning(false), GAUGE_SPIN_MS);
+    return () => window.clearTimeout(timer);
+  }, [tier]);
+
+  const showResult = !isSpinning;
 
   return (
-    <div
-      className="tab-panel"
-      style={{ width: '100%', animation: 'fadeIn 0.3s ease' }}
-    >
-      <div
-        className="toss-hero-box"
-        style={{
-          textAlign: 'center',
-          padding: '24px 20px 22px',
-        }}
-      >
-        {/* 상단 안내 타이틀 */}
-        <div style={{ marginBottom: '18px' }}>
-          <h2
-            style={{
-              fontSize: '21px',
-              fontWeight: 800,
-              lineHeight: 1.35,
-              color: '#0F172A',
-              margin: '0 0 6px 0',
-              letterSpacing: '-0.5px',
-              fontFamily: '-apple-system, BlinkMacSystemFont, "Pretendard", "Segoe UI", "Apple SD Gothic Neo", sans-serif',
-            }}
-          >
-            광고 검토 결과 안내
-          </h2>
-          <p
-            style={{
-              fontSize: '13px',
-              color: '#64748B',
-              margin: 0,
-              lineHeight: 1.45,
-              wordBreak: 'keep-all',
-            }}
-          >
-            {isSafe
-              ? '검토가 필요한 의심 문구가 발견되지 않았어요.'
-              : '소비자가 오인하거나 과장될 우려가 있는 표현이에요.'}
-          </p>
-        </div>
+    <div className="mood-summary-container">
+      <style>{`
+        .mood-summary-container {
+          width: 100%;
+          background: #FFFFFF;
+          padding: 8px 20px 16px;
+          display: flex;
+          flex-direction: column;
+          align-items: center;
+          box-sizing: border-box;
+          font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+          user-select: none;
+        }
 
-        {/* 첫 번째 레퍼런스 스타일 스마트 다이얼 게이지 */}
-        <div style={{ margin: '8px 0 22px' }}>
-          <SmartDialGauge
-            score={displayCount}
-            maxScore={10}
-            label={label}
-            isSafe={isSafe}
-          />
-        </div>
+        .mood-header {
+          text-align: center;
+          margin-top: 4px;
+        }
 
-        {/* 확인 버튼 */}
-        <button
-          type="button"
-          onClick={handleNext}
-          className="toss-btn-primary"
-          style={{
-            width: '100%',
-            height: '48px',
-            borderRadius: '16px',
-            backgroundColor: '#0F172A',
-            color: '#FFFFFF',
-            fontSize: '15px',
-            fontWeight: 500,
-            letterSpacing: '-0.2px',
-            border: 'none',
-            cursor: 'pointer',
-            boxShadow: '0 4px 12px rgba(15, 23, 42, 0.15)',
-            transition: 'all 0.2s ease',
-          }}
-          onMouseEnter={(e) => {
-            e.currentTarget.style.backgroundColor = '#1E293B';
-            e.currentTarget.style.transform = 'translateY(-1px)';
-          }}
-          onMouseLeave={(e) => {
-            e.currentTarget.style.backgroundColor = '#0F172A';
-            e.currentTarget.style.transform = 'translateY(0)';
-          }}
-        >
-          {isSafe ? '다시 검사하기' : '어떤 문구인지 확인하기'}
-        </button>
+        .risk-header {
+          font-size: 26px;
+          font-weight: 800;
+          color: #0F172A;
+          margin: 0;
+          letter-spacing: -0.5px;
+        }
+
+        .risk-count-num {
+          color: ${badge.text};
+          transition: color 0.3s ease;
+        }
+
+        /* 중앙 곰돌이 + 그 밑 위험도 문구: 계기판이 멈추는 순간 함께 팡 튀어오르며 등장 */
+        .mood-face-stage {
+          display: flex;
+          flex-direction: column;
+          align-items: center;
+          justify-content: center;
+          margin: 14px 0 6px 0;
+          min-height: 112px;
+        }
+
+        .mood-tier-word {
+          margin-top: 6px;
+          font-size: 18px;
+          font-weight: 800;
+          color: ${badge.text};
+          letter-spacing: -0.3px;
+        }
+
+        .bear-pop-enter {
+          display: flex;
+          flex-direction: column;
+          align-items: center;
+          animation: bearPopIn 0.45s cubic-bezier(0.34, 1.56, 0.64, 1) forwards;
+        }
+
+        @keyframes bearPopIn {
+          0% { transform: scale(0.55); opacity: 0; }
+          60% { transform: scale(1.18); opacity: 1; }
+          100% { transform: scale(1); opacity: 1; }
+        }
+
+        /* 하단 반원 계기판 */
+        .mood-gauge-wrap {
+          position: relative;
+          width: 100%;
+          max-width: 260px;
+          margin: 4px auto 0;
+          aspect-ratio: 260 / 145;
+        }
+
+        .gauge-svg {
+          display: block;
+          width: 100%;
+          height: 100%;
+          overflow: visible;
+        }
+
+        .gauge-band {
+          transition: fill 0.3s ease, d 0.3s ease;
+        }
+
+        /* 포인터: 호 양 끝(${GAUGE_POINTER_MIN_ANGLE}deg~${GAUGE_POINTER_MAX_ANGLE}deg) 안에서만 왕복하다가 감속 정지 — 호 밖으로 나가는 풀회전 금지 */
+        .gauge-pointer.spinning {
+          animation: gaugeSpinStop ${GAUGE_SPIN_MS}ms cubic-bezier(0.2, 0.7, 0.25, 1) forwards;
+        }
+
+        @keyframes gaugeSpinStop {
+          0% { transform: rotate(${GAUGE_POINTER_MIN_ANGLE}deg); }
+          20% { transform: rotate(${GAUGE_POINTER_MAX_ANGLE}deg); }
+          40% { transform: rotate(${GAUGE_POINTER_MIN_ANGLE + 10}deg); }
+          60% { transform: rotate(${GAUGE_POINTER_MAX_ANGLE - 10}deg); }
+          80% { transform: rotate(calc(var(--target-angle) - 12deg)); }
+          100% { transform: rotate(var(--target-angle)); }
+        }
+
+        /* 하단 CTA 버튼 */
+        .mood-cta-btn {
+          width: 100%;
+          height: 52px;
+          background: #0F172A;
+          color: #FFFFFF;
+          border: none;
+          border-radius: 14px;
+          font-size: 15px;
+          font-weight: 600;
+          cursor: pointer;
+          transition: transform 0.1s ease, background 0.2s ease;
+          display: flex;
+          align-items: center;
+          justify-content: center;
+          box-shadow: 0 8px 16px -4px rgba(15, 23, 42, 0.15);
+          margin-top: 14px;
+        }
+
+        .mood-cta-btn:active {
+          transform: scale(0.98);
+          background: #1E293B;
+        }
+      `}</style>
+
+      {/* 1. 상단 영역: 위험 감지 문구 개수 헤더 */}
+      <div className="mood-header">
+        <h2 className="risk-header">
+          위험 감지 문구 <span className="risk-count-num">{count}</span>건
+        </h2>
       </div>
+
+      {/* 2. 중앙 영역: 계기판이 멈추는 순간에만 결과 곰돌이 + 위험도 문구가 팡 튀어오름 */}
+      <div className="mood-face-stage">
+        {showResult && (
+          <div key={tier} className="bear-pop-enter">
+            <MoodFace level={tier} size={80} />
+            <p className="mood-tier-word">{badge.label}</p>
+          </div>
+        )}
+      </div>
+
+      {/* 3. 하단 반원 계기판: 3색 밴드 + 바깥 눈금 */}
+      <div className="mood-gauge-wrap">
+        <svg className="gauge-svg" viewBox="0 0 260 145">
+          {/* 바깥 눈금: 스피도미터 느낌의 작은 틱 */}
+          {GAUGE_TICKS.map((tick, i) => (
+            <line
+              key={i}
+              x1={tick.inner.x}
+              y1={tick.inner.y}
+              x2={tick.outer.x}
+              y2={tick.outer.y}
+              stroke="#CBD5E1"
+              strokeWidth={1.5}
+              strokeLinecap="round"
+            />
+          ))}
+
+          {/* 3색 밴드: 계기판이 멈춘 뒤 활성 구간만 살짝 바깥으로 튀어나옴 */}
+          {GAUGE_ZONES.map((zone) => {
+            const isActive = showResult && zone.tier === tier;
+            const outerR = isActive ? GAUGE_ACTIVE_OUTER_R : GAUGE_OUTER_R;
+            return (
+              <path
+                key={zone.tier}
+                className="gauge-band"
+                d={bandPath(zone.startDeg, zone.endDeg, outerR)}
+                fill={zone.fill}
+                opacity={isActive ? 1 : 0.55}
+              />
+            );
+          })}
+
+          {/* 양 끝 장식 캡: 레퍼런스의 작은 링 디테일 */}
+          <circle cx={gaugePoint(GAUGE_START_DEG, GAUGE_OUTER_R).x} cy={gaugePoint(GAUGE_START_DEG, GAUGE_OUTER_R).y} r={6} fill="#FFFFFF" stroke="#CBD5E1" strokeWidth={2} />
+          <circle cx={gaugePoint(GAUGE_START_DEG + GAUGE_SWEEP_DEG, GAUGE_OUTER_R).x} cy={gaugePoint(GAUGE_START_DEG + GAUGE_SWEEP_DEG, GAUGE_OUTER_R).y} r={6} fill="#FFFFFF" stroke="#CBD5E1" strokeWidth={2} />
+
+          {/* 포인터: 왼쪽으로 계속 돌아가다가 현재 등급 쪽에 감속 정지 */}
+          <g
+            className={isSpinning ? 'gauge-pointer spinning' : 'gauge-pointer'}
+            style={{
+              transformOrigin: `${GAUGE_CX}px ${GAUGE_CY}px`,
+              ...(isSpinning
+                ? ({ ['--target-angle' as string]: `${targetPointerAngle}deg` } as React.CSSProperties)
+                : { transform: `rotate(${targetPointerAngle}deg)`, transition: 'transform 0.3s ease' }),
+            }}
+          >
+            <path
+              d={`M ${GAUGE_CX - 9} ${GAUGE_CY} A 9 9 0 1 1 ${GAUGE_CX + 9} ${GAUGE_CY} Q ${GAUGE_CX + 3} ${GAUGE_CY + 20} ${GAUGE_CX} ${GAUGE_CY + 26} Q ${GAUGE_CX - 3} ${GAUGE_CY + 20} ${GAUGE_CX - 9} ${GAUGE_CY} Z`}
+              fill="#334155"
+            />
+          </g>
+        </svg>
+      </div>
+
+      {/* 4. 하단 액션 버튼: 0건일 땐 재검사, 그 외엔 상세 확인으로 이동 */}
+      <button className="mood-cta-btn" onClick={onContinue}>
+        {isSafe ? '다시 검사하기' : '어떤 문구인지 확인하기'}
+      </button>
     </div>
   );
 };
