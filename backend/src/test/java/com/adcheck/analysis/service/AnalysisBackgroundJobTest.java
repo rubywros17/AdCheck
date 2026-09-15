@@ -7,8 +7,8 @@ import com.adcheck.analysis.result.AnalysisResultJsonCodec;
 import com.adcheck.analysis.result.AnalysisResultSnapshot;
 import com.adcheck.analysis.result.AnalysisResultSnapshotMapper;
 import com.adcheck.finding.domain.Finding;
-import com.adcheck.finding.domain.FindingCategory;
 import com.adcheck.finding.domain.RiskLevel;
+import com.adcheck.product.domain.Product;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.mockito.ArgumentCaptor;
@@ -30,10 +30,18 @@ import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
+/**
+ * {@link FindingAssembler}의 실제 조립 로직(Product/Ingredient/Rule/AI#2)은 별도로
+ * {@code FindingAssemblerTest}에서 검증한다 — 이 테스트는 {@code AnalysisBackgroundJob}이
+ * {@link ClaimAnalyzer}/{@link FindingAssembler}/{@link AnalysisLifecycleService}를 올바른
+ * 순서로 호출하고, {@link FindingAssembler.Result}를 저장 가능한 결과로 정확히 변환하는지만
+ * 검증하기 위해 {@code findingAssembler}를 목으로 대체한다.
+ */
 class AnalysisBackgroundJobTest {
 
     private AnalysisLifecycleService lifecycleService;
     private ClaimAnalyzer claimAnalyzer;
+    private FindingAssembler findingAssembler;
     private AnalysisResultJsonCodec resultJsonCodec;
     private AnalysisBackgroundJob backgroundJob;
 
@@ -41,10 +49,12 @@ class AnalysisBackgroundJobTest {
     void setUp() {
         lifecycleService = mock(AnalysisLifecycleService.class);
         claimAnalyzer = mock(ClaimAnalyzer.class);
+        findingAssembler = mock(FindingAssembler.class);
         resultJsonCodec = new AnalysisResultJsonCodec(new ObjectMapper());
         backgroundJob = new AnalysisBackgroundJob(
                 lifecycleService,
                 claimAnalyzer,
+                findingAssembler,
                 new AnalysisResultSnapshotMapper(),
                 resultJsonCodec
         );
@@ -53,14 +63,24 @@ class AnalysisBackgroundJobTest {
     @Test
     void processesAnalysisSequentiallyAndPersistsRestorableResult() {
         AnalysisJobInput input = input();
-        when(claimAnalyzer.analyze(input.texts())).thenReturn(claimResult());
+        ClaimAnalysisResult claimResult = claimResult();
+        Product product = mock(Product.class);
+        Finding finding = new Finding(
+                "시력을 회복합니다.", "#claim", RiskLevel.CAUTION, "FUNCTION_EXCEED",
+                "확인이 필요합니다.", "눈 건강에 도움을 줄 수 있음"
+        );
+        when(claimAnalyzer.analyze(input.texts(), input.images())).thenReturn(claimResult);
+        when(findingAssembler.assemble(claimResult))
+                .thenReturn(new FindingAssembler.Result(product, List.of(finding), 1));
 
         backgroundJob.process(7L, input);
 
         ArgumentCaptor<String> resultJson = ArgumentCaptor.forClass(String.class);
-        InOrder order = inOrder(lifecycleService, claimAnalyzer);
+        InOrder order = inOrder(lifecycleService, claimAnalyzer, findingAssembler);
         order.verify(lifecycleService).markProcessing(7L);
-        order.verify(claimAnalyzer).analyze(input.texts());
+        order.verify(claimAnalyzer).analyze(input.texts(), input.images());
+        order.verify(findingAssembler).assemble(claimResult);
+        order.verify(lifecycleService).assignProduct(7L, product);
         order.verify(lifecycleService).completeWithResult(
                 org.mockito.ArgumentMatchers.eq(7L),
                 resultJson.capture(),
@@ -70,17 +90,22 @@ class AnalysisBackgroundJobTest {
         assertThat(restored.summary().findingCount()).isEqualTo(1);
         assertThat(restored.summary().officialFunctionMatchedCount()).isEqualTo(1);
         assertThat(restored.findings()).hasSize(1);
+        assertThat(restored.findings().getFirst().sourceText()).isEqualTo("시력을 회복합니다.");
+        assertThat(restored.findings().getFirst().category()).isEqualTo("FUNCTION_EXCEED");
     }
 
     @Test
-    void computesHasFindingFalseWhenNoFindingsPresent() {
+    void computesHasFindingFalseWhenNoFindingsAssembled() {
         AnalysisJobInput input = input();
-        when(claimAnalyzer.analyze(input.texts()))
-                .thenReturn(new ClaimAnalysisResult(List.of(), 0));
+        ClaimAnalysisResult claimResult = claimResult();
+        when(claimAnalyzer.analyze(input.texts(), input.images())).thenReturn(claimResult);
+        when(findingAssembler.assemble(claimResult))
+                .thenReturn(new FindingAssembler.Result(null, List.of(), 0));
 
         backgroundJob.process(12L, input);
 
         ArgumentCaptor<String> resultJson = ArgumentCaptor.forClass(String.class);
+        verify(lifecycleService).assignProduct(12L, null);
         verify(lifecycleService).completeWithResult(
                 org.mockito.ArgumentMatchers.eq(12L),
                 resultJson.capture(),
@@ -94,7 +119,7 @@ class AnalysisBackgroundJobTest {
     void marksAnalysisFailedWithoutPropagatingBackgroundFailure() {
         AnalysisJobInput input = input();
         IllegalStateException failure = new IllegalStateException("Mock 분석 실패");
-        when(claimAnalyzer.analyze(input.texts())).thenThrow(failure);
+        when(claimAnalyzer.analyze(input.texts(), input.images())).thenThrow(failure);
 
         assertThatCode(() -> backgroundJob.process(8L, input)).doesNotThrowAnyException();
 
@@ -108,11 +133,27 @@ class AnalysisBackgroundJobTest {
     }
 
     @Test
+    void marksAnalysisFailedWhenFindingAssemblerThrows() {
+        AnalysisJobInput input = input();
+        ClaimAnalysisResult claimResult = claimResult();
+        IllegalStateException failure = new IllegalStateException("Product 조회 실패");
+        when(claimAnalyzer.analyze(input.texts(), input.images())).thenReturn(claimResult);
+        when(findingAssembler.assemble(claimResult)).thenThrow(failure);
+
+        assertThatCode(() -> backgroundJob.process(13L, input)).doesNotThrowAnyException();
+
+        verify(lifecycleService).fail(13L, "Product 조회 실패");
+        verify(lifecycleService, never()).completeWithResult(
+                org.mockito.ArgumentMatchers.eq(13L), anyString(), anyBoolean()
+        );
+    }
+
+    @Test
     void preservesFailurePersistenceExceptionAsSuppressed() {
         AnalysisJobInput input = input();
         IllegalStateException original = new IllegalStateException("Mock 분석 실패");
         IllegalStateException persistence = new IllegalStateException("FAILED 저장 실패");
-        when(claimAnalyzer.analyze(input.texts())).thenThrow(original);
+        when(claimAnalyzer.analyze(input.texts(), input.images())).thenThrow(original);
         org.mockito.Mockito.doThrow(persistence)
                 .when(lifecycleService).fail(9L, "Mock 분석 실패");
 
@@ -151,17 +192,12 @@ class AnalysisBackgroundJobTest {
     }
 
     private ClaimAnalysisResult claimResult() {
-        return new ClaimAnalysisResult(
-                List.of(new Finding(
-                        "시력을 회복합니다.",
-                        "#claim",
-                        RiskLevel.CAUTION,
-                        FindingCategory.FUNCTION_CLAIM,
-                        "확인이 필요합니다.",
-                        "눈 건강에 도움을 줄 수 있음"
-                )),
-                1
+        String claimText = "시력을 회복합니다.";
+        ExtractedClaim claim = new ExtractedClaim("claim-1", claimText, Source.domText("#claim"));
+        RiskSignalCandidate signal = new RiskSignalCandidate(
+                "claim-1", claimText, "FUNCTION_CLAIM", null, Source.domText("#claim")
         );
+        return new ClaimAnalysisResult(List.of(claim), List.of(), List.of(), List.of(signal));
     }
 
     private AnalysisJobInput input() {

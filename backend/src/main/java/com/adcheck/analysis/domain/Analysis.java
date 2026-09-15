@@ -121,6 +121,11 @@ public class Analysis {
         status = AnalysisStatus.PROCESSING;
     }
 
+    /** Product 식별에 성공했을 때만 호출된다 — 식별 실패(NOT_FOUND/AMBIGUOUS) 시에는 null로 남는다. */
+    public void assignProduct(Product product) {
+        this.product = product;
+    }
+
     public void complete() {
         status = AnalysisStatus.COMPLETED;
         errorMessage = null;

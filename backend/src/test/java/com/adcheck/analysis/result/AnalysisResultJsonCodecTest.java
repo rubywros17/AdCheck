@@ -1,6 +1,5 @@
 package com.adcheck.analysis.result;
 
-import com.adcheck.finding.domain.FindingCategory;
 import com.adcheck.finding.domain.RiskLevel;
 import org.junit.jupiter.api.Test;
 import tools.jackson.databind.ObjectMapper;
@@ -59,7 +58,7 @@ class AnalysisResultJsonCodecTest {
                         "광고 원문",
                         "#claim",
                         RiskLevel.CAUTION,
-                        FindingCategory.FUNCTION_CLAIM,
+                        "FUNCTION_CLAIM",
                         "확인이 필요합니다.",
                         "눈 건강에 도움을 줄 수 있음"
                 ))

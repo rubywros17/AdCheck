@@ -3,6 +3,7 @@ package com.adcheck.analysis.service;
 import com.adcheck.analysis.domain.Analysis;
 import com.adcheck.analysis.dto.CreateAnalysisRequest;
 import com.adcheck.analysis.repository.AnalysisRepository;
+import com.adcheck.product.domain.Product;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Propagation;
 import org.springframework.transaction.annotation.Transactional;
@@ -39,6 +40,15 @@ public class AnalysisLifecycleService {
     @Transactional(propagation = Propagation.REQUIRES_NEW)
     public void completeWithResult(Long analysisId, String resultJson, boolean hasFinding) {
         findRequired(analysisId).completeWithResult(resultJson, hasFinding);
+    }
+
+    /** Product 식별에 성공했을 때만 호출된다 — product가 null이면 아무 것도 하지 않는다. */
+    @Transactional(propagation = Propagation.REQUIRES_NEW)
+    public void assignProduct(Long analysisId, Product product) {
+        if (product == null) {
+            return;
+        }
+        findRequired(analysisId).assignProduct(product);
     }
 
     @Transactional(propagation = Propagation.REQUIRES_NEW)

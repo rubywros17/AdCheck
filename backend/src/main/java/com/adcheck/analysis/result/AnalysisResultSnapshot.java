@@ -1,6 +1,5 @@
 package com.adcheck.analysis.result;
 
-import com.adcheck.finding.domain.FindingCategory;
 import com.adcheck.finding.domain.RiskLevel;
 
 import java.util.List;
@@ -26,7 +25,7 @@ public record AnalysisResultSnapshot(
             String sourceText,
             String selector,
             RiskLevel riskLevel,
-            FindingCategory category,
+            String category,
             String message,
             String officialFunction
     ) {

@@ -1,14 +1,13 @@
 package com.adcheck.analysis.dto;
 
 import com.adcheck.finding.domain.Finding;
-import com.adcheck.finding.domain.FindingCategory;
 import com.adcheck.finding.domain.RiskLevel;
 
 public record FindingResponse(
         String sourceText,
         String selector,
         RiskLevel riskLevel,
-        FindingCategory category,
+        String category,
         String message,
         String officialFunction
 ) {

@@ -4,7 +4,6 @@ import com.adcheck.analysis.domain.AnalysisStatus;
 import com.adcheck.analysis.dto.AnalysisResponse;
 import com.adcheck.analysis.dto.AnalysisSummary;
 import com.adcheck.analysis.dto.FindingResponse;
-import com.adcheck.finding.domain.FindingCategory;
 import com.adcheck.finding.domain.RiskLevel;
 import org.junit.jupiter.api.Test;
 
@@ -26,7 +25,7 @@ class AnalysisResultSnapshotMapperTest {
                         "광고 원문",
                         "#claim",
                         RiskLevel.CAUTION,
-                        FindingCategory.FUNCTION_CLAIM,
+                        "FUNCTION_CLAIM",
                         "확인이 필요합니다.",
                         "눈 건강에 도움을 줄 수 있음"
                 ))

@@ -7,7 +7,6 @@ import com.adcheck.analysis.dto.PageTextEvidence;
 import com.adcheck.analysis.result.AnalysisResultJsonCodec;
 import com.adcheck.analysis.result.AnalysisResultSnapshot;
 import com.adcheck.analysis.result.AnalysisResultSnapshotMapper;
-import com.adcheck.finding.domain.FindingCategory;
 import com.adcheck.finding.domain.RiskLevel;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
@@ -288,7 +287,7 @@ class AnalysisServiceTest {
                         "시력을 회복합니다.",
                         "#claim",
                         RiskLevel.CAUTION,
-                        FindingCategory.FUNCTION_CLAIM,
+                        "FUNCTION_CLAIM",
                         "확인이 필요합니다.",
                         "눈 건강에 도움을 줄 수 있음"
                 ))
