@@ -10,6 +10,11 @@ import com.adcheck.analysis.result.AnalysisResultJsonCodec;
 import com.adcheck.analysis.config.AnalysisAsyncConfiguration;
 import com.adcheck.analysis.service.AnalysisRequestFingerprint;
 import com.adcheck.analysis.service.AnalysisUrlNormalizer;
+import com.adcheck.analysis.service.ClaimAnalyzer;
+import com.adcheck.analysis.service.FindingAssembler;
+import com.adcheck.analysis.service.MockClaimAnalyzer;
+import com.adcheck.finding.domain.Finding;
+import com.adcheck.finding.domain.RiskLevel;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.Test;
@@ -19,6 +24,7 @@ import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.MediaType;
 import org.springframework.test.context.ActiveProfiles;
+import org.springframework.test.context.bean.override.mockito.MockitoBean;
 import org.springframework.test.web.servlet.MockMvc;
 import org.springframework.test.web.servlet.ResultActions;
 import org.springframework.test.web.servlet.setup.MockMvcBuilders;
@@ -29,6 +35,9 @@ import java.util.List;
 import java.util.concurrent.TimeUnit;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.anyList;
+import static org.mockito.Mockito.when;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.content;
@@ -61,6 +70,12 @@ class AnalysisApiIntegrationTest {
     @Qualifier(AnalysisAsyncConfiguration.EXECUTOR_NAME)
     private ThreadPoolTaskExecutor analysisTaskExecutor;
 
+    @MockitoBean
+    private ClaimAnalyzer claimAnalyzer;
+
+    @MockitoBean
+    private FindingAssembler findingAssembler;
+
     private MockMvc mockMvc;
 
     @BeforeEach
@@ -68,6 +83,30 @@ class AnalysisApiIntegrationTest {
         awaitBackgroundJobs();
         analysisRepository.deleteAll();
         mockMvc = MockMvcBuilders.webAppContextSetup(applicationContext).build();
+        // GEMINI_API_KEY가 셸에 설정되어 있으면 실제 GeminiClaimAnalyzer가 뜨면서 이 파일의
+        // finding 개수/내용 검증이 실키 유무에 따라 흔들린다 — MockClaimAnalyzer에 그대로
+        // 위임해서 키 유무와 무관하게 항상 동일한 결정론적 결과가 나오도록 고정한다.
+        when(claimAnalyzer.analyze(anyList(), anyList())).thenAnswer(invocation ->
+                new MockClaimAnalyzer().analyze(invocation.getArgument(0), invocation.getArgument(1)));
+        // 이 파일은 재사용 판정/202·200 응답/PENDING→COMPLETED 흐름을 검증하는 게 목적이라,
+        // Rule Engine 판정 내용 자체(그건 FindingAssemblerTest가 별도로 검증)와는 무관하게
+        // 항상 같은 결과가 나와야 한다. 실제 FindingAssembler는 seed되지 않은 test DB의 빈
+        // rules 테이블 때문에 항상 findings=[]를 반환하게 되므로, 예전 MockClaimAnalyzer가
+        // riskSignalCandidate 1건당 Finding 1건을 만들던 것과 동일한 결정론적 로직으로 대체한다.
+        when(findingAssembler.assemble(any())).thenAnswer(invocation -> {
+            com.adcheck.analysis.service.ClaimAnalysisResult claimResult = invocation.getArgument(0);
+            List<Finding> findings = claimResult.riskSignalCandidates().stream()
+                    .map(signal -> new Finding(
+                            signal.text(),
+                            signal.source() != null ? signal.source().selector() : null,
+                            RiskLevel.CAUTION,
+                            "FUNCTION_CLAIM",
+                            "공식 인정 기능성보다 강한 표현일 가능성이 있습니다.",
+                            null
+                    ))
+                    .toList();
+            return new FindingAssembler.Result(null, findings, 0);
+        });
     }
 
     @AfterEach
@@ -109,7 +148,9 @@ class AnalysisApiIntegrationTest {
             assertThat(completed.getResultJson()).isNotBlank();
             var snapshot = resultJsonCodec.deserialize(completed.getResultJson());
             assertThat(snapshot.summary().findingCount()).isEqualTo(1);
-            assertThat(snapshot.summary().officialFunctionMatchedCount()).isEqualTo(1);
+            // Rule Engine/AI#2 비교 파이프라인이 아직 연결되지 않아 officialFunctionMatchedCount는
+            // 항상 0이다 (AnalysisBackgroundJob의 임시 riskSignalCandidate -> Finding 매핑 참고).
+            assertThat(snapshot.summary().officialFunctionMatchedCount()).isZero();
         });
     }
 

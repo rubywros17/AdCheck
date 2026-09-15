@@ -9,6 +9,10 @@ import java.util.List;
 
 public interface FunctionalIngredientRepository extends JpaRepository<FunctionalIngredient, Long> {
 
+    @Override
+    @EntityGraph(attributePaths = "ingredientMaster")
+    List<FunctionalIngredient> findAll();
+
     List<FunctionalIngredient> findAllByIngredientMaster_Id(Long ingredientMasterId);
 
     @EntityGraph(attributePaths = "ingredientMaster")

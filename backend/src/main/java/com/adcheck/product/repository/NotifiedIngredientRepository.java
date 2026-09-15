@@ -9,6 +9,10 @@ import java.util.List;
 
 public interface NotifiedIngredientRepository extends JpaRepository<NotifiedIngredient, Long> {
 
+    @Override
+    @EntityGraph(attributePaths = "ingredientMaster")
+    List<NotifiedIngredient> findAll();
+
     List<NotifiedIngredient> findAllByIngredientMaster_Id(Long ingredientMasterId);
 
     @EntityGraph(attributePaths = "ingredientMaster")

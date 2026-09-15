@@ -63,7 +63,7 @@ class AnalysisFailureApiIntegrationTest {
 
     @Test
     void preservesCommittedRowAsFailedWhenAnalyzerThrows() throws Exception {
-        when(claimAnalyzer.analyze(anyList())).thenAnswer(invocation -> {
+        when(claimAnalyzer.analyze(anyList(), anyList())).thenAnswer(invocation -> {
             Analysis processing = analysisRepository.findAll().getFirst();
             assertThat(processing.getStatus()).isEqualTo(AnalysisStatus.PROCESSING);
             throw new IllegalStateException("Mock 분석 실패");
@@ -86,7 +86,7 @@ class AnalysisFailureApiIntegrationTest {
                 .andExpect(jsonPath("$.findings").isEmpty());
 
         awaitBackgroundJobs();
-        verify(claimAnalyzer).analyze(anyList());
+        verify(claimAnalyzer).analyze(anyList(), anyList());
         assertThat(analysisRepository.findAll()).singleElement().satisfies(failed -> {
             assertThat(failed.getStatus()).isEqualTo(AnalysisStatus.FAILED);
             assertThat(failed.getErrorMessage()).isEqualTo("Mock 분석 실패");
@@ -98,7 +98,7 @@ class AnalysisFailureApiIntegrationTest {
 
     @Test
     void storesExceptionClassNameWhenFailureMessageIsNull() throws Exception {
-        when(claimAnalyzer.analyze(anyList())).thenThrow(new RuntimeException());
+        when(claimAnalyzer.analyze(anyList(), anyList())).thenThrow(new RuntimeException());
 
         performFailingAnalysis("null-message");
 
@@ -111,7 +111,7 @@ class AnalysisFailureApiIntegrationTest {
 
     @Test
     void getReturnsMinimalResponseForFailedAnalysisWithoutExposingErrorMessage() throws Exception {
-        when(claimAnalyzer.analyze(anyList())).thenThrow(new IllegalStateException("Mock 분석 실패"));
+        when(claimAnalyzer.analyze(anyList(), anyList())).thenThrow(new IllegalStateException("Mock 분석 실패"));
 
         performFailingAnalysis("get-failed");
 
@@ -128,7 +128,7 @@ class AnalysisFailureApiIntegrationTest {
     void storesFixedFallbackWhenMessageAndSimpleNameAreBlank() throws Exception {
         RuntimeException anonymousFailure = new RuntimeException() {
         };
-        when(claimAnalyzer.analyze(anyList())).thenThrow(anonymousFailure);
+        when(claimAnalyzer.analyze(anyList(), anyList())).thenThrow(anonymousFailure);
 
         performFailingAnalysis("anonymous-exception");
 

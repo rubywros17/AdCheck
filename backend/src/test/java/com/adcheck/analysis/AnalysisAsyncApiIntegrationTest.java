@@ -62,12 +62,12 @@ class AnalysisAsyncApiIntegrationTest {
     void returnsAcceptedPendingBeforeSlowAnalyzerCompletes() throws Exception {
         CountDownLatch analyzerStarted = new CountDownLatch(1);
         CountDownLatch releaseAnalyzer = new CountDownLatch(1);
-        when(claimAnalyzer.analyze(anyList())).thenAnswer(invocation -> {
+        when(claimAnalyzer.analyze(anyList(), anyList())).thenAnswer(invocation -> {
             analyzerStarted.countDown();
             if (!releaseAnalyzer.await(5, TimeUnit.SECONDS)) {
                 throw new IllegalStateException("테스트 analyzer 대기 시간이 초과되었습니다.");
             }
-            return new ClaimAnalysisResult(List.of(), 0);
+            return new ClaimAnalysisResult(List.of(), List.of(), List.of(), List.of());
         });
 
         ExecutorService requestExecutor = Executors.newSingleThreadExecutor();
