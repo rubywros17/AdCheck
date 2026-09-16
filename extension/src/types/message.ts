@@ -24,7 +24,24 @@ export interface ExtractPageMessage {
   type: "EXTRACT_PAGE";
 }
 
+export interface GetExtractionTestRecordsMessage {
+  type: "GET_EXTRACTION_TEST_RECORDS";
+}
+
+export interface ExportExtractionTestRecordsMessage {
+  type: "EXPORT_EXTRACTION_TEST_RECORDS";
+}
+
+export interface ClearExtractionTestRecordsMessage {
+  type: "CLEAR_EXTRACTION_TEST_RECORDS";
+}
+
 export type SidePanelRequest = AnalyzeCurrentPageMessage | GetActiveTabMessage;
+export type TestRecorderRequest =
+  | GetExtractionTestRecordsMessage
+  | ExportExtractionTestRecordsMessage
+  | ClearExtractionTestRecordsMessage;
+export type BackgroundRequest = SidePanelRequest | TestRecorderRequest;
 export type ContentScriptRequest = PingContentScriptMessage | ExtractPageMessage;
 
 export type ExtensionErrorCode =

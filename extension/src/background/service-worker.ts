@@ -1,12 +1,18 @@
 import { AnalysisApiError, createAnalysis } from "../api/analysis-api";
+import {
+  clearExtractionTestRecords,
+  exportExtractionTestRecords,
+  getExtractionTestRecords,
+  recordExtractionTest,
+} from "./extraction-test-recorder";
 import type {
   ActiveTabInfo,
   ActiveTabResult,
   AnalysisProgressMessage,
   AnalyzePageResult,
+  BackgroundRequest,
   ExtensionError,
   PageExtractionResult,
-  SidePanelRequest,
 } from "../types/message";
 
 void configureSidePanel();
@@ -14,13 +20,31 @@ chrome.runtime.onInstalled.addListener(() => {
   void configureSidePanel();
 });
 
+chrome.commands.onCommand.addListener((command) => {
+  if (command === "export-extraction-test-results") {
+    void exportExtractionTestRecords()
+      .then((recordCount) => {
+        console.info(`[AdCheck] Exported ${recordCount} extraction test record(s)`);
+      })
+      .catch((error) => {
+        console.error("[AdCheck] Failed to export extraction test records", error);
+      });
+  }
+});
+
 chrome.runtime.onMessage.addListener((message: unknown, _sender, sendResponse) => {
-  if (!isSidePanelRequest(message)) {
+  if (!isBackgroundRequest(message)) {
     return false;
   }
 
   if (message.type === "GET_ACTIVE_TAB") {
     getActiveTabInfo().then(sendResponse);
+  } else if (message.type === "GET_EXTRACTION_TEST_RECORDS") {
+    getExtractionTestRecords().then((data) => sendResponse({ ok: true, data }));
+  } else if (message.type === "EXPORT_EXTRACTION_TEST_RECORDS") {
+    exportExtractionTestRecords().then((count) => sendResponse({ ok: true, count }));
+  } else if (message.type === "CLEAR_EXTRACTION_TEST_RECORDS") {
+    clearExtractionTestRecords().then(() => sendResponse({ ok: true }));
   } else {
     analyzeCurrentPage().then(sendResponse);
   }
@@ -58,6 +82,12 @@ async function analyzeCurrentPage(): Promise<AnalyzePageResult> {
       throw extensionError("NO_ACTIVE_TAB", "현재 활성 탭을 찾을 수 없습니다.");
     }
 
+    console.info("[AdCheck] Starting page extraction", {
+      tabId: tab.id,
+      url: tab.url,
+    });
+
+    const extractionStartedAt = performance.now();
     await ensureContentScript(tab.id);
     const extraction: unknown = await chrome.tabs.sendMessage(tab.id, { type: "EXTRACT_PAGE" });
     if (!isPageExtractionResult(extraction)) {
@@ -69,6 +99,21 @@ async function analyzeCurrentPage(): Promise<AnalyzePageResult> {
     if (!isSupportedWebUrl(extraction.data.pageUrl)) {
       throw restrictedPageError();
     }
+
+    try {
+      await recordExtractionTest(extraction.data, performance.now() - extractionStartedAt);
+    } catch (error) {
+      // Test recording is auxiliary and must never prevent the normal analysis flow.
+      console.error("[AdCheck] Failed to record extraction test result", error);
+    }
+
+    console.info("[AdCheck] Page evidence extracted", {
+      pageUrl: extraction.data.pageUrl,
+      productName: extraction.data.productName,
+      textCount: extraction.data.texts.length,
+      imageCount: extraction.data.images.length,
+      evidence: extraction.data,
+    });
 
     await reportProgress("ANALYZING");
     const analysis = await createAnalysis(extraction.data);
@@ -122,6 +167,7 @@ async function ensureContentScript(tabId: number): Promise<void> {
       files: ["assets/content-script.js"],
     });
   } catch (cause) {
+    console.error("[AdCheck] Content script injection failed", { tabId, cause });
     throw new Error("Content script injection failed", {
       cause: extensionError(
         "CONTENT_SCRIPT_UNAVAILABLE",
@@ -160,12 +206,16 @@ function extensionError(code: ExtensionError["code"], message: string): Extensio
   return { code, message };
 }
 
-function isSidePanelRequest(value: unknown): value is SidePanelRequest {
+function isBackgroundRequest(value: unknown): value is BackgroundRequest {
   return (
     typeof value === "object" &&
     value !== null &&
     "type" in value &&
-    (value.type === "ANALYZE_CURRENT_PAGE" || value.type === "GET_ACTIVE_TAB")
+    (value.type === "ANALYZE_CURRENT_PAGE" ||
+      value.type === "GET_ACTIVE_TAB" ||
+      value.type === "GET_EXTRACTION_TEST_RECORDS" ||
+      value.type === "EXPORT_EXTRACTION_TEST_RECORDS" ||
+      value.type === "CLEAR_EXTRACTION_TEST_RECORDS")
   );
 }
 

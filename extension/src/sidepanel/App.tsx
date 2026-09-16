@@ -1,5 +1,11 @@
 import React, { useState, useEffect } from "react";
-import type { FindingResponse } from "../types/analysis";
+import type { AnalysisResponse, FindingResponse } from "../types/analysis";
+import type {
+  ActiveTabInfo,
+  ActiveTabResult,
+  AnalyzePageResult,
+  AnalysisProgressMessage,
+} from "../types/message";
 
 type ViewStatus = "SPLASH" | "IDLE" | "ANALYZING" | "SUMMARY_HERO" | "DETAIL_LIST" | "EMPTY" | "ERROR" | "UNSUPPORTED";
 type TestTarget = "NORMAL" | "SAFE" | "ERROR" | "INVALID";
@@ -224,19 +230,26 @@ function ReferenceArcGauge({ count, level }: ReferenceArcGaugeProps) {
 
 export function App() {
   const [status, setStatus] = useState<ViewStatus>("SPLASH");
-  const [testTarget, setTestTarget] = useState<TestTarget>("NORMAL");
   const [selectedFinding, setSelectedFinding] = useState<FindingWithKeyword | null>(null);
   const [animCount, setAnimCount] = useState(0);
   const [activeFilter, setActiveFilter] = useState<FilterCategory>("ALL");
   const [tooltipPos, setTooltipPos] = useState<{ top: number; left: number } | null>(null);
+  const [activeTab, setActiveTab] = useState<ActiveTabInfo | null>(null);
+  const [analysis, setAnalysis] = useState<AnalysisResponse | null>(null);
+  const [errorMessage, setErrorMessage] = useState("잠시 후 다시 시도해주세요.");
+  const [loadingStage, setLoadingStage] = useState<AnalysisProgressMessage["stage"]>("EXTRACTING");
 
-  const diseaseFindings = MOCK_FINDINGS.filter((f) => f.message.includes("의약품"));
-  const guaranteeFindings = MOCK_FINDINGS.filter((f) => f.message.includes("과장"));
-  const targetCount = testTarget === "SAFE" ? 0 : MOCK_FINDINGS.length;
+  const findings: FindingWithKeyword[] = (analysis?.findings ?? []).map((finding) => ({
+    ...finding,
+    keyword: createFindingKeyword(finding),
+  }));
+  const diseaseFindings = findings.filter((finding) => finding.message.includes("의약품"));
+  const guaranteeFindings = findings.filter((finding) => !finding.message.includes("의약품"));
+  const targetCount = analysis?.summary.findingCount ?? findings.length;
 
-  const filteredFindings = MOCK_FINDINGS.filter((f) => {
-    if (activeFilter === "DISEASE") return f.message.includes("의약품");
-    if (activeFilter === "GUARANTEE") return f.message.includes("과장");
+  const filteredFindings = findings.filter((finding) => {
+    if (activeFilter === "DISEASE") return finding.message.includes("의약품");
+    if (activeFilter === "GUARANTEE") return !finding.message.includes("의약품");
     return true;
   });
 
@@ -249,20 +262,65 @@ export function App() {
     }
   }, [status]);
 
-  function handleAnalyze() {
+  useEffect(() => {
+    void loadActiveTab();
+
+    function handleProgress(message: unknown) {
+      if (isProgressMessage(message)) {
+        setLoadingStage(message.stage);
+        setStatus("ANALYZING");
+      }
+    }
+
+    chrome.runtime.onMessage.addListener(handleProgress);
+    return () => chrome.runtime.onMessage.removeListener(handleProgress);
+  }, []);
+
+  async function loadActiveTab() {
+    try {
+      const response: unknown = await chrome.runtime.sendMessage({ type: "GET_ACTIVE_TAB" });
+      if (isActiveTabResult(response) && response.ok) {
+        setActiveTab(response.data);
+      }
+    } catch (error) {
+      console.error("[AdCheck] Failed to read the active tab", error);
+    }
+  }
+
+  async function handleAnalyze() {
+    setAnalysis(null);
+    setSelectedFinding(null);
+    setActiveFilter("ALL");
+    setLoadingStage("EXTRACTING");
     setStatus("ANALYZING");
 
-    setTimeout(() => {
-      if (testTarget === "SAFE") {
-        setStatus("EMPTY");
-      } else if (testTarget === "ERROR") {
+    try {
+      const response: unknown = await chrome.runtime.sendMessage({ type: "ANALYZE_CURRENT_PAGE" });
+      if (!isAnalyzePageResult(response)) {
+        setErrorMessage("확인할 수 없는 응답을 받았습니다. 다시 시도해주세요.");
         setStatus("ERROR");
-      } else if (testTarget === "INVALID") {
-        setStatus("UNSUPPORTED");
-      } else {
-        setStatus("SUMMARY_HERO");
+        return;
       }
-    }, SCAN_CYCLE_MS);
+
+      if (!response.ok) {
+        setErrorMessage(response.error.message);
+        setStatus(
+          response.error.code === "RESTRICTED_PAGE" ||
+            response.error.code === "CONTENT_SCRIPT_UNAVAILABLE"
+            ? "UNSUPPORTED"
+            : "ERROR",
+        );
+        return;
+      }
+
+      setAnalysis(response.data);
+      setStatus(response.data.findings.length === 0 ? "EMPTY" : "SUMMARY_HERO");
+      await loadActiveTab();
+    } catch (error) {
+      console.error("[AdCheck] Service worker messaging failed", error);
+      setErrorMessage("확장 프로그램과 통신하지 못했습니다. 확장 프로그램을 다시 로드해주세요.");
+      setStatus("ERROR");
+    }
   }
 
   const getReviewLevel = (count: number): "SAFE" | "CAUTION" | "REVIEW" => {
@@ -381,7 +439,11 @@ export function App() {
                 </div>
               </div>
               <h3 className="loading-title">광고 문구를 꼼꼼히 스캔 중이에요</h3>
-              <p className="loading-sub">식약처 공식 고시 기준과 대조하고 있어요</p>
+              <p className="loading-sub">
+                {loadingStage === "EXTRACTING"
+                  ? "상품 상세페이지의 문구와 이미지를 수집하고 있어요"
+                  : "식약처 공식 고시 기준과 대조하고 있어요"}
+              </p>
             </div>
           )}
 
@@ -433,12 +495,14 @@ export function App() {
                 </div>
                 <div className="page-info-text-wrap">
                   <span className="page-info-label">분석 대상 페이지</span>
-                  <a 
-                    href="#link" 
-                    className="page-info-title" 
-                    onClick={(e) => { e.preventDefault(); alert("현재 활성화된 상세페이지 URL: https://example.com/product/12345"); }}
+                  <a
+                    href={activeTab?.url || "#"}
+                    className="page-info-title"
+                    target="_blank"
+                    rel="noreferrer"
+                    title={activeTab?.url}
                   >
-                    프리미엄 눈 건강 루테인 지아잔틴 1000mg 외 상세페이지
+                    {activeTab?.title ?? "현재 상품 상세페이지"}
                   </a>
                 </div>
               </div>
@@ -579,7 +643,7 @@ export function App() {
                 </svg>
               </div>
               <h2 className="hero-title">분석 서버에<br />연결할 수 없습니다</h2>
-              <p className="hero-sub hero-sub-spacious">잠시 후 다시 시도해주세요.</p>
+              <p className="hero-sub hero-sub-spacious">{errorMessage}</p>
               <button className="btn-brand-primary btn-idle-margin" type="button" onClick={handleAnalyze}>
                 다시 시도
               </button>
@@ -595,7 +659,7 @@ export function App() {
                 </svg>
               </div>
               <h2 className="hero-title">현재 페이지는<br />분석할 수 없습니다</h2>
-              <p className="hero-sub hero-sub-spacious">상품 상세페이지에서 다시 실행해 주세요.</p>
+              <p className="hero-sub hero-sub-spacious">{errorMessage}</p>
               
               <button 
                 className="btn-brand-primary btn-idle-margin" 
@@ -651,7 +715,9 @@ export function App() {
 
               <div className="content-row-clean border-top-subtle">
                 <span className="row-label-clean">식약처 공식 기준</span>
-                <p className="row-value-regular">{selectedFinding.officialFunction}</p>
+                <p className="row-value-regular">
+                  {selectedFinding.officialFunction ?? "확인 가능한 공식 기능성 정보가 없습니다."}
+                </p>
               </div>
             </div>
 
@@ -671,38 +737,6 @@ export function App() {
 
       <footer className="toss-footer-area">
         <p className="toss-footer-text">식약처 고시 기준 기반 안내이며, 법적 효력을 갖는 행정처분 결과가 아닙니다.</p>
-
-        <div className="test-switcher">
-          <span className="switcher-lbl">테스트:</span>
-          <button
-            type="button"
-            className={testTarget === "NORMAL" ? "sw-btn active" : "sw-btn"}
-            onClick={() => { setTestTarget("NORMAL"); setStatus("IDLE"); }}
-          >
-            검토(10건)
-          </button>
-          <button
-            type="button"
-            className={testTarget === "SAFE" ? "sw-btn active" : "sw-btn"}
-            onClick={() => { setTestTarget("SAFE"); setStatus("IDLE"); }}
-          >
-            안심(0건)
-          </button>
-          <button
-            type="button"
-            className={testTarget === "ERROR" ? "sw-btn active" : "sw-btn"}
-            onClick={() => { setTestTarget("ERROR"); setStatus("IDLE"); }}
-          >
-            서버오류
-          </button>
-          <button
-            type="button"
-            className={testTarget === "INVALID" ? "sw-btn active" : "sw-btn"}
-            onClick={() => { setTestTarget("INVALID"); setStatus("IDLE"); }}
-          >
-            분석불가
-          </button>
-        </div>
       </footer>
 
       <style>{`
@@ -1317,4 +1351,31 @@ export function App() {
       `}</style>
     </div>
   );
+}
+
+function createFindingKeyword(finding: FindingResponse): string {
+  const normalized = finding.sourceText.replace(/\s+/g, " ").trim();
+  if (normalized.length <= 42) {
+    return normalized;
+  }
+  return `${normalized.slice(0, 42)}…`;
+}
+
+function isProgressMessage(value: unknown): value is AnalysisProgressMessage {
+  return (
+    typeof value === "object" &&
+    value !== null &&
+    "type" in value &&
+    value.type === "ANALYSIS_PROGRESS" &&
+    "stage" in value &&
+    (value.stage === "EXTRACTING" || value.stage === "ANALYZING")
+  );
+}
+
+function isActiveTabResult(value: unknown): value is ActiveTabResult {
+  return typeof value === "object" && value !== null && "ok" in value;
+}
+
+function isAnalyzePageResult(value: unknown): value is AnalyzePageResult {
+  return typeof value === "object" && value !== null && "ok" in value;
 }

@@ -1,7 +1,7 @@
 {
   "manifest_version": 3,
   "name": "AdCheck",
-  "version": "0.1.0",
+  "version": "0.1.6",
   "description": "건강기능식품 상품페이지의 광고 표현을 구매 전에 확인합니다.",
   "minimum_chrome_version": "116",
   "icons": {
@@ -10,8 +10,8 @@
     "48": "icons/adcheck_icon_48.png",
     "128": "icons/adcheck_icon_128.png"
   },
-  "permissions": ["activeTab", "scripting", "sidePanel"],
-  "host_permissions": ["http://localhost/*"],
+  "permissions": ["activeTab", "scripting", "sidePanel", "storage", "downloads"],
+  "host_permissions": ["http://localhost/*", "http://*/*", "https://*/*"],
   "background": {
     "service_worker": "assets/service-worker.js",
     "type": "module"
@@ -24,6 +24,14 @@
     "default_icon": {
       "16": "icons/adcheck_icon_16.png",
       "32": "icons/adcheck_icon_32.png"
+    }
+  },
+  "commands": {
+    "export-extraction-test-results": {
+      "suggested_key": {
+        "default": "Alt+Shift+E"
+      },
+      "description": "누적된 Evidence 테스트 결과를 CSV로 내보내기"
     }
   }
 }
