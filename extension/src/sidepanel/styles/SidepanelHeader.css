@@ -1,0 +1,49 @@
+/* ========================================================
+   [components/SidepanelHeader.tsx] 상단 브랜드 로고 + 점검 기록 버튼
+   ======================================================== */
+.toss-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 14px;
+  padding-bottom: 10px;
+  border-bottom: 1px solid #F1F5F9;
+}
+.brand-group { display: flex; align-items: center; background: none; border: none; padding: 0; cursor: pointer; }
+
+.btn-history-trigger {
+  width: 36px;
+  height: 36px;
+  border-radius: 50%;
+  background: #FFFFFF;
+  border: 1px solid #E2E8F0;
+  color: #475569;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  box-shadow: 0 2px 6px rgba(0,0,0,0.03);
+  transition: background 0.15s ease, transform 0.15s ease;
+}
+.btn-history-trigger:hover { background: #F1F5F9; color: #0F172A; }
+.btn-history-trigger:active { transform: scale(0.93); }
+
+.glass-shimmer-title {
+  font-size: 19px;
+  font-weight: 900;
+  letter-spacing: -1.2px; /* 스플래시 화면 AdCheck 로고와 동일한 자간 */
+  display: flex;
+  align-items: center;
+  user-select: none;
+}
+
+.glass-brand-ad { color: #0F172A; margin-right: 1px; }
+
+.glass-brand-check {
+  background: linear-gradient(135deg, #0D9488 0%, #14B8A6 40%, #5EEAD4 70%, #0F766E 100%);
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+  filter: drop-shadow(0 2px 4px rgba(13, 148, 136, 0.2));
+  position: relative;
+  display: inline-block;
+}

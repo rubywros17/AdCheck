@@ -36,6 +36,7 @@ export type ExtensionErrorCode =
   | "BACKEND_CLIENT_ERROR"
   | "BACKEND_SERVER_ERROR"
   | "INVALID_BACKEND_RESPONSE"
+  | "ANALYSIS_TIMEOUT"
   | "UNKNOWN_ERROR";
 
 export interface ExtensionError {

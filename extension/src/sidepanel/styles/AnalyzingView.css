@@ -1,0 +1,304 @@
+/* ========================================================
+   [views/AnalyzingView.tsx] 랜덤 애니메이션 + 단독 헤드라인 팁 카드
+   ======================================================== */
+
+/* 로딩 화면: 네모 카드 박스 없이, 일러스트+문구만 떠 있는 미니멀 플로팅 뷰 */
+.analyzing-tip-card {
+  position: relative;
+  width: 100%;
+  max-width: 320px;
+  min-height: 190px; /* 슬라이드 전환 중 내용이 absolute가 되어도 높이가 꺼지지 않도록 고정 */
+  background: transparent !important;
+  border: none !important;
+  box-shadow: none !important;
+  padding: 8px 16px 0;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  /* 문구 길이에 따라 내용이 위아래로 흔들리지 않도록 중앙 정렬 대신 상단 고정 좌표에서 시작 */
+  justify-content: flex-start;
+  text-align: center;
+  margin: 0 auto;
+  align-self: center;
+  box-sizing: border-box;
+  overflow: hidden; /* 카드가 좌우로 빠져나갈 때 바깥으로 스크롤바가 생기지 않도록 */
+}
+
+/* 카드 1장(그래픽 + 헤드라인)을 감싸는 슬롯 */
+.analyzing-card-slot {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: flex-start;
+  width: 100%;
+}
+
+/* 슬라이드 전환 중에는 두 슬롯이 같은 자리에 겹쳐 위치 */
+.analyzing-card-slot.card-slide-exit,
+.analyzing-card-slot.card-slide-enter {
+  position: absolute;
+  inset: 0;
+  box-sizing: border-box;
+}
+
+/* 현재 카드: 왼쪽으로 스르륵 퇴장 */
+.card-slide-exit {
+  animation: cardSlideOutLeft 0.5s cubic-bezier(0.4, 0, 0.2, 1) forwards;
+}
+/* 다음 카드: 오른쪽에서 부드럽게 등장 */
+.card-slide-enter {
+  animation: cardSlideInRight 0.5s cubic-bezier(0.4, 0, 0.2, 1) forwards;
+}
+@keyframes cardSlideOutLeft {
+  from { transform: translateX(0); opacity: 1; }
+  to { transform: translateX(-120%); opacity: 0; }
+}
+@keyframes cardSlideInRight {
+  from { transform: translateX(120%); opacity: 0; }
+  to { transform: translateX(0); opacity: 1; }
+}
+
+/* 상단 그래픽 영역: 4가지 그래픽 크기가 제각각이라도(80~96px) 항상 같은 높이 좌표에 고정 */
+.analyzing-graphic-wrap {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  height: 100px;
+  margin-bottom: 24px;
+}
+
+/* PENDING 단계: 분석 요청이 막 접수된 순간, 팁 없이 점 3개만 통통 튀는 최소 로딩 표시 */
+.analyzing-pending-dots {
+  display: flex;
+  gap: 10px;
+}
+.analyzing-pending-dots span {
+  width: 12px;
+  height: 12px;
+  border-radius: 50%;
+  background: #2DD4BF;
+  animation: pendingDotBounce 1.1s ease-in-out infinite;
+}
+.analyzing-pending-dots span:nth-child(2) { animation-delay: 0.15s; }
+.analyzing-pending-dots span:nth-child(3) { animation-delay: 0.3s; }
+@keyframes pendingDotBounce {
+  0%, 80%, 100% { transform: scale(0.6); opacity: 0.4; }
+  40% { transform: scale(1); opacity: 1; }
+}
+
+/* 메인 단독 문장 (사족 없는 헤드라인) */
+.analyzing-main-headline {
+  margin: 0;
+  font-size: 17px;
+  font-weight: 700;
+  line-height: 1.45;
+  color: #0F172A;
+  letter-spacing: -0.4px;
+  word-break: keep-all; /* 단어가 어색하게 잘리지 않게 줄바꿈 */
+}
+
+/* ========================================================
+   [components/animations/*] 팁 테마별 3D 렌더링 미니 애니메이션
+   (AirplaneAnimation은 자체 CSS 파일(AirplaneAnimation.css)을 따로 둠)
+   ======================================================== */
+
+/* CertMarkAnimation: 공인 건강기능식품 인증마크(실제 이미지)가 둥둥 뜬 채 사선 쉬머가 스쳐 지나감 */
+.health-mark-badge {
+  position: relative;
+  width: 96px;
+  height: 96px;
+  border-radius: 50%;
+  overflow: hidden;
+  animation: floatMark 2.6s ease-in-out infinite;
+  filter: drop-shadow(0 6px 16px rgba(16, 185, 129, 0.35));
+}
+.health-mark-img {
+  display: block;
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+.health-mark-shimmer {
+  position: absolute;
+  top: -60%;
+  left: -60%;
+  width: 55%;
+  height: 220%;
+  background: linear-gradient(115deg, transparent 0%, rgba(255, 255, 255, 0.85) 50%, transparent 100%);
+  transform: rotate(20deg);
+  animation: markShimmerSweep 2.4s ease-in-out infinite;
+  pointer-events: none;
+}
+@keyframes floatMark {
+  0%, 100% { transform: translateY(0); }
+  50% { transform: translateY(-6px); }
+}
+@keyframes markShimmerSweep {
+  0% { left: -60%; }
+  60% { left: 130%; }
+  100% { left: 130%; }
+}
+
+/* ShieldAnimation: 3D 렌더링 방패+체크 이미지가 둥둥 뜬 채 살짝 갸우뚱 (기본 shield 그래픽) */
+.shield-3d-stage {
+  position: relative;
+  width: 84px;
+  height: 84px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+.shield-3d-img {
+  display: block;
+  filter: drop-shadow(0 8px 16px rgba(16, 185, 129, 0.35));
+  animation: shield3DFloat 2.8s ease-in-out infinite;
+}
+.shield-3d-shadow {
+  position: absolute;
+  bottom: 2px;
+  width: 42px;
+  height: 9px;
+  background: radial-gradient(ellipse, rgba(15, 23, 42, 0.2) 0%, transparent 70%);
+  border-radius: 50%;
+  filter: blur(3px);
+  animation: shadow3DBreathe 2.8s ease-in-out infinite;
+}
+@keyframes shield3DFloat {
+  0%, 100% { transform: translateY(0) rotate(0deg); }
+  50% { transform: translateY(-7px) rotate(4deg); }
+}
+
+/* WarningAnimation: 3D 렌더링 문서+경고(X) 스탬프 이미지가 둥둥 뜬 채 살짝 갸우뚱 */
+.warning-3d-stage {
+  position: relative;
+  width: 84px;
+  height: 84px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+.warning-3d-img {
+  display: block;
+  filter: drop-shadow(0 8px 16px rgba(244, 63, 94, 0.35));
+  animation: warning3DFloat 2.8s ease-in-out infinite;
+}
+.warning-3d-shadow {
+  position: absolute;
+  bottom: 4px;
+  width: 42px;
+  height: 9px;
+  background: radial-gradient(ellipse, rgba(15, 23, 42, 0.2) 0%, transparent 70%);
+  border-radius: 50%;
+  filter: blur(3px);
+  animation: shadow3DBreathe 2.8s ease-in-out infinite;
+}
+@keyframes warning3DFloat {
+  0%, 100% { transform: translateY(0) rotate(0deg); }
+  50% { transform: translateY(-7px) rotate(-4deg); }
+}
+
+/* ReviewAnimation: 3D 렌더링 별점 리뷰 말풍선 + 주의 뱃지 이미지가 둥둥 유영 */
+.review-3d-stage {
+  position: relative;
+  width: 88px;
+  height: 88px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+.review-3d-img {
+  display: block;
+  filter: drop-shadow(0 8px 16px rgba(245, 158, 11, 0.35));
+  animation: review3DFloat 2.8s ease-in-out infinite;
+}
+.review-3d-shadow {
+  position: absolute;
+  bottom: 2px;
+  width: 46px;
+  height: 9px;
+  background: radial-gradient(ellipse, rgba(15, 23, 42, 0.2) 0%, transparent 70%);
+  border-radius: 50%;
+  filter: blur(3px);
+  animation: shadow3DBreathe 2.8s ease-in-out infinite;
+}
+@keyframes review3DFloat {
+  0%, 100% { transform: translateY(0) rotate(0deg); }
+  50% { transform: translateY(-6px) rotate(3deg); }
+}
+
+/* PillAnimation: 3D 렌더링 알약 이미지의 입체 틸팅 부유 모션 */
+.pill-3d-stage {
+  position: relative;
+  width: 80px;
+  height: 80px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.pill-3d-img {
+  display: block;
+  filter: drop-shadow(0 10px 20px rgba(45, 212, 191, 0.35));
+  animation: pill3DFloat 3.4s ease-in-out infinite;
+}
+
+/* 바닥 연동 그림자 */
+.pill-3d-shadow {
+  position: absolute;
+  bottom: 6px;
+  width: 44px;
+  height: 10px;
+  background: radial-gradient(ellipse, rgba(15, 23, 42, 0.2) 0%, transparent 70%);
+  border-radius: 50%;
+  filter: blur(3px);
+  animation: shadow3DBreathe 3.4s ease-in-out infinite;
+}
+
+@keyframes pill3DFloat {
+  0%, 100% {
+    transform: translateY(0) rotate(0deg) scale(1);
+  }
+  30% {
+    transform: translateY(-8px) rotate(8deg) scale(1.03);
+  }
+  70% {
+    transform: translateY(-12px) rotate(-6deg) scale(1.05);
+  }
+}
+
+/* 모든 3D 아이콘이 함께 쓰는 바닥 그림자 숨쉬기 애니메이션 */
+@keyframes shadow3DBreathe {
+  0%, 100% {
+    transform: scale(1);
+    opacity: 0.6;
+  }
+  50% {
+    transform: scale(0.7);
+    opacity: 0.25;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .health-mark-badge,
+  .health-mark-shimmer,
+  .shield-3d-img,
+  .shield-3d-shadow,
+  .warning-3d-img,
+  .warning-3d-shadow,
+  .review-3d-img,
+  .review-3d-shadow,
+  .pill-3d-img,
+  .pill-3d-shadow,
+  .analyzing-pending-dots span {
+    animation: none;
+  }
+  .analyzing-pending-dots span {
+    opacity: 1;
+  }
+  .card-slide-exit,
+  .card-slide-enter {
+    animation: none;
+  }
+  .card-slide-exit { opacity: 0; }
+  .card-slide-enter { opacity: 1; }
+}

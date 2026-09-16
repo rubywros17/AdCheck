@@ -1,0 +1,42 @@
+/* ========================================================
+   [views/DetailListView.tsx] 상세 리포트 아코디언 목록 화면
+   ======================================================== */
+
+/* 상세 리포트 목록이 좁은 박스에 갇히지 않고 전체 화면 흐름을 따라 자연스럽게 펼쳐지도록, 내부 고정 높이/스크롤을 무조건 해제 */
+.detail-list-container,
+.accordion-list-wrapper {
+  height: auto !important;
+  max-height: none !important;
+  overflow: visible !important;
+}
+
+/* 아코디언 블록이 순차적으로 퐁퐁 튕기며 등장하는 캐스케이딩 스프링 드롭 */
+.detail-accordion-item {
+  /* 초기 상태: 투명하고 살짝 위(-16px)에 위치 (딜레이 대기 중 미리 보이지 않도록) */
+  opacity: 0;
+  transform: translateY(-16px) scale(0.98);
+  animation: dropItemSpring 0.45s cubic-bezier(0.34, 1.56, 0.64, 1) forwards;
+}
+
+@keyframes dropItemSpring {
+  0% {
+    opacity: 0;
+    transform: translateY(-16px) scale(0.98);
+  }
+  70% {
+    opacity: 1;
+    transform: translateY(2px) scale(1.005); /* 아래로 살짝 과하게 내려오며 튕김 */
+  }
+  100% {
+    opacity: 1;
+    transform: translateY(0) scale(1); /* 제자리 완벽 안착 */
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .detail-accordion-item {
+    animation: none;
+    opacity: 1;
+    transform: none;
+  }
+}

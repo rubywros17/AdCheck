@@ -1,0 +1,19 @@
+/* ========================================================
+   [views/IdleView.tsx] 대기/에러/미지원 화면
+   ======================================================== */
+.hero-icon-circle {
+  width: 64px;
+  height: 64px;
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  margin-bottom: 14px;
+}
+.icon-circle-red { background: rgba(239, 68, 68, 0.1); }
+.icon-circle-gray { background: rgba(100, 116, 139, 0.1); }
+
+.text-dark { color: #0F172A; }
+
+.hero-title-idle { margin-top: 4px; }
+.btn-idle-margin { margin-top: 22px; }

@@ -3,8 +3,12 @@ import type { PageEvidence } from "./evidence";
 export type CreateAnalysisRequest = PageEvidence;
 
 export type AnalysisStatus = "PENDING" | "PROCESSING" | "COMPLETED" | "FAILED";
-export type RiskLevel = "CAUTION";
-export type FindingCategory = "FUNCTION_CLAIM";
+// Rule Engine severity tier. Drives categoryTheme.ts's badge color mapping.
+export type RiskLevel = "HIGH" | "CAUTION" | "NORMAL";
+// Open string type: Rule Engine ships 71+ categories and grows independently of the client.
+// categoryTheme.ts's CATEGORY_MAP names the ones the client currently has copy/colors for;
+// anything else safely falls back through getCategoryTheme().
+export type FindingCategory = string;
 
 export interface AnalysisSummary {
   findingCount: number;

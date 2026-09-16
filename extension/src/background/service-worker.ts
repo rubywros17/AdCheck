@@ -1,4 +1,5 @@
-import { AnalysisApiError, createAnalysis } from "../api/analysis-api";
+import { AnalysisApiError, createAnalysis, getAnalysis } from "../api/analysis-api";
+import type { AnalysisResponse } from "../types/analysis";
 import type {
   ActiveTabInfo,
   ActiveTabResult,
@@ -8,6 +9,9 @@ import type {
   PageExtractionResult,
   SidePanelRequest,
 } from "../types/message";
+
+const POLL_INTERVAL_MS = 1_500;
+const MAX_POLL_ATTEMPTS = 20; // 1.5초 * 20회 = 최대 30초 대기
 
 void configureSidePanel();
 chrome.runtime.onInstalled.addListener(() => {
@@ -71,12 +75,30 @@ async function analyzeCurrentPage(): Promise<AnalyzePageResult> {
     }
 
     await reportProgress("ANALYZING");
-    const analysis = await createAnalysis(extraction.data);
+    let analysis = await createAnalysis(extraction.data);
+    if (analysis.status === "PENDING" || analysis.status === "PROCESSING") {
+      analysis = await pollUntilFinished(analysis.analysisId);
+    }
     return { ok: true, data: analysis };
   } catch (error) {
     console.error("[AdCheck] Page analysis failed", error);
     return { ok: false, error: normalizeError(error) };
   }
+}
+
+async function pollUntilFinished(analysisId: number): Promise<AnalysisResponse> {
+  for (let attempt = 0; attempt < MAX_POLL_ATTEMPTS; attempt++) {
+    await sleep(POLL_INTERVAL_MS);
+    const result = await getAnalysis(analysisId);
+    if (result.status === "COMPLETED" || result.status === "FAILED") {
+      return result;
+    }
+  }
+  throw extensionError("ANALYSIS_TIMEOUT", "분석이 너무 오래 걸리고 있어요. 잠시 후 다시 시도해주세요.");
+}
+
+function sleep(ms: number): Promise<void> {
+  return new Promise((resolve) => setTimeout(resolve, ms));
 }
 
 async function getActiveTab(): Promise<chrome.tabs.Tab> {

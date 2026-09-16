@@ -1,0 +1,18 @@
+<svg
+                  width="16"
+                  height="16"
+                  viewBox="0 0 24 24"
+                  fill="none"
+                  stroke="#94A3B8"
+                  strokeWidth="2.5"
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                  style={{
+                    flexShrink: 0,
+                    marginLeft: '6px',
+                    transform: isOpen ? 'rotate(180deg)' : 'rotate(0deg)',
+                    transition: 'transform 0.35s cubic-bezier(0.34, 1.56, 0.64, 1)',
+                  }}
+                >
+                  <polyline points="6 9 12 15 18 9" />
+                </svg>
