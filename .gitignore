@@ -49,3 +49,7 @@ extension/dist/
 extension/.env
 extension/.env.*
 !extension/.env.example
+
+### Claude scratch/artifact working dirs ###
+.scratch/
+.artifact-work/
