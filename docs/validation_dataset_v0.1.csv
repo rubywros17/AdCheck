@@ -7,19 +7,19 @@ C02_DISEASE_TREATMENT,COMMON,NOT_MATCHED,"이 제품은 질병을 치료하지 �
 C02_DISEASE_TREATMENT,COMMON,REVIEW_REQUIRED,"무릎이 시큰거릴 때, 이 성분이 도움이 될 수 있어요",'시큰거림'이 질병·증상 치료 주장인지 불편함 완화 표현인지 애매,AI_DRAFT
 C03_MEDICINE_CONFUSION,COMMON,MATCHED,약국에서만 만나볼 수 있는 처방급 효능,'처방급'이 의약품 전용 명칭 오인 유발,AI_DRAFT
 C03_MEDICINE_CONFUSION,COMMON,NOT_MATCHED,전국 약국 및 온라인몰에서 구매 가능합니다,"단순 판매처 안내, 의약품 오인 요소 없음",AI_DRAFT
-C03_MEDICINE_CONFUSION,COMMON,REVIEW_REQUIRED,약국용 vs 약국 내 건강기능식품 코너 판매,의약품급 기능 암시인지 단순 판매처 안내인지 애매,DISC-14
+C03_MEDICINE_CONFUSION,COMMON,REVIEW_REQUIRED,"약국용으로 만든 건강기능식품, 약국 매대에서 확인하세요",의약품급 기능 암시인지 단순 판매처 안내인지 애매,DISC-14
 C04_DISEASE_INFO_LINK,COMMON,MATCHED,외래진료 1위 치주질환 / 피가 난다 / 고름 / 붓는 잇몸,질병 통계·증상 정보 뒤 제품 소개가 구획 없이 이어짐,BAD-09(PROPOLIS)
 C04_DISEASE_INFO_LINK,COMMON,NOT_MATCHED,[건강정보] 잇몸 질환은 방치 시 진행될 수 있습니다(출처: 대한치과의사협회) --- 이 제품은 프로폴리스 구강항균 기능성이 인정된 건기식입니다,명확한 구획+출처 표기로 정보와 광고가 분리됨,AI_DRAFT
 C04_DISEASE_INFO_LINK,COMMON,REVIEW_REQUIRED,"요즘 부쩍 잦아진 잇몸 출혈, 원인이 궁금하다면? 프로폴리스 성분을 확인해보세요",건강정보와 제품 소개의 경계가 흐릿함,AI_DRAFT
 C11_SUB_INGREDIENT_FUNCTION,COMMON,MATCHED,세계에서 가장 귀한 식용오일인 아르간 오일 66% 이상 배합 / 항산화 노화방지 및 항암효과,부원료 기능·특허를 제품 기능처럼 주장,BAD-10(MARIGOLD)
 C11_SUB_INGREDIENT_FUNCTION,COMMON,NOT_MATCHED,아르간 오일이 함유되어 있습니다,"단순 함유 사실만 기재, 기능 확대 주장 없음",AI_DRAFT
-C11_SUB_INGREDIENT_FUNCTION,COMMON,REVIEW_REQUIRED,부원료 목록 vs 일부 부원료 강조,매체·함량표기·주부원료 분리 확인 필요,DISC-17
+C11_SUB_INGREDIENT_FUNCTION,COMMON,REVIEW_REQUIRED,"비타민C, 아연, 마그네슘, 폴리페놀 함유",매체·함량표기·주부원료 분리 확인 필요,DISC-17
 C13_TESTIMONIAL,COMMON,MATCHED,유당이 없어서 아이가 이 제품 먹으면 1일 1응가해요,실제 경험·효과 보장 내용의 후기 중심,BAD-01(PROBIOTICS)
 C13_TESTIMONIAL,COMMON,NOT_MATCHED,건강한 장이 주는 편안함을 모델이 설명,인정기능성 범위 내 표현,GOOD-01(PROBIOTICS)
-C13_TESTIMONIAL,COMMON,REVIEW_REQUIRED,후기 속 감량 수치 vs 운동·식이조절을 병행한 비보장 후기,실제 경험·결과 보장 여부 확인 필요,DISC-15
+C13_TESTIMONIAL,COMMON,REVIEW_REQUIRED,운동과 식단관리를 병행하며 이 제품도 함께 먹었는데 5kg 감량했어요,실제 경험·결과 보장 여부 확인 필요,DISC-15
 C14_EXPERT_ENDORSEMENT,COMMON,MATCHED,국내 최고 명의 OOO 박사가 적극 추천하는 제품!,전문가가 제품 기능성을 직접 보증·추천,AI_DRAFT
 C14_EXPERT_ENDORSEMENT,COMMON,NOT_MATCHED,이 성분은 다수의 논문에서 연구되어 왔습니다,개인 전문가의 보증·추천이 아닌 일반적 연구 언급,AI_DRAFT
-C14_EXPERT_ENDORSEMENT,COMMON,REVIEW_REQUIRED,의사 개발 사실 vs 의사 추천,직접 개발 참여 입증인지 기능성 보증인지 애매,DISC-13
+C14_EXPERT_ENDORSEMENT,COMMON,REVIEW_REQUIRED,이 제품 개발에 참여한 의사가 추천합니다,직접 개발 참여 입증인지 기능성 보증인지 애매,DISC-13
 C21_UNFAIR_COMPARISON,COMMON,MATCHED,two safe 인증 / 임산부 안전평가 인증 완료,자사 제품만 더 안전·우수한 것으로 오인,BAD-02(EPA_DHA)
 C21_UNFAIR_COMPARISON,COMMON,NOT_MATCHED,동일 함량 기준 국내 OO원료 사용 제품입니다,"객관적 함량 사실만 기재, 우월 주장 없음",AI_DRAFT
 C21_UNFAIR_COMPARISON,COMMON,REVIEW_REQUIRED,다른 제품보다 흡수가 잘 되는 이유가 있습니다,비교 기준·증빙자료 미명시로 애매,AI_DRAFT
@@ -100,10 +100,10 @@ L03_EYE_DISEASE,INGREDIENT_SPECIFIC,NOT_MATCHED,[건강정보] 황반변성은 �
 L03_EYE_DISEASE,INGREDIENT_SPECIFIC,REVIEW_REQUIRED,"침침해지는 눈, 백내장 걱정 없이",질병명 언급이 제품효과와 직접 연결되는지 애매,AI_DRAFT
 P03_DISEASE_GUT,INGREDIENT_SPECIFIC,MATCHED,유당이 없어서 아이가 이 제품 먹으면 1일 1응가해요,제품정보에서 배변 관련 증상 효과를 직접 주장,BAD-01(PROBIOTICS)
 P03_DISEASE_GUT,INGREDIENT_SPECIFIC,NOT_MATCHED,유산균 증식 및 유해균 억제·배변활동 원활·장 건강에 도움을 줄 수 있음,"인정기능성 범위 내, 질병명 언급 없음",AI_DRAFT
-P03_DISEASE_GUT,INGREDIENT_SPECIFIC,REVIEW_REQUIRED,'변비' 제품설명 vs 분리된 건강정보,배변활동 기능성 범위인지 제품 치료 효과로 연결하는지 애매,DISC-03
+P03_DISEASE_GUT,INGREDIENT_SPECIFIC,REVIEW_REQUIRED,"변비 때문에 고생이라면, 유산균이 도움이 될 수 있어요",배변활동 기능성 범위인지 제품 치료 효과로 연결하는지 애매,DISC-03
 M02_LIVER_MARKER,INGREDIENT_SPECIFIC,MATCHED,"AST, ALT 수치가 이렇게 좋아졌어요! (자체 조사 결과)",제품 카피에서 간 지표 개선을 직접 주장,AI_DRAFT
 M02_LIVER_MARKER,INGREDIENT_SPECIFIC,NOT_MATCHED,간 건강에 도움을 줄 수 있습니다,지표 수치를 직접 언급하지 않음,AI_DRAFT
-M02_LIVER_MARKER,INGREDIENT_SPECIFIC,REVIEW_REQUIRED,"'간 수치·AST·ALT', '내장지방'",제품 카피인지 적정 인체시험 구획의 지표인지 애매,DISC-09
+M02_LIVER_MARKER,INGREDIENT_SPECIFIC,REVIEW_REQUIRED,이 제품을 드신 분들의 내장지방 수치가 개선된 사례가 있습니다,제품 카피인지 적정 인체시험 구획의 지표인지 애매,DISC-09
 M03_ALCOHOL,INGREDIENT_SPECIFIC,MATCHED,회식 전 한 알이면 다음날 숙취 걱정 끝,알코올 보호·즉시효과·숙취 효과 주장,AI_DRAFT
 M03_ALCOHOL,INGREDIENT_SPECIFIC,NOT_MATCHED,간 건강에 도움을 줄 수 있습니다,숙취·즉시효과 암시 없음,AI_DRAFT
 M03_ALCOHOL,INGREDIENT_SPECIFIC,REVIEW_REQUIRED,"즐거운 저녁 시간, 다음날 컨디션까지 생각한다면",숙취 효과 암시인지 애매,AI_DRAFT
