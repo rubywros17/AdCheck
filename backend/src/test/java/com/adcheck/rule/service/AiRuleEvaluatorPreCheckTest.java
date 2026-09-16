@@ -32,12 +32,14 @@ class AiRuleEvaluatorPreCheckTest {
     }
 
     @Test
-    void ruleCodesCoversExactly39InterpretiveAndHybridRules() {
-        assertThat(evaluator.ruleCodes()).hasSize(39);
+    void ruleCodesCoversExactly37InterpretiveAndHybridRules() {
+        assertThat(evaluator.ruleCodes()).hasSize(37);
         assertThat(evaluator.ruleCodes()).contains("C01_DISEASE_PREVENTION", "P03_DISEASE_GUT", "L02_UV");
-        // 리터럴형/데이터부재형/특수는 이 평가기 대상이 아니다.
+        // 리터럴형/데이터부재형/특수, 그리고 텍스트만으로 예외 판단 가능한 혼합 2개
+        // (M03_ALCOHOL, S01_PAIN, LiteralRuleEvaluator 담당)는 이 평가기 대상이 아니다.
         assertThat(evaluator.ruleCodes()).doesNotContain(
-                "C05_FUNCTION_EXCEED", "C09_COMPLETE_SOLUTION", "C06_OFFICIAL_FUNCTION", "C25_REQUIRED_IDENTITY");
+                "C05_FUNCTION_EXCEED", "C09_COMPLETE_SOLUTION", "C06_OFFICIAL_FUNCTION", "C25_REQUIRED_IDENTITY",
+                "M03_ALCOHOL", "S01_PAIN");
     }
 
     @Test

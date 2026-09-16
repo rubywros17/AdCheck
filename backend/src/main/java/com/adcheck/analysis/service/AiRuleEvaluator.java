@@ -25,9 +25,12 @@ import static com.adcheck.rule.service.RuleEvaluation.Status.NOT_MATCHED;
 import static com.adcheck.rule.service.RuleEvaluation.Status.REVIEW_REQUIRED;
 
 /**
- * 68/71 미구현 규칙 중 해석형(33) + 혼합(6) = 39개를 대상으로 하는 AI 기반 {@link RuleEvaluator}
- * 초안 — "직접·암시 주장인지", "확장하는지" 같은 매번 새 문장을 해석해야 하는 규칙군(자세한 분류
- * 근거는 pipeline 아티팩트 ④단계 참고)을 다룬다. 리터럴형(~9개)과 데이터부재형(~19개)은
+ * 68/71 미구현 규칙 중 해석형(33) + 혼합 중 예외가 레이아웃·의도 판단을 요구하는 4개
+ * (P03_DISEASE_GUT, M02_LIVER_MARKER, S02_BODY_AREA, L02_UV) = 37개를 대상으로 하는
+ * AI 기반 {@link RuleEvaluator} 초안 — "직접·암시 주장인지", "확장하는지" 같은 매번 새
+ * 문장을 해석해야 하는 규칙군(자세한 분류 근거는 pipeline 아티팩트 ④단계 참고)을 다룬다.
+ * 리터럴형(9개)과 혼합 중 예외가 텍스트만으로 판단 가능한 2개(M03_ALCOHOL, S01_PAIN)는
+ * {@code LiteralRuleEvaluator}(정규식 기반)가 대신 담당하고, 데이터부재형(~19개)은
  * 대상이 아니다.
  *
  * <p><b>아직 어디에도 등록하지 않았다</b>({@code @Component} 없음, {@code RuleEvaluatorRegistry}가
@@ -66,9 +69,8 @@ public class AiRuleEvaluator implements RuleEvaluator {
             "M04_REGEN_CANCER", "T04_ANTIAGING", "S04_SEASON", "O01_SEXUAL",
             "O02_ENERGY_EXPANSION", "B01_IMMUNE_INFLAMMATION", "B02_VIRUS",
             "B03_OTHER_ORAL", "L01_VISION", "L03_EYE_DISEASE",
-            // 혼합(6)
-            "P03_DISEASE_GUT", "M02_LIVER_MARKER", "M03_ALCOHOL", "S01_PAIN",
-            "S02_BODY_AREA", "L02_UV"
+            // 혼합 중 텍스트만으로 예외 판단 불가한 4개 (M03_ALCOHOL, S01_PAIN은 LiteralRuleEvaluator 담당)
+            "P03_DISEASE_GUT", "M02_LIVER_MARKER", "S02_BODY_AREA", "L02_UV"
     );
 
     private static final String STATUS_VALUES = "MATCHED, NOT_MATCHED, REVIEW_REQUIRED";
