@@ -1,5 +1,6 @@
 package com.adcheck.analysis.service;
 
+import com.adcheck.rule.service.RuleAnalysisRequest;
 import com.fasterxml.jackson.annotation.JsonIgnoreProperties;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -153,10 +154,24 @@ public class ProductContentExtractionService {
         List<ExtractedClaim> claims = new ArrayList<>();
         int index = 1;
         for (RawClaim raw : rawClaims) {
-            claims.add(new ExtractedClaim("claim-" + index, raw.claimText(), toSource(raw.source(), ocrResults)));
+            claims.add(new ExtractedClaim(
+                    "claim-" + index, raw.claimText(), toSource(raw.source(), ocrResults),
+                    parseContext(raw.context()), raw.contextEvidence()));
             index++;
         }
         return claims;
+    }
+
+    /** 모르는 값·null이면 안전하게 UNKNOWN으로 — RiskLevel.fromSeverity()와 같은 폴백 정책. */
+    private static RuleAnalysisRequest.Context parseContext(String rawContext) {
+        if (rawContext == null || rawContext.isBlank()) {
+            return RuleAnalysisRequest.Context.UNKNOWN;
+        }
+        try {
+            return RuleAnalysisRequest.Context.valueOf(rawContext.strip());
+        } catch (IllegalArgumentException e) {
+            return RuleAnalysisRequest.Context.UNKNOWN;
+        }
     }
 
     private static List<ProductCandidate> toProductCandidates(
@@ -257,7 +272,15 @@ public class ProductContentExtractionService {
         sb.append("- \"간 건강에 도움을 줍니다\", \"체지방 감소 효과\" 같은 효능/기능성을 내세우는 문장을 전부 찾으세요.\n");
         sb.append("- 이 문장이 광고 규정을 위반하는지, 어떤 규칙에 해당하는지는 판정하지 마세요 — 그건 당신의 역할이 아닙니다. 효능/기능성 주장으로 보이면 일단 포함하세요(과탐 허용).\n");
         sb.append("- 제외 대상: 배송안내, 보관방법, 브랜드/회사 소개, 단순 성분·원재료 나열, 이벤트 안내\n");
-        sb.append("- 해당하는 문장이 하나도 없으면 claims는 빈 배열로 반환하세요.\n\n");
+        sb.append("- 해당하는 문장이 하나도 없으면 claims는 빈 배열로 반환하세요.\n");
+        sb.append("- 각 claim마다 이 문장을 판매자의 제품 효과 주장으로 볼 수 있는지, 근거 위치와 함께 판단해서 context/contextEvidence로 표시하세요. ");
+        sb.append("candidateExamples 같은 단어 하나만 보고 정하지 말고, 바로 앞뒤 문장과 전체 문맥까지 실제로 확인한 경우에만 UNKNOWN이 아닌 값을 쓰세요.\n");
+        sb.append("  · PRODUCT_HEALTH_EFFECT_COPY: 주변 문맥에서 이 문장이 이 제품의 건강 효과를 주장하는 것으로 확인됨(배송·편의성 등 비건강 효과가 아님)\n");
+        sb.append("  · PRODUCT_COPY: 제품에 대한 독립 문장인 것은 확인되지만, 그 효과가 건강 효과인지까지는 확신할 수 없음\n");
+        sb.append("  · NON_PRODUCT_INFORMATION: 구매자 리뷰, 전문가 발언 인용, 제품과 무관한 배경지식, 효과를 부정하는 문장 등 제품 효과에 귀속되지 않는 독립 정보\n");
+        sb.append("  · UNKNOWN: 위 어느 것도 확신할 수 없음(모르면 이 값을 쓰세요, 추측 금지)\n");
+        sb.append("- contextEvidence에는 그렇게 판단한 근거를 한 문장으로 남기세요(예: \"바로 앞 문장이 '수면의 질 개선에 도움'이라는 제품 효과를 설명 중\"). ");
+        sb.append("UNKNOWN이면 null로 두세요.\n\n");
 
         sb.append("[항목 2] 제품 후보 (productCandidates)\n");
         sb.append("- 찾을 대상: 품목보고번호/신고번호(보통 숫자로만 이루어지거나 숫자+하이픈 조합), 제품명, 제조원/판매원 같은 업체명.\n");
@@ -285,7 +308,9 @@ public class ProductContentExtractionService {
         sb.append("- 해당하는 게 없으면 riskSignals는 빈 배열로 반환하세요.\n\n");
 
         sb.append("반드시 아래 JSON 형식으로만 응답하세요. 다른 설명은 붙이지 마세요.\n");
-        sb.append("{\"claims\": [{\"claimText\": \"주장/표현 문장 원문 그대로\", \"source\": \"본문\" 또는 해당 이미지 URL}], ");
+        sb.append("{\"claims\": [{\"claimText\": \"주장/표현 문장 원문 그대로\", \"source\": \"본문\" 또는 해당 이미지 URL, ");
+        sb.append("\"context\": \"PRODUCT_HEALTH_EFFECT_COPY\" 또는 \"PRODUCT_COPY\" 또는 \"NON_PRODUCT_INFORMATION\" 또는 \"UNKNOWN\", ");
+        sb.append("\"contextEvidence\": \"판단 근거 한 문장\" 또는 null}], ");
         sb.append("\"productCandidates\": [{\"productReportNo\": \"...\" 또는 null, \"productName\": \"...\" 또는 null, ");
         sb.append("\"companyName\": \"...\" 또는 null, \"confidence\": 0.9, \"source\": \"본문\" 또는 해당 이미지 URL}], ");
         sb.append("\"labelReview\": \"원료표 검토 메모\", \"labelLineGroups\": [[3,4,5], [12,13]], \"labelGroupConfidences\": [0.95, 0.8], ");
@@ -326,9 +351,13 @@ public class ProductContentExtractionService {
     ) {
     }
 
-    /** Gemini 응답 JSON 그대로의 claim 모양 — source는 "본문" 마커 또는 이미지 URL 문자열. */
+    /**
+     * Gemini 응답 JSON 그대로의 claim 모양 — source는 "본문" 마커 또는 이미지 URL 문자열.
+     * context는 {@link RuleAnalysisRequest.Context} 이름 문자열(모르면 null/빈 문자열 허용,
+     * {@link #parseContext(String)}가 안전하게 UNKNOWN으로 폴백).
+     */
     @JsonIgnoreProperties(ignoreUnknown = true)
-    private record RawClaim(String claimText, String source) {
+    private record RawClaim(String claimText, String source, String context, String contextEvidence) {
     }
 
     /** Gemini 응답 JSON 그대로의 제품 후보 모양 — source는 "본문" 마커 또는 이미지 URL 문자열. */
