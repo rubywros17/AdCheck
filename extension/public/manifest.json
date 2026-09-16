@@ -1,7 +1,7 @@
 {
   "manifest_version": 3,
   "name": "AdCheck",
-  "version": "0.1.0",
+  "version": "0.1.3",
   "description": "건강기능식품 상품페이지의 광고 표현을 구매 전에 확인합니다.",
   "minimum_chrome_version": "116",
   "icons": {
@@ -11,7 +11,7 @@
     "128": "icons/adcheck_icon_128.png"
   },
   "permissions": ["activeTab", "scripting", "sidePanel"],
-  "host_permissions": ["http://localhost/*"],
+  "host_permissions": ["http://localhost/*", "<all_urls>"],
   "background": {
     "service_worker": "assets/service-worker.js",
     "type": "module"
