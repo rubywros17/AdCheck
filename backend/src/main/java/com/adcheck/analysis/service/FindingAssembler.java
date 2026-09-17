@@ -24,11 +24,13 @@ import org.springframework.stereotype.Service;
 
 import java.util.ArrayList;
 import java.util.Comparator;
+import java.util.LinkedHashMap;
 import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
 import java.util.Set;
+import java.util.stream.Collectors;
 
 /**
  * 이식된 부품(AI#1, IngredientMatchingService, Product/Ingredient 조회, Rule Engine, RAG,
@@ -63,6 +65,13 @@ public class FindingAssembler {
 
     private static final Logger log = LoggerFactory.getLogger(FindingAssembler.class);
     private static final int RAG_TOP_K = 3;
+    /**
+     * Claim 하나당 REVIEW_REQUIRED Finding 최대 개수. 원료가 확정되지 않은 Claim은 구현되지
+     * 않은 COMMON 규칙(UNSUPPORTED_RULE)까지 전부 REVIEW_REQUIRED로 걸려 최대 30개(원료
+     * 확정 시 최대 71개)까지 동시에 나올 수 있는데, 실측 결과 실제 요청의 약 92%는 규칙이
+     * 1~3개만 걸려 3으로 잡아도 대부분 전부 노출된다(2026-09-17 실측, 팀 결정).
+     */
+    private static final int MAX_REVIEW_REQUIRED_FINDINGS_PER_CLAIM = 3;
 
     private final ProductIdentificationService productIdentificationService;
     private final ProductIngredientQueryService productIngredientQueryService;
@@ -155,7 +164,7 @@ public class FindingAssembler {
                             outcome.claim().claimId(), e.getMessage(), e);
                 }
             } else if (!outcome.reviewRequired().isEmpty()) {
-                findings.add(toReviewRequiredFinding(outcome));
+                findings.addAll(toReviewRequiredFindings(outcome));
             }
             // matched/reviewRequired 둘 다 비어있으면(전부 NOT_MATCHED) Finding을 만들지 않는다.
         }
@@ -317,22 +326,35 @@ public class FindingAssembler {
                 .toList();
     }
 
-    private Finding toReviewRequiredFinding(ClaimRuleOutcome outcome) {
-        RiskLevel riskLevel = mostSevere(outcome.reviewRequired())
-                .map(m -> RiskLevel.fromSeverity(m.severity()))
-                .orElse(RiskLevel.CAUTION);
-        String category = mostSevere(outcome.reviewRequired())
-                .map(RuleAnalysisResult.RuleMatch::judgmentCategory)
-                .orElse("UNKNOWN");
+    /**
+     * REVIEW_REQUIRED로 걸린 규칙마다 Finding을 하나씩 만든다. 같은 judgmentCategory를 가진
+     * 규칙이 여러 개면(현재 COMMON 규칙 30종은 서로 category가 겹치지 않지만, 원료별 규칙이나
+     * 향후 추가되는 규칙에서는 겹칠 수 있어 방어적으로 병합한다) 그 안에서 가장 심각도가 높은
+     * 것 하나로 합치고, severity가 높은 순으로 정렬해 최대
+     * {@value #MAX_REVIEW_REQUIRED_FINDINGS_PER_CLAIM}개까지만 Finding으로 만든다.
+     */
+    private List<Finding> toReviewRequiredFindings(ClaimRuleOutcome outcome) {
+        Map<String, List<RuleAnalysisResult.RuleMatch>> byCategory = outcome.reviewRequired().stream()
+                .collect(Collectors.groupingBy(
+                        RuleAnalysisResult.RuleMatch::judgmentCategory,
+                        LinkedHashMap::new,
+                        Collectors.toList()
+                ));
 
-        return new Finding(
-                outcome.claim().claimText(),
-                outcome.claim().source() != null ? outcome.claim().source().selector() : null,
-                riskLevel,
-                category,
-                "확인이 필요한 표현입니다.",
-                null
-        );
+        return byCategory.values().stream()
+                .map(this::mostSevere)
+                .flatMap(Optional::stream)
+                .sorted(Comparator.comparingInt(m -> RiskLevel.fromSeverity(m.severity()).ordinal()))
+                .limit(MAX_REVIEW_REQUIRED_FINDINGS_PER_CLAIM)
+                .map(match -> new Finding(
+                        outcome.claim().claimText(),
+                        outcome.claim().source() != null ? outcome.claim().source().selector() : null,
+                        RiskLevel.fromSeverity(match.severity()),
+                        match.judgmentCategory(),
+                        "확인이 필요한 표현입니다.",
+                        null
+                ))
+                .toList();
     }
 
     private RuleMatch toSlimRuleMatch(RuleAnalysisResult.RuleMatch match) {
