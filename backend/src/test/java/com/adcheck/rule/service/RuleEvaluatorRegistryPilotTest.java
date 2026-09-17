@@ -49,12 +49,14 @@ class RuleEvaluatorRegistryPilotTest {
     }
 
     @Test
-    void 기본_RuleJudgeProperties는_Common3_Literal9_AI파일럿16_총28개를_포함한다() {
+    void 기본_RuleJudgeProperties는_Common3_Literal9_AI파일럿20_총32개를_포함한다() {
         RuleJudgeProperties defaults = new RuleJudgeProperties();
-        assertThat(defaults.getEnabledRuleCodes()).hasSize(28)
+        assertThat(defaults.getEnabledRuleCodes()).hasSize(32)
                 .contains("C05_FUNCTION_EXCEED", "C07_ABSOLUTE_EFFECT", "C24_OVERCONSUMPTION")
                 .contains("C08_RESULT_TIME_AMOUNT", "M03_ALCOHOL", "S01_PAIN")
                 .contains("B02_VIRUS", "R02_MENOPAUSE", "T04_ANTIAGING")
-                .contains("C01_DISEASE_PREVENTION", "E03_GENERATION", "P03_DISEASE_GUT");
+                .contains("C01_DISEASE_PREVENTION", "E03_GENERATION", "P03_DISEASE_GUT")
+                .contains("E01_VESSEL", "L03_EYE_DISEASE", "C22_SUPERLATIVE")
+                .contains("L01_VISION");
     }
 }

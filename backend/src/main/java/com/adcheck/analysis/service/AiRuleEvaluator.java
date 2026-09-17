@@ -157,8 +157,18 @@ public class AiRuleEvaluator implements RuleEvaluator {
         sb.append("[판단 기준]\n");
         sb.append("분류: ").append(rule.getJudgmentCategory()).append('\n');
         sb.append("적용 조건: ").append(rule.getApplicationConditions()).append('\n');
+        sb.append("(주의: 위 조건에 나온 핵심 단어가 문장에 있다는 사실만으로 자동 충족되는 게 아닙니다 — ");
+        sb.append("문장이 실제로 구체적인 효능 확장·결합 주장을 담고 있는지 애매하면, 아래 needsOutsideContext를 ");
+        sb.append("반드시 true로 답하세요. 막연한 상황 묘사·부드러운 동기부여 문구·단순 증상 언급은 핵심 단어가 ");
+        sb.append("있어도 대부분 애매하거나 위반이 아닙니다.)\n");
         if (isNotBlank(rule.getExceptions())) {
             sb.append("예외 사항: ").append(rule.getExceptions()).append('\n');
+            if (rule.getExceptions().contains("별도")) {
+                sb.append("(주의: 위 예외 사항에 있는 \"별도\"라는 표현은 사람이 직접 재검토해야 한다는 뜻으로 ");
+                sb.append("적어둔 메모입니다 — 완전한 판단 기준이 아닙니다. 이 Claim이 그 키워드·상황과 관련 ");
+                sb.append("있어 보이면, 스스로 위반/정상 여부를 판단하지 말고 아래 needsOutsideContext를 ");
+                sb.append("반드시 true로 답해 REVIEW_REQUIRED로 넘기세요.)\n");
+            }
         }
         if (isNotBlank(rule.getCandidateExamples())) {
             sb.append("참고 예시(전체 목록 아님, 이런 것도 해당할 수 있다는 힌트일 뿐): ")
