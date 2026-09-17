@@ -39,6 +39,15 @@ public class GeminiOcrService {
     /** 이미지 동시 다운로드 상한 — 상대 서버 부담과 스레드 수를 함께 제한한다. */
     private static final int DOWNLOAD_CONCURRENCY = 6;
 
+    /** OCR 한 호출에 담을 이미지 수. 요청 하나가 너무 커지지 않게 나누고, 청크끼리는 동시에 보낸다. */
+    private static final int OCR_CHUNK_SIZE = 10;
+
+    /** OCR 청크 동시 호출 상한 — 무료 티어 분당 한도(15회)를 한꺼번에 소진하지 않도록 제한한다. */
+    private static final int OCR_CHUNK_CONCURRENCY = 3;
+
+    /** 이 크기를 넘는 이미지는 OCR에서 제외한다(애니메이션 GIF 같은 초대형 배너 방어). */
+    private static final int MAX_IMAGE_BYTES = 4 * 1024 * 1024;
+
     private final GeminiClient geminiClient;
     private final RestClient downloadClient;
     private final ObjectMapper objectMapper;
@@ -79,14 +88,41 @@ public class GeminiOcrService {
         log.info("[TIMING] 이미지 병렬 다운로드 완료 — {}ms ({}장 요청 중 {}장 성공)",
                 System.currentTimeMillis() - downloadStartedAt, imageUrls.size(), sentUrls.size());
 
-        List<String> texts = sentUrls.isEmpty() ? List.of() : callGemini(sentUrls.size(), images);
+        long ocrStartedAt = System.currentTimeMillis();
+        List<String> texts = sentUrls.isEmpty() ? List.of() : callGeminiInChunks(images);
+        log.info("[TIMING] OCR 완료 — {}ms ({}장, 추출 텍스트 {}자)",
+                System.currentTimeMillis() - ocrStartedAt, images.size(),
+                texts.stream().mapToInt(String::length).sum());
 
         Map<String, String> result = new LinkedHashMap<>();
         for (String imageUrl : imageUrls) {
             int index = sentUrls.indexOf(imageUrl);
             result.put(imageUrl, (index >= 0 && index < texts.size()) ? texts.get(index) : "");
         }
+        logExtractedTexts(result);
         return result;
+    }
+
+    /**
+     * OCR 원문을 진단용으로 남긴다 — 이미지에서 뽑은 텍스트가 2만 자인데 Claim은 2건만 추출되는
+     * 현상이 실측에서 관찰됐다. 원인(추출 프롬프트가 긴 입력을 놓치는지, OCR 품질이 나쁜지)을
+     * 가리려면 중간 산출물인 이 텍스트가 필요하다. 길이가 커서 전문은 DEBUG로만 남긴다.
+     */
+    private void logExtractedTexts(Map<String, String> result) {
+        if (!log.isInfoEnabled()) {
+            return;
+        }
+        String lengths = result.values().stream()
+                .map(text -> String.valueOf(text.length()))
+                .collect(java.util.stream.Collectors.joining(","));
+        log.info("OCR 이미지별 추출 길이(자): [{}]", lengths);
+        if (log.isDebugEnabled()) {
+            result.forEach((url, text) -> {
+                if (!text.isBlank()) {
+                    log.debug("OCR 원문 ({}): {}", url, text);
+                }
+            });
+        }
     }
 
     /**
@@ -121,7 +157,54 @@ public class GeminiOcrService {
         if (imageBytes == null || imageBytes.length == 0) {
             return null;
         }
+        // 실제 상품페이지에서 9MB·8.4MB짜리 애니메이션 GIF 2장이 전체 용량(21.6MB)의 80%를
+        // 차지하면서 OCR 호출을 19초까지 끌어올린 사례가 있었다. 이런 초대형 이미지는 대개
+        // 움짤·배너라 글자 정보 가치는 낮은데 비용만 압도적이라 제외한다.
+        if (imageBytes.length > MAX_IMAGE_BYTES) {
+            log.info("이미지가 너무 커서 OCR에서 제외합니다 ({}KB, 상한 {}KB): {}",
+                    imageBytes.length / 1024, MAX_IMAGE_BYTES / 1024, imageUrl);
+            return null;
+        }
         return new GeminiClient.ImageInput(guessMimeType(imageUrl), Base64.getEncoder().encodeToString(imageBytes));
+    }
+
+    /**
+     * 이미지를 청크로 나눠 동시에 OCR한다. 한 요청에 전부 담으면 요청이 수십 MB로 커져 호출
+     * 하나가 오래 걸리는데(실측 49장 21MB에서 19.2초), 나눠서 동시에 보내면 같은 작업이 한
+     * 묶음 시간으로 끝난다. 호출 수는 늘지만 무료 티어 분당 한도(15회) 안에서 감당 가능한 수준이다.
+     *
+     * <p>청크 하나가 실패해도 그 청크의 이미지만 빈 문자열이 되고 나머지는 살린다 — 예전처럼
+     * 전체를 빈 결과로 만들지 않는다.
+     *
+     * @return {@code images}와 같은 순서·크기의 텍스트 리스트.
+     */
+    private List<String> callGeminiInChunks(List<GeminiClient.ImageInput> images) {
+        List<List<GeminiClient.ImageInput>> chunks = new ArrayList<>();
+        for (int start = 0; start < images.size(); start += OCR_CHUNK_SIZE) {
+            chunks.add(images.subList(start, Math.min(images.size(), start + OCR_CHUNK_SIZE)));
+        }
+        if (chunks.size() == 1) {
+            return callGemini(chunks.get(0).size(), chunks.get(0));
+        }
+
+        int concurrency = Math.min(OCR_CHUNK_CONCURRENCY, chunks.size());
+        ExecutorService executor = Executors.newFixedThreadPool(concurrency, runnable -> {
+            Thread thread = new Thread(runnable, "ocr-chunk-");
+            thread.setDaemon(true);
+            return thread;
+        });
+        try {
+            List<CompletableFuture<List<String>>> futures = chunks.stream()
+                    .map(chunk -> CompletableFuture.supplyAsync(() -> callGemini(chunk.size(), chunk), executor))
+                    .toList();
+            // 각 청크가 자기 결과만 반환하고, 합치는 건 호출 스레드가 순서대로 한다 — 이미지와
+            // 텍스트의 짝이 어긋나지 않도록 순서 보존이 중요하다.
+            List<String> merged = new ArrayList<>(images.size());
+            futures.forEach(future -> merged.addAll(future.join()));
+            return merged;
+        } finally {
+            executor.shutdown();
+        }
     }
 
     private byte[] download(String imageUrl) {

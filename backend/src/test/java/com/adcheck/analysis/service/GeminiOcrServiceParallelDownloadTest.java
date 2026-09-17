@@ -32,16 +32,26 @@ class GeminiOcrServiceParallelDownloadTest {
     @BeforeEach
     void startServer() throws IOException {
         server = HttpServer.create(new InetSocketAddress("localhost", 0), 0);
+        // 이미지마다 내용을 다르게 준다 — 어떤 이미지가 어떤 텍스트로 매핑됐는지 검증하려면
+        // 이미지가 서로 구별돼야 한다(전부 같은 바이트면 순서가 틀려도 테스트가 통과해버린다).
         server.createContext("/ok", exchange -> {
             sleep(DELAY_MS);
-            exchange.sendResponseHeaders(200, PNG_BYTES.length);
-            try (OutputStream body = exchange.getResponseBody()) {
-                body.write(PNG_BYTES);
+            byte[] body = imageBytesFor(markerOf(exchange.getRequestURI().getPath()));
+            exchange.sendResponseHeaders(200, body.length);
+            try (OutputStream out = exchange.getResponseBody()) {
+                out.write(body);
             }
         });
         server.createContext("/missing", exchange -> {
             exchange.sendResponseHeaders(404, -1);
             exchange.close();
+        });
+        server.createContext("/huge", exchange -> {
+            byte[] huge = new byte[5 * 1024 * 1024]; // OCR 제외 상한(4MB)을 넘는 이미지
+            exchange.sendResponseHeaders(200, huge.length);
+            try (OutputStream body = exchange.getResponseBody()) {
+                body.write(huge);
+            }
         });
         // 요청마다 스레드를 새로 쓰도록 — 기본(null) executor는 단일 스레드라 병렬성이 안 드러난다.
         server.setExecutor(java.util.concurrent.Executors.newFixedThreadPool(8));
@@ -59,30 +69,67 @@ class GeminiOcrServiceParallelDownloadTest {
         List<String> urls = List.of(
                 baseUrl + "/ok/1.png", baseUrl + "/ok/2.png", baseUrl + "/ok/3.png",
                 baseUrl + "/ok/4.png", baseUrl + "/ok/5.png", baseUrl + "/ok/6.png");
-        GeminiOcrService service = new GeminiOcrService(new EchoIndexGeminiClient());
+        GeminiOcrService service = new GeminiOcrService(new CountingGeminiClient());
 
         long startedAt = System.currentTimeMillis();
         Map<String, String> result = service.extractTexts(urls);
         long elapsed = System.currentTimeMillis() - startedAt;
 
         assertThat(result.keySet()).containsExactlyElementsOf(urls);
-        assertThat(result.values()).containsExactly("text-0", "text-1", "text-2", "text-3", "text-4", "text-5");
+        assertThat(result.values()).containsExactly("text-1", "text-2", "text-3", "text-4", "text-5", "text-6");
         // 순차였다면 6 × 300ms = 1,800ms 이상. 병렬이면 한 묶음(300ms) 수준이라 여유를 둬도 충분히 빠르다.
         assertThat(elapsed).isLessThan(1_200);
+    }
+
+    @Test
+    void 이미지가_많으면_청크로_나눠_호출하고_결과_순서는_유지된다() {
+        // OCR_CHUNK_SIZE=10 기준으로 25장이면 10+10+5 세 청크가 된다.
+        List<String> urls = new java.util.ArrayList<>();
+        for (int i = 0; i < 25; i++) {
+            urls.add(baseUrl + "/ok/" + i + ".png");
+        }
+        CountingGeminiClient geminiClient = new CountingGeminiClient();
+        GeminiOcrService service = new GeminiOcrService(geminiClient);
+
+        Map<String, String> result = service.extractTexts(urls);
+
+        assertThat(geminiClient.callCount.get()).isEqualTo(3);
+        assertThat(geminiClient.imageCounts).containsExactlyInAnyOrder(10, 10, 5);
+        assertThat(result.keySet()).containsExactlyElementsOf(urls);
+        // 청크를 나눠 동시에 보내도 이미지-텍스트 짝은 입력 순서 그대로여야 한다.
+        assertThat(result.values()).containsExactlyElementsOf(
+                java.util.stream.IntStream.range(0, 25).mapToObj(i -> "text-" + i).toList());
+    }
+
+    @Test
+    void 지나치게_큰_이미지는_OCR에서_제외된다() {
+        List<String> urls = List.of(
+                baseUrl + "/ok/1.png", baseUrl + "/huge/2.png", baseUrl + "/ok/3.png");
+        CountingGeminiClient geminiClient = new CountingGeminiClient();
+        GeminiOcrService service = new GeminiOcrService(geminiClient);
+
+        Map<String, String> result = service.extractTexts(urls);
+
+        // 4MB를 넘는 2번 이미지는 Gemini로 보내지 않는다 — 실제 상품페이지의 9MB 애니메이션 GIF가
+        // OCR 시간을 19초까지 끌어올린 사례에 대한 방어.
+        assertThat(geminiClient.imageCounts).containsExactly(2);
+        assertThat(result.get(urls.get(1))).isEmpty();
+        assertThat(result.get(urls.get(0))).isEqualTo("text-1");
+        assertThat(result.get(urls.get(2))).isEqualTo("text-3");
     }
 
     @Test
     void 다운로드에_실패한_이미지는_빈_문자열로_남고_나머지는_정상_처리된다() {
         List<String> urls = List.of(
                 baseUrl + "/ok/1.png", baseUrl + "/missing/2.png", baseUrl + "/ok/3.png");
-        GeminiOcrService service = new GeminiOcrService(new EchoIndexGeminiClient());
+        GeminiOcrService service = new GeminiOcrService(new CountingGeminiClient());
 
         Map<String, String> result = service.extractTexts(urls);
 
         assertThat(result.keySet()).containsExactlyElementsOf(urls);
-        assertThat(result.get(urls.get(0))).isEqualTo("text-0");
+        assertThat(result.get(urls.get(0))).isEqualTo("text-1");
         assertThat(result.get(urls.get(1))).isEmpty();
-        assertThat(result.get(urls.get(2))).isEqualTo("text-1");
+        assertThat(result.get(urls.get(2))).isEqualTo("text-3");
     }
 
     private static void sleep(long millis) {
@@ -93,20 +140,51 @@ class GeminiOcrServiceParallelDownloadTest {
         }
     }
 
-    /** 실제 Gemini 대신, 전달받은 이미지 수만큼 "text-i" 배열을 돌려주는 테스트 대역. */
-    private static final class EchoIndexGeminiClient extends GeminiClient {
-        EchoIndexGeminiClient() {
+    /** "/ok/7.png" → "7" */
+    private static String markerOf(String path) {
+        String fileName = path.substring(path.lastIndexOf('/') + 1);
+        return fileName.substring(0, fileName.indexOf('.'));
+    }
+
+    /** PNG 시그니처 뒤에 구분자를 붙여 이미지마다 내용을 다르게 만든다. */
+    private static byte[] imageBytesFor(String marker) {
+        byte[] markerBytes = marker.getBytes(java.nio.charset.StandardCharsets.US_ASCII);
+        byte[] body = new byte[PNG_BYTES.length + markerBytes.length];
+        System.arraycopy(PNG_BYTES, 0, body, 0, PNG_BYTES.length);
+        System.arraycopy(markerBytes, 0, body, PNG_BYTES.length, markerBytes.length);
+        return body;
+    }
+
+    /** 대역이 받은 이미지에서 구분자를 되읽어 "text-<구분자>"를 만든다. */
+    private static String textFor(GeminiClient.ImageInput image) {
+        byte[] decoded = java.util.Base64.getDecoder().decode(image.base64Data());
+        String marker = new String(decoded, PNG_BYTES.length, decoded.length - PNG_BYTES.length,
+                java.nio.charset.StandardCharsets.US_ASCII);
+        return "text-" + marker;
+    }
+
+    /**
+     * 호출 횟수와 청크별 이미지 수를 기록하면서, 전체에 걸쳐 연속된 "text-i"를 돌려주는 대역.
+     * 청크가 동시에 실행돼도 번호가 겹치지 않도록 전역 카운터로 부여한다.
+     */
+    private static final class CountingGeminiClient extends GeminiClient {
+        final java.util.concurrent.atomic.AtomicInteger callCount = new java.util.concurrent.atomic.AtomicInteger();
+        final java.util.List<Integer> imageCounts =
+                java.util.Collections.synchronizedList(new java.util.ArrayList<>());
+
+        CountingGeminiClient() {
             super("test-api-key", "test-model");
         }
 
         @Override
         String generate(String prompt, List<ImageInput> images, boolean jsonMode) {
-            StringBuilder json = new StringBuilder("[");
-            for (int i = 0; i < images.size(); i++) {
-                if (i > 0) json.append(',');
-                json.append('"').append("text-").append(i).append('"');
-            }
-            return json.append(']').toString();
+            callCount.incrementAndGet();
+            imageCounts.add(images.size());
+            // 받은 이미지 각각의 구분자를 그대로 돌려준다 — 청크가 어떤 순서로 실행되든
+            // 이미지와 텍스트의 짝이 맞는지 검증할 수 있다.
+            return images.stream()
+                    .map(image -> '"' + textFor(image) + '"')
+                    .collect(java.util.stream.Collectors.joining(",", "[", "]"));
         }
     }
 }
