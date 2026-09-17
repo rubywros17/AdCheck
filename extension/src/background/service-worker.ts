@@ -11,7 +11,7 @@ import type {
 } from "../types/message";
 
 const POLL_INTERVAL_MS = 1_500;
-const MAX_POLL_ATTEMPTS = 20; // 1.5초 * 20회 = 최대 30초 대기
+const MAX_POLL_ATTEMPTS = 40; // 1.5초 * 40회 = 최대 60초 대기
 
 void configureSidePanel();
 chrome.runtime.onInstalled.addListener(() => {

@@ -104,18 +104,29 @@ function invalidResponseError(cause?: unknown): AnalysisApiError {
   );
 }
 
+// Backend는 status에 따라 summary/findings의 유무가 다르다: PENDING/PROCESSING/FAILED는
+// 분석이 아직 끝나지 않았거나(또는 실패했거나) summary를 계산할 결과가 없어 summary=null,
+// findings=[]로 내려오고, COMPLETED일 때만 summary/findings가 실제 값으로 채워진다.
+// (FAILED에 향후 errorMessage 필드가 추가되더라도 여기서는 검증하지 않고 있어도/없어도 유효로 둔다.)
 function isAnalysisResponse(value: unknown): value is AnalysisResponse {
-  if (!isRecord(value) || !isRecord(value.summary) || !Array.isArray(value.findings)) {
+  if (!isRecord(value) || typeof value.analysisId !== "number" || !isAnalysisStatus(value.status)) {
     return false;
   }
 
-  return (
-    typeof value.analysisId === "number" &&
-    isAnalysisStatus(value.status) &&
-    typeof value.summary.findingCount === "number" &&
-    typeof value.summary.officialFunctionMatchedCount === "number" &&
-    value.findings.every(isFinding)
-  );
+  switch (value.status) {
+    case "PENDING":
+    case "PROCESSING":
+    case "FAILED":
+      return true;
+    case "COMPLETED":
+      return (
+        isRecord(value.summary) &&
+        typeof value.summary.findingCount === "number" &&
+        typeof value.summary.officialFunctionMatchedCount === "number" &&
+        Array.isArray(value.findings) &&
+        value.findings.every(isFinding)
+      );
+  }
 }
 
 // riskLevel/category는 DB가 관리하는 Rule Engine 값이라 계속 늘어날 수 있으므로,
