@@ -169,27 +169,41 @@ function extractProductName(): string | null {
 }
 
 function extractTextEvidence(): PageTextEvidence[] {
-  const seen = new Set<string>();
-  const evidence: PageTextEvidence[] = [];
+  const candidates: PageTextEvidence[] = [];
   const elements = document.querySelectorAll<HTMLElement>(TEXT_ELEMENT_SELECTOR);
 
   for (const element of elements) {
-    if (evidence.length >= MAX_TEXT_EVIDENCE_COUNT) {
-      break;
-    }
     if (element.closest("script, style, noscript, template") || !isVisible(element)) {
       continue;
     }
 
     const content = normalizeText(element.innerText).slice(0, MAX_TEXT_LENGTH);
-    if (content.length < MIN_TEXT_LENGTH || seen.has(content)) {
+    if (content.length < MIN_TEXT_LENGTH) {
       continue;
     }
 
-    seen.add(content);
-    evidence.push({ content, selector: createSelector(element) });
+    candidates.push({ content, selector: createSelector(element) });
   }
-  return evidence;
+  return dedupeByContent(candidates).slice(0, MAX_TEXT_EVIDENCE_COUNT);
+}
+
+/**
+ * 앞뒤 공백 제거 + 연속 공백 정리(이미 {@link normalizeText}가 처리한) 후 완전히
+ * 동일한 {@code content}는 첫 번째 것만 남긴다. 특수문자·이모지 등은 그대로 두고
+ * 순수 공백 차이만 같은 텍스트로 취급한다 — 같은 홍보 문구가 배너·상품간략설명·
+ * 팝업 등 서로 다른 위치(=다른 selector)에 반복돼도 하나만 남기기 위함이다.
+ */
+export function dedupeByContent(texts: PageTextEvidence[]): PageTextEvidence[] {
+  const seen = new Set<string>();
+  const deduped: PageTextEvidence[] = [];
+  for (const text of texts) {
+    if (seen.has(text.content)) {
+      continue;
+    }
+    seen.add(text.content);
+    deduped.push(text);
+  }
+  return deduped;
 }
 
 function extractImageEvidence(): PageImageEvidence[] {
@@ -199,29 +213,38 @@ function extractImageEvidence(): PageImageEvidence[] {
     return [];
   }
 
-  const seen = new Set<string>();
-  const evidence: PageImageEvidence[] = [];
+  const candidates: PageImageEvidence[] = [];
 
   for (const image of container.querySelectorAll<HTMLImageElement>("img")) {
-    if (evidence.length >= MAX_IMAGE_EVIDENCE_COUNT) {
-      break;
-    }
     if (isInsideExcludedSection(image, container)) {
       continue;
     }
 
     const url = extractImageUrl(image);
-    if (!url || seen.has(url) || isIrrelevantImage(image, url)) {
+    if (!url || isIrrelevantImage(image, url)) {
       continue;
     }
 
-    seen.add(url);
-    evidence.push({
+    candidates.push({
       url,
       alt: truncateNullable(normalizeText(image.alt), 500),
     });
   }
-  return evidence;
+  return dedupeByUrl(candidates).slice(0, MAX_IMAGE_EVIDENCE_COUNT);
+}
+
+/** 완전히 동일한 이미지 URL은 첫 번째 것만 남긴다. */
+export function dedupeByUrl(images: PageImageEvidence[]): PageImageEvidence[] {
+  const seen = new Set<string>();
+  const deduped: PageImageEvidence[] = [];
+  for (const image of images) {
+    if (seen.has(image.url)) {
+      continue;
+    }
+    seen.add(image.url);
+    deduped.push(image);
+  }
+  return deduped;
 }
 
 function findDetailContainer(): HTMLElement | null {
@@ -452,7 +475,7 @@ function isVisible(element: HTMLElement): boolean {
   return style.display !== "none" && style.visibility !== "hidden";
 }
 
-function normalizeText(value: string): string {
+export function normalizeText(value: string): string {
   return value.replace(INVISIBLE_CHAR_PATTERN, "").replace(/\s+/g, " ").trim();
 }
 
