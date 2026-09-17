@@ -42,7 +42,7 @@ export type TestRecorderRequest =
   | ExportExtractionTestRecordsMessage
   | ClearExtractionTestRecordsMessage;
 export type BackgroundRequest = SidePanelRequest | TestRecorderRequest;
-export type ContentScriptRequest = PingContentScriptMessage | ExtractPageMessage;
+export type ContentScriptRequest = PingContentScriptMessage | ExtractPageMessage | { type: "EXTRACT_MARKETPLACE_FRAME"; url: string };
 
 export type ExtensionErrorCode =
   | "NO_ACTIVE_TAB"

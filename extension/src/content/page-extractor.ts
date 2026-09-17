@@ -1,3 +1,4 @@
+import { marketplaceKind, marketplaceFrameSource, prepareMarketplaceDetail } from "./marketplace-detail";
 import type { PageEvidence, PageImageEvidence, PageTextEvidence } from "../types/evidence";
 import { createSelector } from "./selector";
 
@@ -52,6 +53,29 @@ const LAZY_SCROLL_WAIT_MS = 100;
 const MAX_LAZY_SCROLL_STEPS = 20;
 
 export async function extractPageEvidence(): Promise<PageEvidence> {
+  if (marketplaceKind()) {
+    const originalUrl = location.href;
+    const originalY = scrollY;
+    try {
+      const root = await prepareMarketplaceDetail();
+      const frameUrl = marketplaceFrameSource();
+      let data: PageEvidence;
+      if (frameUrl) {
+        const response = await chrome.runtime.sendMessage({ type: "READ_MARKETPLACE_FRAME", url: frameUrl });
+        if (!response?.ok) throw new Error(response?.error?.message ?? "판매자 상세 문서를 읽지 못했습니다.");
+        data = response.data;
+      } else {
+        await loadLazyImagesThroughDetail(root);
+        data = { pageUrl: location.href, pageTitle: document.title, productName: null,
+          texts: extractTextEvidence(root), images: extractImageEvidence(root) };
+      }
+      if (location.href.split("#")[0] !== originalUrl.split("#")[0]) throw new Error("추출 중 상품이 변경되었습니다.");
+      if (!data.images.length && !data.texts.length) throw new Error("판매자 상세 내용이 비어 있습니다. 상세설명을 확인해주세요.");
+      return { ...data, pageUrl: location.href, pageTitle: document.title, productName: extractProductName() };
+    } finally {
+      if (location.href.split("#")[0] === originalUrl.split("#")[0]) window.scrollTo({top: originalY, behavior:"auto"});
+    }
+  }
   await prepareLazyDetailContent();
 
   return {
@@ -168,20 +192,20 @@ function extractProductName(): string | null {
   return truncateNullable(candidate, 200);
 }
 
-function extractTextEvidence(): PageTextEvidence[] {
+function extractTextEvidence(root: HTMLElement = document.body): PageTextEvidence[] {
   const seen = new Set<string>();
   const evidence: PageTextEvidence[] = [];
-  const elements = document.querySelectorAll<HTMLElement>(TEXT_ELEMENT_SELECTOR);
+  const elements = root.querySelectorAll<HTMLElement>(TEXT_ELEMENT_SELECTOR);
 
   for (const element of elements) {
     if (evidence.length >= MAX_TEXT_EVIDENCE_COUNT) {
       break;
     }
-    if (element.closest("script, style, noscript, template") || !isVisible(element)) {
+    if (element.closest("script, style, noscript, template, nav, footer") || isExcludedText(element, root) || !isVisible(element)) {
       continue;
     }
 
-    const content = normalizeText(element.innerText).slice(0, MAX_TEXT_LENGTH);
+    const content = normalizeText(cleanText(element)).slice(0, MAX_TEXT_LENGTH);
     if (content.length < MIN_TEXT_LENGTH || seen.has(content)) {
       continue;
     }
@@ -192,8 +216,7 @@ function extractTextEvidence(): PageTextEvidence[] {
   return evidence;
 }
 
-function extractImageEvidence(): PageImageEvidence[] {
-  const container = findDetailContainer();
+function extractImageEvidence(container: HTMLElement | null = findDetailContainer()): PageImageEvidence[] {
   if (!container) {
     console.info("[AdCheck] Product detail container was not found; skipping page-wide images");
     return [];
@@ -458,4 +481,34 @@ function normalizeText(value: string): string {
 
 function truncateNullable(value: string, maxLength: number): string | null {
   return value ? value.slice(0, maxLength) : null;
+}
+
+// Prune excluded descendants too: a parent <li> or <span> can contain a review.
+function isExcludedText(element: HTMLElement, root: HTMLElement): boolean {
+  let node: HTMLElement | null = element;
+  while (node) {
+    const descriptor = getElementDescriptor(node).replace(/preview/gi, "");
+    if (EXCLUDED_SECTION_PATTERN.test(descriptor) || /상품평|상품문의/.test(descriptor)) return true;
+    if (node !== root && node.matches("section, article, div, ul, aside")) {
+      const heading = Array.from(node.children).find(c => c.matches("h2,h3,h4,h5,[role='heading']"));
+      if (heading && /^(추천상품|연관상품|함께.*상품|상품후기|상품평|리뷰|구매후기|상품문의)/.test(normalizeText(heading.textContent ?? "").replace(/\s/g,""))) return true;
+    }
+    if (node === root) break;
+    node = node.parentElement;
+  }
+  return false;
+}
+function cleanText(element: HTMLElement): string {
+  const copy = element.cloneNode(true) as HTMLElement;
+  const originals = Array.from(element.querySelectorAll<HTMLElement>("*"));
+  const copies = Array.from(copy.querySelectorAll<HTMLElement>("*"));
+  originals.forEach((node, index) => {
+    if (node.matches("script,style,noscript,template,nav,footer") || isExcludedText(node, element) || !isVisible(node)) copies[index].remove();
+  });
+  return copy.innerText;
+}
+export async function extractMarketplaceFrameEvidence(): Promise<PageEvidence> {
+  await loadLazyImagesThroughDetail(document.body);
+  return { pageUrl: location.href, pageTitle: document.title, productName: null,
+    texts: extractTextEvidence(document.body), images: extractImageEvidence(document.body) };
 }
