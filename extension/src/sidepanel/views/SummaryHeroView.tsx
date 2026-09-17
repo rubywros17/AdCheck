@@ -133,7 +133,8 @@ export const SummaryHeroView: React.FC<SummaryHeroViewProps> = ({ count, onConti
         .mood-summary-container {
           width: 100%;
           background: #FFFFFF;
-          padding: 8px 20px 16px;
+          border-radius: 20px;
+          padding: 22px 20px 16px;
           display: flex;
           flex-direction: column;
           align-items: center;
@@ -148,34 +149,28 @@ export const SummaryHeroView: React.FC<SummaryHeroViewProps> = ({ count, onConti
         }
 
         .risk-header {
-          font-size: 26px;
+          font-size: 23px;
           font-weight: 800;
           color: #0F172A;
           margin: 0;
           letter-spacing: -0.5px;
+          word-break: keep-all;
         }
 
-        .risk-count-num {
-          color: ${badge.text};
-          transition: color 0.3s ease;
-        }
-
-        /* 중앙 곰돌이 + 그 밑 위험도 문구: 계기판이 멈추는 순간 함께 팡 튀어오르며 등장 */
+        /* 중앙 곰돌이: 계기판이 멈추는 순간 팡 튀어오르며 등장 */
         .mood-face-stage {
           display: flex;
           flex-direction: column;
           align-items: center;
           justify-content: center;
           margin: 14px 0 6px 0;
-          min-height: 112px;
+          min-height: 88px;
         }
 
-        .mood-tier-word {
-          margin-top: 6px;
-          font-size: 18px;
+        .gauge-count-label {
           font-weight: 800;
-          color: ${badge.text};
-          letter-spacing: -0.3px;
+          fill: ${badge.text};
+          transition: fill 0.3s ease;
         }
 
         .bear-pop-enter {
@@ -209,6 +204,12 @@ export const SummaryHeroView: React.FC<SummaryHeroViewProps> = ({ count, onConti
 
         .gauge-band {
           transition: fill 0.3s ease, d 0.3s ease;
+        }
+
+        .gauge-zone-label {
+          font-weight: 500;
+          fill: #FFFFFF;
+          text-shadow: 0 1px 2px rgba(15, 23, 42, 0.18);
         }
 
         /* 포인터: 호 양 끝(${GAUGE_POINTER_MIN_ANGLE}deg~${GAUGE_POINTER_MAX_ANGLE}deg) 안에서만 왕복하다가 감속 정지 — 호 밖으로 나가는 풀회전 금지 */
@@ -250,19 +251,26 @@ export const SummaryHeroView: React.FC<SummaryHeroViewProps> = ({ count, onConti
         }
       `}</style>
 
-      {/* 1. 상단 영역: 위험 감지 문구 개수 헤더 */}
+      {/* 1. 상단 영역: 위험 감지 문구 헤더 (건수는 게이지 안으로 이동) */}
       <div className="mood-header">
         <h2 className="risk-header">
-          위험 감지 문구 <span className="risk-count-num">{count}</span>건
+          {isSafe ? (
+            <>
+              위험 의심문구가
+              <br />
+              전혀 발견되지 않았어요
+            </>
+          ) : (
+            '위험 감지 문구가 발견되었어요'
+          )}
         </h2>
       </div>
 
-      {/* 2. 중앙 영역: 계기판이 멈추는 순간에만 결과 곰돌이 + 위험도 문구가 팡 튀어오름 */}
+      {/* 2. 중앙 영역: 계기판이 멈추는 순간에만 결과 곰돌이가 팡 튀어오름 */}
       <div className="mood-face-stage">
         {showResult && (
           <div key={tier} className="bear-pop-enter">
             <MoodFace level={tier} size={80} />
-            <p className="mood-tier-word">{badge.label}</p>
           </div>
         )}
       </div>
@@ -284,24 +292,46 @@ export const SummaryHeroView: React.FC<SummaryHeroViewProps> = ({ count, onConti
             />
           ))}
 
-          {/* 3색 밴드: 계기판이 멈춘 뒤 활성 구간만 살짝 바깥으로 튀어나옴 */}
+          {/* 3색 밴드: 계기판이 멈춘 뒤 활성 구간만 살짝 바깥으로 튀어나오고, 그 안에 위험도 단어가 표시됨 */}
           {GAUGE_ZONES.map((zone) => {
             const isActive = showResult && zone.tier === tier;
             const outerR = isActive ? GAUGE_ACTIVE_OUTER_R : GAUGE_OUTER_R;
+            const labelPoint = gaugePoint(zone.midDeg, (GAUGE_INNER_R + outerR) / 2);
             return (
-              <path
-                key={zone.tier}
-                className="gauge-band"
-                d={bandPath(zone.startDeg, zone.endDeg, outerR)}
-                fill={zone.fill}
-                opacity={isActive ? 1 : 0.55}
-              />
+              <g key={zone.tier}>
+                <path
+                  className="gauge-band"
+                  d={bandPath(zone.startDeg, zone.endDeg, outerR)}
+                  fill={zone.fill}
+                  opacity={isActive ? 1 : 0.55}
+                />
+                {isActive && (
+                  <text
+                    className="gauge-zone-label"
+                    x={labelPoint.x}
+                    y={labelPoint.y}
+                    textAnchor="middle"
+                    dominantBaseline="middle"
+                    fontSize={15}
+                  >
+                    {badge.label}
+                  </text>
+                )}
+              </g>
             );
           })}
 
-          {/* 양 끝 장식 캡: 레퍼런스의 작은 링 디테일 */}
-          <circle cx={gaugePoint(GAUGE_START_DEG, GAUGE_OUTER_R).x} cy={gaugePoint(GAUGE_START_DEG, GAUGE_OUTER_R).y} r={6} fill="#FFFFFF" stroke="#CBD5E1" strokeWidth={2} />
-          <circle cx={gaugePoint(GAUGE_START_DEG + GAUGE_SWEEP_DEG, GAUGE_OUTER_R).x} cy={gaugePoint(GAUGE_START_DEG + GAUGE_SWEEP_DEG, GAUGE_OUTER_R).y} r={6} fill="#FFFFFF" stroke="#CBD5E1" strokeWidth={2} />
+          {/* 건수: 게이지 안쪽 빈 공간(포인터 위쪽)에 표시 */}
+          <text
+            className="gauge-count-label"
+            x={GAUGE_CX}
+            y={GAUGE_CY - 38}
+            textAnchor="middle"
+            dominantBaseline="middle"
+            fontSize={26}
+          >
+            {count}건
+          </text>
 
           {/* 포인터: 왼쪽으로 계속 돌아가다가 현재 등급 쪽에 감속 정지 */}
           <g

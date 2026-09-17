@@ -10,6 +10,32 @@
   overflow: visible !important;
 }
 
+/* 필터 칩(전체/의약품 오인우려/과장표현)이 아래에서 살짝 커지며 부드럽게 떠오르는 순차 등장 */
+.filter-chip-enter {
+  opacity: 0;
+  transform: translateY(-10px) scale(0.92);
+  animation: chipFadeIn 0.4s cubic-bezier(0.22, 1, 0.36, 1) forwards;
+}
+
+@keyframes chipFadeIn {
+  from {
+    opacity: 0;
+    transform: translateY(-10px) scale(0.92);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0) scale(1);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .filter-chip-enter {
+    animation: none;
+    opacity: 1;
+    transform: none;
+  }
+}
+
 /* 아코디언 블록이 순차적으로 퐁퐁 튕기며 등장하는 캐스케이딩 스프링 드롭 */
 .detail-accordion-item {
   /* 초기 상태: 투명하고 살짝 위(-16px)에 위치 (딜레이 대기 중 미리 보이지 않도록) */

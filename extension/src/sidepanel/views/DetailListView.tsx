@@ -13,13 +13,12 @@ export interface DetailListViewProps {
   pendingScrollIdx: number | null;
   currentPageTitle?: string;
   pageUrl?: string;
-  onBack?: () => void;
-  onShare?: () => void;
   onFilterChange: (filter: FilterCategory) => void;
   onToggleFinding: (idx: number) => void;
   onScrollComplete: () => void;
   onLocateFinding?: (finding: FindingWithKeyword) => void;
-  onAnalyze?: () => void;
+  // "다른 광고 검사하기"는 바로 재분석하지 않고, "이 상품 광고 믿고 사도 될까요?" 버튼이 있는
+  // IDLE 화면부터 다시 시작하도록 onReset(goHome)을 씁니다.
   onReset?: () => void;
 }
 
@@ -35,13 +34,10 @@ export const DetailListView: React.FC<DetailListViewProps> = ({
   pendingScrollIdx,
   currentPageTitle,
   pageUrl,
-  onBack,
-  onShare,
   onFilterChange,
   onToggleFinding,
   onScrollComplete,
   onLocateFinding,
-  onAnalyze,
   onReset,
 }) => {
   const indexedFindings = findings.map((finding, idx) => ({ finding, idx }));
@@ -77,8 +73,6 @@ export const DetailListView: React.FC<DetailListViewProps> = ({
     border: active ? 'none' : '1.5px solid #CBD5E1',
   });
 
-  const handleRecheck = onAnalyze || onReset || (() => {});
-
   return (
     <div
       className="tab-panel detail-list-container"
@@ -97,92 +91,88 @@ export const DetailListView: React.FC<DetailListViewProps> = ({
       }}
     >
 
-      {/* 1. 상단 뒤로가기 + 타이틀 & 설명 앵커 */}
-      <div style={{ display: 'flex', alignItems: 'center' }}>
-        <button
-          type="button"
-          onClick={onBack}
-          aria-label="이전 화면으로"
-          style={{
-            display: 'flex',
-            alignItems: 'center',
-            justifyContent: 'center',
-            width: '28px',
-            height: '28px',
-            borderRadius: '50%',
-            border: '1px solid #E2E8F0',
-            background: '#FFFFFF',
-            color: '#334155',
-            fontSize: '14px',
-            cursor: 'pointer',
-            flexShrink: 0,
-            marginRight: '8px',
-          }}
-        >
-          ←
-        </button>
-        <div style={{ flex: 1, textAlign: 'center', marginRight: '36px', marginBottom: '2px' }}>
-          <h2 style={{ fontSize: '20px', fontWeight: 800, color: '#190933', margin: '0 0 4px 0', letterSpacing: '-0.4px', lineHeight: 1.35 }}>
-            광고 점검 상세 리포트
-          </h2>
-          <p style={{ fontSize: '13px', color: '#64748B', margin: 0, lineHeight: 1.45, wordBreak: 'keep-all' }}>
-            총 {findings.length}건의 표현에 대해 식약처 기준을 확인해보세요.
-          </p>
-        </div>
-      </div>
-
-      {/* 검사한 페이지 정보 */}
-      {currentPageTitle && (
-        <a
-          href={pageUrl}
-          target="_blank"
-          rel="noreferrer"
-          style={{
-            display: 'flex',
-            alignItems: 'center',
-            gap: '8px',
-            background: '#F8FAFC',
-            border: '1px solid #E2E8F0',
-            borderRadius: '12px',
-            padding: '10px 12px',
-            margin: '12px 0 0',
-            textDecoration: 'none',
-          }}
-        >
-          <span style={{ fontSize: '10.5px', fontWeight: 700, color: '#94A3B8', flexShrink: 0 }}>검사한 페이지</span>
-          <span
+      {/* 1. 상단 타이틀 & 설명 앵커 */}
+      <div style={{ textAlign: 'center', marginBottom: '2px' }}>
+        <h2 style={{ fontSize: '20px', fontWeight: 800, color: '#190933', margin: '0 0 4px 0', letterSpacing: '-0.4px', lineHeight: 1.35 }}>
+          광고 점검 상세 리포트
+        </h2>
+        <p style={{ fontSize: '13px', color: '#64748B', margin: 0, lineHeight: 1.45, wordBreak: 'keep-all' }}>
+          총 {findings.length}건의 표현에 대해 식약처 기준을 확인해보세요.
+        </p>
+        {currentPageTitle && pageUrl && (
+          <a
+            href={pageUrl}
+            target="_blank"
+            rel="noopener noreferrer"
             style={{
+              display: 'inline-flex',
+              alignItems: 'center',
+              gap: '4px',
+              marginTop: '8px',
               fontSize: '12.5px',
-              fontWeight: 600,
+              fontWeight: 700,
               color: '#0D9488',
-              overflow: 'hidden',
-              textOverflow: 'ellipsis',
-              whiteSpace: 'nowrap',
+              textDecoration: 'underline',
+              textUnderlineOffset: '2px',
+              wordBreak: 'keep-all',
             }}
           >
             {currentPageTitle}
-          </span>
-        </a>
-      )}
+            <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.4" strokeLinecap="round" strokeLinejoin="round" style={{ flexShrink: 0 }}>
+              <path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6" />
+              <polyline points="15 3 21 3 21 9" />
+              <line x1="10" y1="14" x2="21" y2="3" />
+            </svg>
+          </a>
+        )}
+      </div>
 
       {/* 2. 카테고리 필터 칩: 전체 / 의약품 오인우려 / 과장표현 2대 구분 */}
       <div style={{ display: 'flex', gap: '8px', overflowX: 'auto', margin: '12px 0 16px' }}>
-        <button type="button" onClick={() => onFilterChange('ALL')} style={filterChipStyle(activeFilter === 'ALL')}>
+        <button
+          type="button"
+          className="filter-chip-enter"
+          onClick={() => onFilterChange('ALL')}
+          style={{ ...filterChipStyle(activeFilter === 'ALL'), animationDelay: '0s' }}
+        >
           전체 {findings.length}
         </button>
-        <button type="button" onClick={() => onFilterChange('DISEASE')} style={filterChipStyle(activeFilter === 'DISEASE')}>
+        <button
+          type="button"
+          className="filter-chip-enter"
+          onClick={() => onFilterChange('DISEASE')}
+          style={{ ...filterChipStyle(activeFilter === 'DISEASE'), animationDelay: '0.08s' }}
+        >
           의약품 오인우려 {diseaseCount}
         </button>
-        <button type="button" onClick={() => onFilterChange('GUARANTEE')} style={filterChipStyle(activeFilter === 'GUARANTEE')}>
+        <button
+          type="button"
+          className="filter-chip-enter"
+          onClick={() => onFilterChange('GUARANTEE')}
+          style={{ ...filterChipStyle(activeFilter === 'GUARANTEE'), animationDelay: '0.16s' }}
+        >
           과장표현 {guaranteeCount}
         </button>
       </div>
 
-      {/* 3. 슬림 아코디언 목록 */}
-      <div className="accordion-list-wrapper" style={{ display: 'flex', flexDirection: 'column', flex: '1 1 auto' }}>
+      {/* 3. 슬림 아코디언 목록: 항목마다 따로 떠 있던 박스를 하나로 이어붙인 리스트로 통일 */}
+      <div
+        className="accordion-list-wrapper"
+        style={{
+          display: 'flex',
+          flexDirection: 'column',
+          flex: '1 1 auto',
+          background: '#FFFFFF',
+          border: '1.5px solid #E2E8F0',
+          borderRadius: '16px',
+          boxShadow: '0 4px 16px rgba(15, 23, 42, 0.05)',
+          overflow: 'hidden',
+        }}
+      >
         {filteredFindings.map(({ finding, idx }, displayIdx) => {
           const isOpen = expandedFindings.has(idx);
           const theme = getCategoryTheme(finding.category);
+          const isLast = displayIdx === filteredFindings.length - 1;
 
           return (
             <div
@@ -194,11 +184,7 @@ export const DetailListView: React.FC<DetailListViewProps> = ({
               className="detail-accordion-item"
               style={{
                 background: '#FFFFFF',
-                borderRadius: '16px',
-                border: '1.5px solid #E2E8F0',
-                boxShadow: '0 4px 16px rgba(15, 23, 42, 0.05)',
-                marginBottom: '14px',
-                overflow: 'hidden',
+                borderBottom: isLast ? 'none' : '1px solid #F1F5F9',
                 animationDelay: `${displayIdx * 0.055}s`,
               }}
             >
@@ -216,23 +202,17 @@ export const DetailListView: React.FC<DetailListViewProps> = ({
               >
                 <div style={{ display: 'flex', alignItems: 'center', gap: '10px', flex: 1, minWidth: 0 }}>
                   <span
+                    aria-hidden="true"
                     style={{
-                      display: 'inline-flex',
-                      alignItems: 'center',
-                      justifyContent: 'center',
-                      width: '22px',
-                      height: '22px',
-                      borderRadius: '7px',
-                      fontSize: '11px',
-                      fontWeight: 700,
+                      display: 'inline-block',
+                      width: '9px',
+                      height: '9px',
+                      borderRadius: '50%',
                       flexShrink: 0,
-                      transition: 'background 0.2s ease, color 0.2s ease',
-                      background: isOpen ? theme.badgeText : theme.badgeBg,
-                      color: isOpen ? '#FFFFFF' : theme.badgeText,
+                      transition: 'background 0.2s ease',
+                      background: isOpen ? theme.badgeText : theme.indicatorColor,
                     }}
-                  >
-                    {displayIdx + 1}
-                  </span>
+                  />
                   <span style={{ fontSize: '14px', fontWeight: 500, color: '#190933', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
                     {finding.bubbleLabel}
                   </span>
@@ -331,11 +311,11 @@ export const DetailListView: React.FC<DetailListViewProps> = ({
         })}
       </div>
 
-      {/* 4. 하단 액션 버튼: 다른 광고 검사하기(프라이머리) + 결과 복사하기(아웃라인) */}
-      <div style={{ marginTop: '20px', paddingTop: '2px', display: 'flex', flexDirection: 'column', gap: '8px' }}>
+      {/* 4. 하단 액션 버튼: 다른 광고 검사하기 -> "이 상품 광고 믿고 사도 될까요?" IDLE 화면부터 다시 시작 */}
+      <div style={{ marginTop: '20px', paddingTop: '2px' }}>
         <button
           type="button"
-          onClick={handleRecheck}
+          onClick={onReset}
           style={{
             width: '100%',
             height: '47px',
@@ -350,28 +330,6 @@ export const DetailListView: React.FC<DetailListViewProps> = ({
           }}
         >
           다른 광고 검사하기
-        </button>
-        <button
-          type="button"
-          onClick={onShare}
-          style={{
-            width: '100%',
-            height: '44px',
-            borderRadius: '16px',
-            background: '#FFFFFF',
-            border: '1.5px solid #E2E8F0',
-            color: '#334155',
-            fontSize: '14px',
-            fontWeight: 500,
-            letterSpacing: '-0.2px',
-            cursor: 'pointer',
-            display: 'flex',
-            alignItems: 'center',
-            justifyContent: 'center',
-            gap: '6px',
-          }}
-        >
-          📋 결과 텍스트 복사하기
         </button>
       </div>
 

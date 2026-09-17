@@ -15,7 +15,8 @@ function isScanHistoryItem(value: unknown): value is ScanHistoryItem {
     && Number.isInteger(item.count)
     && item.count >= 0
     && item.count <= MOCK_FINDINGS.length
-    && item.level === getReviewLevel(item.count);
+    && item.level === getReviewLevel(item.count)
+    && (item.favorite === undefined || typeof item.favorite === "boolean");
 }
 
 function loadScanHistories(): ScanHistoryItem[] {
@@ -90,10 +91,6 @@ export function useAdCheck(status: ViewStatus, setStatus: Dispatch<SetStateActio
 
     scanTimerRef.current = setTimeout(() => {
       scanTimerRef.current = null;
-      if (testTarget === "ERROR") {
-        setStatus("ERROR");
-        return;
-      }
       if (testTarget === "INVALID") {
         setStatus("UNSUPPORTED");
         return;
@@ -167,13 +164,19 @@ export function useAdCheck(status: ViewStatus, setStatus: Dispatch<SetStateActio
     alert(`본문 내 위치: ${finding.selector}`);
   }
 
+  function toggleFavorite(id: string) {
+    setScanHistories((previous) =>
+      previous.map((history) => (history.id === id ? { ...history, favorite: !history.favorite } : history)),
+    );
+  }
+
   return {
     testTarget, scanHistories, isHistoryOpen, activeFilter, expandedFindings,
     pendingScrollIdx, targetCount, currentPageTitle, findings, level,
     pageUrl: CURRENT_PAGE_URL,
     showHistory: !["ANALYZING", "SUMMARY_HERO", "EMPTY"].includes(status),
     goHome, analyze, changeTestTarget, selectHistory, selectBubble, showAllFindings,
-    toggleFinding, completeScroll, shareResults, locateFinding,
+    toggleFinding, completeScroll, shareResults, locateFinding, toggleFavorite,
     setActiveFilter,
     openHistory: () => setIsHistoryOpen(true),
     closeHistory: () => setIsHistoryOpen(false),

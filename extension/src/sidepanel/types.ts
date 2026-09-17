@@ -8,10 +8,9 @@ export type ViewStatus =
   | "BUBBLE_PREVIEW"
   | "DETAIL_LIST"
   | "EMPTY"
-  | "ERROR"
   | "UNSUPPORTED";
 
-export type TestTarget = "NORMAL" | "SAFE" | "ERROR" | "INVALID";
+export type TestTarget = "NORMAL" | "SAFE" | "INVALID";
 export type FilterCategory = "ALL" | "DISEASE" | "GUARANTEE";
 export type ReviewLevel = "SAFE" | "CAUTION" | "REVIEW";
 
@@ -26,4 +25,5 @@ export interface ScanHistoryItem {
   productName: string;
   count: number;
   level: ReviewLevel;
+  favorite?: boolean;
 }

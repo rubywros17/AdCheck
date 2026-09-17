@@ -26,13 +26,17 @@ export function App() {
 
   return (
     <div className="toss-root">
-      <SidepanelHeader showHistory={adCheck.showHistory} onHome={adCheck.goHome} onOpenHistory={adCheck.openHistory} />
+      <SidepanelHeader
+        showHistory={adCheck.showHistory}
+        onHome={adCheck.goHome}
+        onOpenHistory={adCheck.openHistory}
+      />
 
       <main className={`toss-viewport ${status === "DETAIL_LIST" ? "toss-viewport-top" : ""}`}>
         <div className="tab-panel">
           {status === "IDLE" && <IdleView onAnalyze={adCheck.analyze} onReset={adCheck.goHome} />}
 
-          {status === "ANALYZING" && <AnalyzingView onComplete={() => {}} />}
+          {status === "ANALYZING" && <AnalyzingView />}
 
           {(status === "SUMMARY_HERO" || status === "EMPTY") && (
             <SummaryHeroView
@@ -59,25 +63,27 @@ export function App() {
               pendingScrollIdx={adCheck.pendingScrollIdx}
               currentPageTitle={adCheck.currentPageTitle}
               pageUrl={adCheck.pageUrl}
-              onBack={() => setStatus("BUBBLE_PREVIEW")}
-              onShare={adCheck.shareResults}
               onFilterChange={adCheck.setActiveFilter}
               onToggleFinding={adCheck.toggleFinding}
               onScrollComplete={adCheck.completeScroll}
               onLocateFinding={adCheck.locateFinding}
-              onAnalyze={adCheck.analyze}
               onReset={adCheck.goHome}
             />
           )}
 
-          {(status === "ERROR" || status === "UNSUPPORTED") && (
+          {status === "UNSUPPORTED" && (
             <IdleView variant={status} onAnalyze={adCheck.analyze} onReset={adCheck.goHome} />
           )}
         </div>
       </main>
 
       {adCheck.isHistoryOpen && (
-        <HistoryModal histories={adCheck.scanHistories} onClose={adCheck.closeHistory} onSelect={adCheck.selectHistory} />
+        <HistoryModal
+          histories={adCheck.scanHistories}
+          onClose={adCheck.closeHistory}
+          onSelect={adCheck.selectHistory}
+          onToggleFavorite={adCheck.toggleFavorite}
+        />
       )}
 
       <SidepanelFooter testTarget={adCheck.testTarget} onTestTargetChange={adCheck.changeTestTarget} />
