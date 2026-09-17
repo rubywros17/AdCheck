@@ -17,6 +17,9 @@ import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
+import java.util.concurrent.CompletableFuture;
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.Executors;
 
 /**
  * Gemini(gemini-3.5-flash-lite)를 OCR 역할로 사용 — 이미지 URL을 받아 그 안에 있는
@@ -32,6 +35,9 @@ import java.util.Map;
 public class GeminiOcrService {
 
     private static final Logger log = LoggerFactory.getLogger(GeminiOcrService.class);
+
+    /** 이미지 동시 다운로드 상한 — 상대 서버 부담과 스레드 수를 함께 제한한다. */
+    private static final int DOWNLOAD_CONCURRENCY = 6;
 
     private final GeminiClient geminiClient;
     private final RestClient downloadClient;
@@ -59,18 +65,18 @@ public class GeminiOcrService {
         }
 
         long downloadStartedAt = System.currentTimeMillis();
+        List<GeminiClient.ImageInput> downloaded = downloadAll(imageUrls);
+
         List<String> sentUrls = new ArrayList<>();
         List<GeminiClient.ImageInput> images = new ArrayList<>();
-        for (String imageUrl : imageUrls) {
-            byte[] imageBytes = download(imageUrl);
-            if (imageBytes == null || imageBytes.length == 0) {
-                continue;
+        for (int i = 0; i < imageUrls.size(); i++) {
+            GeminiClient.ImageInput image = downloaded.get(i);
+            if (image != null) {
+                sentUrls.add(imageUrls.get(i));
+                images.add(image);
             }
-            String base64 = Base64.getEncoder().encodeToString(imageBytes);
-            sentUrls.add(imageUrl);
-            images.add(new GeminiClient.ImageInput(guessMimeType(imageUrl), base64));
         }
-        log.info("[TIMING] 이미지 순차 다운로드 완료 — {}ms ({}장 요청 중 {}장 성공)",
+        log.info("[TIMING] 이미지 병렬 다운로드 완료 — {}ms ({}장 요청 중 {}장 성공)",
                 System.currentTimeMillis() - downloadStartedAt, imageUrls.size(), sentUrls.size());
 
         List<String> texts = sentUrls.isEmpty() ? List.of() : callGemini(sentUrls.size(), images);
@@ -81,6 +87,41 @@ public class GeminiOcrService {
             result.put(imageUrl, (index >= 0 && index < texts.size()) ? texts.get(index) : "");
         }
         return result;
+    }
+
+    /**
+     * 이미지를 동시에 내려받는다 — 상세페이지는 이미지가 수십 장이라 한 장씩 받으면 다운로드만으로
+     * 수십 초가 걸린다(Gemini 호출이 아니라 순수 HTTP라 API 할당량과는 무관하다).
+     *
+     * <p>동시 실행 수에 상한을 두는 이유는 두 가지다: 상대 서버에 한꺼번에 몰아치지 않기 위함과,
+     * 이미지 수만큼 스레드를 만들지 않기 위함이다. 수집은 각 워커가 <b>자기 인덱스에만</b> 쓰는
+     * 방식이라(공유 리스트에 add 하지 않음) 순서가 그대로 보존되고 동기화도 필요 없다.
+     *
+     * @return {@code imageUrls}와 같은 순서·크기의 리스트. 다운로드 실패한 자리는 {@code null}.
+     */
+    private List<GeminiClient.ImageInput> downloadAll(List<String> imageUrls) {
+        int concurrency = Math.min(DOWNLOAD_CONCURRENCY, Math.max(1, imageUrls.size()));
+        ExecutorService executor = Executors.newFixedThreadPool(concurrency, runnable -> {
+            Thread thread = new Thread(runnable, "ocr-image-download-");
+            thread.setDaemon(true);
+            return thread;
+        });
+        try {
+            List<CompletableFuture<GeminiClient.ImageInput>> futures = imageUrls.stream()
+                    .map(imageUrl -> CompletableFuture.supplyAsync(() -> toImageInput(imageUrl), executor))
+                    .toList();
+            return futures.stream().map(CompletableFuture::join).toList();
+        } finally {
+            executor.shutdown();
+        }
+    }
+
+    private GeminiClient.ImageInput toImageInput(String imageUrl) {
+        byte[] imageBytes = download(imageUrl);
+        if (imageBytes == null || imageBytes.length == 0) {
+            return null;
+        }
+        return new GeminiClient.ImageInput(guessMimeType(imageUrl), Base64.getEncoder().encodeToString(imageBytes));
     }
 
     private byte[] download(String imageUrl) {
