@@ -6,10 +6,11 @@ import java.util.ArrayList;
 import java.util.List;
 import org.springframework.test.util.ReflectionTestUtils;
 
-final class CanonicalRuleFixture {
+/** com.adcheck.rule.service 밖(예: com.adcheck.analysis.service의 AiRuleEvaluator 테스트)에서도 재사용하도록 public. */
+public final class CanonicalRuleFixture {
     private CanonicalRuleFixture() { }
 
-    static Rule rule(String code) {
+    public static Rule rule(String code) {
         try (var input = CanonicalRuleFixture.class.getResourceAsStream("/db/migration/data/rules_v0.1.csv")) {
             if (input == null) throw new IllegalStateException("Canonical CSV missing");
             var rows = parse(new String(input.readAllBytes(), StandardCharsets.UTF_8).replace("\uFEFF", ""));

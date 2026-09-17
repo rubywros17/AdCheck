@@ -1,4 +1,4 @@
-﻿ruleCode,scopeType,expectedStatus,claimText,expectedReasonSummary,source
+ruleCode,scopeType,expectedStatus,claimText,expectedReasonSummary,source
 C01_DISEASE_PREVENTION,COMMON,MATCHED,매일 한 알로 감기를 예방하세요,질병명(감기)과 예방을 제품 효과로 직접 주장,AI_DRAFT
 C01_DISEASE_PREVENTION,COMMON,NOT_MATCHED,환절기 건강관리를 위해 손 씻기와 충분한 수분 섭취가 중요합니다,질병 예방을 제품과 연결짓지 않은 일반 건강정보,AI_DRAFT
 C01_DISEASE_PREVENTION,COMMON,REVIEW_REQUIRED,면역력이 튼튼하면 계절이 바뀌어도 걱정 없어요,'계절이 바뀌어도 걱정없다'가 질병 예방 암시인지 애매,AI_DRAFT
@@ -37,7 +37,7 @@ P05_INFANT,INGREDIENT_SPECIFIC,NOT_MATCHED,만 3세 이상 어린이부터 섭�
 P05_INFANT,INGREDIENT_SPECIFIC,REVIEW_REQUIRED,우리 아이 첫 영양제로 좋아요,'첫 영양제'가 영아 섭취 권장인지 유아기 시작 표현인지 애매,AI_DRAFT
 E01_VESSEL,INGREDIENT_SPECIFIC,MATCHED,막힌 혈관을 뻥 뚫어주는 혈행 개선 효과,혈행개선을 혈관 자체효과로 확장,AI_DRAFT
 E01_VESSEL,INGREDIENT_SPECIFIC,NOT_MATCHED,혈행 개선에 도움을 줄 수 있습니다,인정기능성 범위 내 표현,AI_DRAFT
-E01_VESSEL,INGREDIENT_SPECIFIC,REVIEW_REQUIRED,혈관이 젊어지는 느낌이에요,혈관 자체효과 확장 주장인지 애매,AI_DRAFT
+E01_VESSEL,INGREDIENT_SPECIFIC,MATCHED,혈관이 젊어지는 느낌이에요,혈행 개선 효과를 혈관 자체의 구조적 개선으로 확장 표현,AI_DRAFT
 E02_OTHER_FUNCTION,INGREDIENT_SPECIFIC,MATCHED,"이 오메가3, 집중력과 암기력까지 챙겨줘요",인정 기능성(혈행개선 등) 범위를 넘는 주장,AI_DRAFT
 E02_OTHER_FUNCTION,INGREDIENT_SPECIFIC,NOT_MATCHED,이 오메가3는 혈행 개선에 도움을 줄 수 있습니다,인정기능성 범위 내,AI_DRAFT
 E02_OTHER_FUNCTION,INGREDIENT_SPECIFIC,REVIEW_REQUIRED,눈이 편안해지는 기분입니다,충혈 완화 암시인지 주관적 표현인지 애매,AI_DRAFT
@@ -88,31 +88,31 @@ B01_IMMUNE_INFLAMMATION,INGREDIENT_SPECIFIC,NOT_MATCHED,항산화 작용에 도�
 B01_IMMUNE_INFLAMMATION,INGREDIENT_SPECIFIC,REVIEW_REQUIRED,몸속 염증이 걱정된다면,항산화 범위를 넘는 면역·염증 질환 효과 암시인지 애매,AI_DRAFT
 B02_VIRUS,INGREDIENT_SPECIFIC,MATCHED,프로폴리스가 감기 바이러스까지 막아줘요,인체 바이러스 방어 주장(범위 초과),AI_DRAFT
 B02_VIRUS,INGREDIENT_SPECIFIC,NOT_MATCHED,프로폴리스는 벌이 나무의 수액과 분비물을 모아 만든 물질입니다,벌집 관련 원료 설명일 뿐,AI_DRAFT
-B02_VIRUS,INGREDIENT_SPECIFIC,REVIEW_REQUIRED,바이러스 걱정 없는 계절을 보내세요,벌집 설명 맥락인지 인체 방어 주장인지 애매,AI_DRAFT
+B02_VIRUS,INGREDIENT_SPECIFIC,MATCHED,바이러스 걱정 없는 계절을 보내세요,인체 바이러스 방어 주장에 해당,AI_DRAFT
 B03_OTHER_ORAL,INGREDIENT_SPECIFIC,MATCHED,외래진료 1위 치주질환 / 피가 난다 / 고름 / 붓는 잇몸,인정 기능성보다 넓은 구강 효과 주장,BAD-09(PROPOLIS)
 B03_OTHER_ORAL,INGREDIENT_SPECIFIC,NOT_MATCHED,"구강항균, 항산화",인정기능성 범위 내,GOOD-09(PROPOLIS)
 B03_OTHER_ORAL,INGREDIENT_SPECIFIC,REVIEW_REQUIRED,"미세먼지 많은 날, 목이 칼칼하다면",구강 항균이 호흡기·미세먼지까지 확장되는지 애매,AI_DRAFT
 L01_VISION,INGREDIENT_SPECIFIC,MATCHED,"노안, 근시까지 시력을 되돌려주는 눈 영양제",황반색소밀도 유지 기능을 시력 자체 개선으로 확장,AI_DRAFT
 L01_VISION,INGREDIENT_SPECIFIC,NOT_MATCHED,침침한 눈,인정기능성 범위 내 표현,GOOD-10(MARIGOLD)
-L01_VISION,INGREDIENT_SPECIFIC,REVIEW_REQUIRED,선명한 시야를 되찾아보세요,시력 자체 개선 암시인지 눈의 편안함 표현인지 애매,AI_DRAFT
+L01_VISION,INGREDIENT_SPECIFIC,MATCHED,선명한 시야를 되찾아보세요,황반색소밀도 유지 기능성을 시력 개선 효과로 오인 유도,AI_DRAFT
 L03_EYE_DISEASE,INGREDIENT_SPECIFIC,MATCHED,"황반변성, 백내장 예방에 좋은 루테인",질병명과 제품 효과를 직접 연결,AI_DRAFT
 L03_EYE_DISEASE,INGREDIENT_SPECIFIC,NOT_MATCHED,[건강정보] 황반변성은 노화로 인한 대표적 눈 질환입니다(출처: OO안과학회) --- 루테인은 황반색소밀도 유지에 도움을 줄 수 있습니다,공신력있는 출처로 구분된 건강정보와 제품 기능성이 명확히 분리,AI_DRAFT
-L03_EYE_DISEASE,INGREDIENT_SPECIFIC,REVIEW_REQUIRED,"침침해지는 눈, 백내장 걱정 없이",질병명 언급이 제품효과와 직접 연결되는지 애매,AI_DRAFT
+L03_EYE_DISEASE,INGREDIENT_SPECIFIC,MATCHED,"침침해지는 눈, 백내장 걱정 없이",백내장이라는 질병명을 직접 언급해 예방·치료 효과 암시,AI_DRAFT
 P03_DISEASE_GUT,INGREDIENT_SPECIFIC,MATCHED,유당이 없어서 아이가 이 제품 먹으면 1일 1응가해요,제품정보에서 배변 관련 증상 효과를 직접 주장,BAD-01(PROBIOTICS)
 P03_DISEASE_GUT,INGREDIENT_SPECIFIC,NOT_MATCHED,유산균 증식 및 유해균 억제·배변활동 원활·장 건강에 도움을 줄 수 있음,"인정기능성 범위 내, 질병명 언급 없음",AI_DRAFT
-P03_DISEASE_GUT,INGREDIENT_SPECIFIC,REVIEW_REQUIRED,"변비 때문에 고생이라면, 유산균이 도움이 될 수 있어요",배변활동 기능성 범위인지 제품 치료 효과로 연결하는지 애매,DISC-03
+P03_DISEASE_GUT,INGREDIENT_SPECIFIC,MATCHED,"변비 때문에 고생이라면, 유산균이 도움이 될 수 있어요",변비라는 질병명을 직접 언급해 제품 섭취로 치료된다는 효과 암시,DISC-03
 M02_LIVER_MARKER,INGREDIENT_SPECIFIC,MATCHED,"AST, ALT 수치가 이렇게 좋아졌어요! (자체 조사 결과)",제품 카피에서 간 지표 개선을 직접 주장,AI_DRAFT
 M02_LIVER_MARKER,INGREDIENT_SPECIFIC,NOT_MATCHED,간 건강에 도움을 줄 수 있습니다,지표 수치를 직접 언급하지 않음,AI_DRAFT
 M02_LIVER_MARKER,INGREDIENT_SPECIFIC,REVIEW_REQUIRED,이 제품을 드신 분들의 내장지방 수치가 개선된 사례가 있습니다,제품 카피인지 적정 인체시험 구획의 지표인지 애매,DISC-09
-M03_ALCOHOL,INGREDIENT_SPECIFIC,MATCHED,회식 전 한 알이면 다음날 숙취 걱정 끝,알코올 보호·즉시효과·숙취 효과 주장,AI_DRAFT
-M03_ALCOHOL,INGREDIENT_SPECIFIC,NOT_MATCHED,간 건강에 도움을 줄 수 있습니다,숙취·즉시효과 암시 없음,AI_DRAFT
-M03_ALCOHOL,INGREDIENT_SPECIFIC,REVIEW_REQUIRED,"즐거운 저녁 시간, 다음날 컨디션까지 생각한다면",숙취 효과 암시인지 애매,AI_DRAFT
-S01_PAIN,INGREDIENT_SPECIFIC,MATCHED,관절이 고통스러운 계절 겨울!,관절 건강을 통증·증상으로 직접 연결,BAD-07(MSM)
-S01_PAIN,INGREDIENT_SPECIFIC,NOT_MATCHED,관절/연골 건강,인정기능성 범위 내,GOOD-07(MSM)
-S01_PAIN,INGREDIENT_SPECIFIC,REVIEW_REQUIRED,무릎이 예전 같지 않다면,통증·저림 등 증상 치료 암시인지 노화 표현인지 애매,AI_DRAFT
 S02_BODY_AREA,INGREDIENT_SPECIFIC,MATCHED,"허리, 목, 척추까지 챙기는 관절 영양제",특정 부위 효과를 제품 기능성으로 표현(PDF 제한 부위 강조),AI_DRAFT
 S02_BODY_AREA,INGREDIENT_SPECIFIC,NOT_MATCHED,관절 건강에 도움을 줄 수 있습니다,특정 부위 강조 없음,AI_DRAFT
 S02_BODY_AREA,INGREDIENT_SPECIFIC,REVIEW_REQUIRED,하루종일 앉아있는 당신의 허리를 위해,특정 부위 강조가 PDF 제한 부위에 해당하는지 애매,AI_DRAFT
 L02_UV,INGREDIENT_SPECIFIC,MATCHED,눈 속 선글라스처럼 자외선을 막아줘요,자외선 차단 기능을 암시,AI_DRAFT
 L02_UV,INGREDIENT_SPECIFIC,NOT_MATCHED,실외활동이 많은 분들께 추천합니다,자외선 차단 암시 없음,AI_DRAFT
 L02_UV,INGREDIENT_SPECIFIC,REVIEW_REQUIRED,"야외활동이 많은 요즘, 눈 건강도 챙기세요",자외선 차단 암시인지 일반 생활정보인지 애매,AI_DRAFT
+C22_SUPERLATIVE,COMMON,MATCHED,업계 최초로 개발된 고순도 원료를 사용합니다.,'최초'·'고순도' 최상급 표현에 기준·시점·범위 근거 자료 명시 없음,AI_DRAFT
+C22_SUPERLATIVE,COMMON,NOT_MATCHED,"2024년 12월 기준 자사 임상시험 결과, 동일 성분 함량 국내 제품 중 최대 함량입니다.",시점·비교 기준·범위를 구체적으로 명시한 조건부 최대함량 표현,AI_DRAFT
+C22_SUPERLATIVE,COMMON,REVIEW_REQUIRED,특별한 기술로 남다른 효과를 자랑하는 프리미엄 제품,구체적 비교 대상·기준 없이 막연한 우수성만 암시해 최상급 표현 해당 여부 확정 불가,AI_DRAFT
+C30_NATURAL_FREE,COMMON,MATCHED,"무첨가, 무검출입니다.",무첨가·무검출을 시험성적서 등 근거 제시 없이 단정적으로 주장,AI_DRAFT
+C30_NATURAL_FREE,COMMON,NOT_MATCHED,"정제수 외 첨가물 없이 원물 그대로 담았으며, 관련 시험성적서를 제품 상세페이지에 첨부했습니다.",실제 시험성적서 제시를 전제로 한 무첨가 표현으로 예외 요건 충족,AI_DRAFT
+C30_NATURAL_FREE,COMMON,REVIEW_REQUIRED,자연에서 온 순수함을 그대로 담았습니다.,자연 유래를 암시하는 표현이나 실제 원료·공정·첨가물 사용 여부를 문장만으로 확정 불가,AI_DRAFT

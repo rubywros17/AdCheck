@@ -11,7 +11,7 @@ import static com.adcheck.rule.service.RuleEvaluation.ReasonCode.*;
 import static com.adcheck.rule.service.RuleAnalysisRequest.Context.*;
 
 /**
- * 68/71 미구현 규칙 중 "리터럴형"(9개, 키워드·숫자 패턴이 핵심) + 혼합 중에서도 예외가
+ * 68/71 미구현 규칙 중 "리터럴형"(7개, 키워드·숫자 패턴이 핵심) + 혼합 중에서도 예외가
  * 텍스트만으로 판단 가능한 2개(M03_ALCOHOL, S01_PAIN)를 다루는 정규식 기반 평가기.
  * {@code CommonRuleEvaluator}와 완전히 같은 스타일 — 매번 새 문장을 해석하는 게 아니라
  * bounded 전체 문장 템플릿({@code .matches()})만 잡는다.
@@ -20,9 +20,16 @@ import static com.adcheck.rule.service.RuleAnalysisRequest.Context.*;
  * 예외 조건이 레이아웃 정보("구획", "부위 강조 여부") 또는 의도 판단("일반 생활정보인지")을
  * 요구해서 정규식으로 옮길 수 없다 — {@code AiRuleEvaluator}가 계속 담당한다.
  *
- * <p><b>아직 어디에도 등록하지 않았다</b>({@code @Component} 없음) — 검증 데이터셋으로 정확도
- * 확인 후 등록 예정.
+ * <p>원래 리터럴형이던 C22_SUPERLATIVE, C30_NATURAL_FREE도 {@code AiRuleEvaluator}로
+ * 이관했다 — 정규식으로는 예외 조건(조건부 표현 여부, 제형·원료별 고시 예외 적용 여부)을 절대
+ * 확정할 수 없어 항상 REVIEW_REQUIRED만 반환했는데, RAG grounding(실제 근거 문서 원문 제공)이
+ * 붙은 AI 판정이면 이 두 규칙에서 실제로 MATCHED/NOT_MATCHED를 낼 수 있을 것으로 보고 옮겼다.
+ *
+ * <p><b>등록 완료(2026-09-17)</b> — 정규식 기반이라 LLM 노이즈가 없어 이미 충분히 검증됐다고
+ * 보고, {@code AiRuleEvaluator} 파일럿(9개)과 함께 <code>adcheck.rule-judge.enabled-rule
+ * -codes</code> allowlist에 이 9개 전부를 넣어 실제 파이프라인에 연결했다.
  */
+@Component
 public class LiteralRuleEvaluator implements RuleEvaluator {
 
     private record Definition(String version, String conditions, String exceptions) {
@@ -40,12 +47,6 @@ public class LiteralRuleEvaluator implements RuleEvaluator {
             Map.entry("C09_COMPLETE_SOLUTION", new Definition("0.1",
                     "건강 문제를 제품 섭취만으로 해결·치료 대체할 것처럼 표현하는지",
                     "'두 제품을 한 번에 섭취' 같은 편의성과 구분")),
-            Map.entry("C22_SUPERLATIVE", new Definition("0.1",
-                    "무엇을 비교하는지, 기준·시점·범위와 자료가 명확한지 확인",
-                    "최초·최대함량의 조건부 표현 가능. 고함량 일반/홍삼 기준은 논의 필요 D04")),
-            Map.entry("C30_NATURAL_FREE", new Definition("0.1",
-                    "실제 원료·공정, 허용 명칭, 원래 금지된 첨가물 여부 및 성적서 제시 방식 확인",
-                    "단어만으로 금지하지 않음. 제형·원료별 고시 예외 및 최신 조문 확인")),
             Map.entry("G02_PERIOD", new Definition("0.1",
                     "특정 기간 내 결과를 기대하게 하는지",
                     "단순 포장 수량·섭취 일정인지 구분")),
@@ -78,15 +79,6 @@ public class LiteralRuleEvaluator implements RuleEvaluator {
     private static final Pattern C09_COMPLETE = Pattern.compile("이제 (고민|관리) 끝[.!]?");
     private static final Pattern C09_ONE_SHOT = Pattern.compile("한 번에 끝[.!]?");
     private static final Pattern C09_CONVENIENCE = Pattern.compile("두 제품을 한 번에 섭취하세요[.!]?");
-
-    // C22_SUPERLATIVE
-    private static final Pattern C22_SUPERLATIVE_CLAIM =
-            Pattern.compile("(국내|업계|세계) ?(유일|최고|최대|최초)(의|한)? .+(제품|효과|기술)(입니다|이에요)[.!]?");
-    private static final Pattern C22_PURITY_CLAIM = Pattern.compile(".*고순도.*(원료|성분)(을|를) 사용(했습니다|합니다)[.!]?");
-
-    // C30_NATURAL_FREE
-    private static final Pattern C30_NATURAL = Pattern.compile("(천연|자연) (원료|성분)(만)? ?사용(했습니다|합니다)[.!]?");
-    private static final Pattern C30_ADDITIVE_FREE = Pattern.compile("무첨가[,·]? ?무검출(입니다)?[.!]?");
 
     // G02_PERIOD
     private static final Pattern G02_WEEK_RESULT = Pattern.compile("\\d+주(만에|이면) .+(빠집니다|빠져요|효과)[.!]?");
@@ -143,8 +135,6 @@ public class LiteralRuleEvaluator implements RuleEvaluator {
         return switch (rule.getRuleCode()) {
             case "C08_RESULT_TIME_AMOUNT" -> evaluateResultTimeAmount(text);
             case "C09_COMPLETE_SOLUTION" -> evaluateCompleteSolution(text);
-            case "C22_SUPERLATIVE" -> evaluateSuperlative(text);
-            case "C30_NATURAL_FREE" -> evaluateNaturalFree(text);
             case "G02_PERIOD" -> evaluatePeriod(text);
             case "T01_WEIGHT_RESULT" -> evaluateWeightResult(text);
             case "T02_DETOX" -> evaluateDetox(text);
@@ -176,22 +166,6 @@ public class LiteralRuleEvaluator implements RuleEvaluator {
                     "건강 문제를 제품 섭취만으로 해결하는 것처럼 표현합니다.");
         }
         return review(OUTSIDE_SUPPORTED_LANGUAGE, "완전 해결 표방 여부를 지원 문장 범위에서 확정할 수 없습니다.");
-    }
-
-    private RuleEvaluation evaluateSuperlative(String text) {
-        if (C22_SUPERLATIVE_CLAIM.matcher(text).matches() || C22_PURITY_CLAIM.matcher(text).matches()) {
-            return review(SEMANTIC_COMPARISON_REQUIRED,
-                    "최상급 표현이 확인되나, 조건부 표현(기준·시점·범위 명시) 여부는 문장만으로 확정할 수 없어 확인이 필요합니다.");
-        }
-        return review(OUTSIDE_SUPPORTED_LANGUAGE, "최상급 비교 표현 여부를 지원 문장 범위에서 확정할 수 없습니다.");
-    }
-
-    private RuleEvaluation evaluateNaturalFree(String text) {
-        if (C30_NATURAL.matcher(text).matches() || C30_ADDITIVE_FREE.matcher(text).matches()) {
-            return review(SEMANTIC_COMPARISON_REQUIRED,
-                    "천연·무첨가 표현이 확인되나, 제형·원료별 고시 예외 적용 여부는 문장만으로 확정할 수 없어 확인이 필요합니다.");
-        }
-        return review(OUTSIDE_SUPPORTED_LANGUAGE, "천연·무첨가 표현 여부를 지원 문장 범위에서 확정할 수 없습니다.");
     }
 
     private RuleEvaluation evaluatePeriod(String text) {

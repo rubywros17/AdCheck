@@ -24,7 +24,7 @@ import static org.assertj.core.api.Assertions.assertThat;
  */
 class AiRuleEvaluatorPreCheckTest {
 
-    private final AiRuleEvaluator evaluator = new AiRuleEvaluator(null);
+    private final AiRuleEvaluator evaluator = new AiRuleEvaluator(null, null);
 
     private static RuleAnalysisRequest request(Claim claim) {
         return new RuleAnalysisRequest(claim, List.of(), Set.of(),
@@ -32,9 +32,11 @@ class AiRuleEvaluatorPreCheckTest {
     }
 
     @Test
-    void ruleCodesCoversExactly37InterpretiveAndHybridRules() {
-        assertThat(evaluator.ruleCodes()).hasSize(37);
+    void ruleCodesCoversExactly39InterpretiveAndHybridRules() {
+        assertThat(evaluator.ruleCodes()).hasSize(39);
         assertThat(evaluator.ruleCodes()).contains("C01_DISEASE_PREVENTION", "P03_DISEASE_GUT", "L02_UV");
+        // 원래 리터럴형이었으나 정규식으로는 예외 판단이 불가해(항상 REVIEW_REQUIRED) 이관한 2개.
+        assertThat(evaluator.ruleCodes()).contains("C22_SUPERLATIVE", "C30_NATURAL_FREE");
         // 리터럴형/데이터부재형/특수, 그리고 텍스트만으로 예외 판단 가능한 혼합 2개
         // (M03_ALCOHOL, S01_PAIN, LiteralRuleEvaluator 담당)는 이 평가기 대상이 아니다.
         assertThat(evaluator.ruleCodes()).doesNotContain(

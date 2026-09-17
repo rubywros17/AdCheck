@@ -28,12 +28,6 @@ class LiteralRuleEvaluatorTest {
         "C09_COMPLETE_SOLUTION|이제 고민 끝!|MATCHED",
         "C09_COMPLETE_SOLUTION|한 번에 끝!|MATCHED",
         "C09_COMPLETE_SOLUTION|두 제품을 한 번에 섭취하세요.|NOT_MATCHED",
-        // C22_SUPERLATIVE (문장만으로는 조건부 여부를 확정 못 하므로 항상 REVIEW_REQUIRED)
-        "C22_SUPERLATIVE|국내 유일한 고순도 제품입니다.|REVIEW_REQUIRED",
-        "C22_SUPERLATIVE|오늘 저녁 메뉴를 추천합니다.|REVIEW_REQUIRED",
-        // C30_NATURAL_FREE (마찬가지로 고시 예외 확정 불가 -> 항상 REVIEW_REQUIRED)
-        "C30_NATURAL_FREE|천연 원료만 사용했습니다.|REVIEW_REQUIRED",
-        "C30_NATURAL_FREE|무첨가, 무검출입니다.|REVIEW_REQUIRED",
         // G02_PERIOD
         "G02_PERIOD|2주만에 살이 빠집니다.|MATCHED",
         "G02_PERIOD|30일 다이어트!|MATCHED",
@@ -75,9 +69,9 @@ class LiteralRuleEvaluatorTest {
     }
 
     @org.junit.jupiter.api.Test
-    void ruleCodesCoversExactlyTheElevenLiteralAndHybridRules() {
+    void ruleCodesCoversExactlyTheNineLiteralAndHybridRules() {
         assertThat(evaluator.ruleCodes()).containsExactlyInAnyOrder(
-                "C08_RESULT_TIME_AMOUNT", "C09_COMPLETE_SOLUTION", "C22_SUPERLATIVE", "C30_NATURAL_FREE",
+                "C08_RESULT_TIME_AMOUNT", "C09_COMPLETE_SOLUTION",
                 "G02_PERIOD", "T01_WEIGHT_RESULT", "T02_DETOX", "T03_DIET_DRUG", "B05_ANTIBACTERIAL_WORD",
                 "M03_ALCOHOL", "S01_PAIN");
     }
