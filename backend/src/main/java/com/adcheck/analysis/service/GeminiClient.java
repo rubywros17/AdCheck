@@ -6,11 +6,15 @@ import com.fasterxml.jackson.annotation.JsonProperty;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.http.client.SimpleClientHttpRequestFactory;
 import org.springframework.stereotype.Component;
+import org.springframework.web.client.HttpClientErrorException;
+import org.springframework.web.client.HttpServerErrorException;
 import org.springframework.web.client.RestClient;
 
 import java.net.URI;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.regex.Matcher;
+import java.util.regex.Pattern;
 
 /**
  * Gemini generateContent 호출을 감싸는 공용 클라이언트. OCR 역할(이미지+프롬프트)과
@@ -29,6 +33,17 @@ class GeminiClient {
      */
     private static final int CONNECT_TIMEOUT_MS = 10_000;
     private static final int READ_TIMEOUT_MS = 60_000;
+
+    /** 429/5xx 재시도 정책 — 무료 티어 분당 한도(15회)는 최대 1분이면 리셋되므로 3회면 충분하다. */
+    private static final int MAX_ATTEMPTS = 3;
+    private static final long BASE_BACKOFF_MS = 2_000;
+    private static final long MAX_BACKOFF_MS = 30_000;
+    private static final Pattern RETRY_DELAY_PATTERN = Pattern.compile("\"retryDelay\"\\s*:\\s*\"(\\d+(?:\\.\\d+)?)s\"");
+
+    private static final org.slf4j.Logger log = org.slf4j.LoggerFactory.getLogger(GeminiClient.class);
+    /** 파이프라인 1건이 Gemini를 실제로 몇 번 부르는지/각 호출이 몇 초 걸리는지 실측용 카운터. */
+    private static final java.util.concurrent.atomic.AtomicInteger CALL_COUNTER =
+            new java.util.concurrent.atomic.AtomicInteger();
 
     private final RestClient restClient;
     private final String apiKey;
@@ -74,13 +89,75 @@ class GeminiClient {
         GenerationConfig config = jsonMode ? new GenerationConfig("application/json") : null;
         GenerateContentRequest request = new GenerateContentRequest(List.of(new Content(parts)), config);
 
-        GenerateContentResponse response = restClient.post()
-                .uri(URI.create(ENDPOINT_TEMPLATE.formatted(model, apiKey)))
-                .body(request)
-                .retrieve()
-                .body(GenerateContentResponse.class);
+        int callNo = CALL_COUNTER.incrementAndGet();
+        long startedAt = System.currentTimeMillis();
+        GenerateContentResponse response = postWithRetry(request, callNo);
+        log.info("[TIMING] Gemini 호출 #{} 완료 — {}ms (프롬프트 {}자, 이미지 {}장)",
+                callNo, System.currentTimeMillis() - startedAt, prompt.length(), images.size());
 
         return extractText(response);
+    }
+
+    /**
+     * 429(분당 한도 초과)와 5xx(일시 장애)는 재시도한다. 재시도가 없으면 호출 하나가 실패할 때
+     * {@code FindingAssembler}의 Claim 단위 catch가 <b>그 Claim을 통째로 버리고</b> 분석은
+     * COMPLETED로 끝나서, 사용자는 "검사했는데 문제 없음"과 "검사하다 실패함"을 구분할 수 없다
+     * (실측에서 Claim 6건 중 3건이 이렇게 조용히 유실되는 것을 확인했다). 응답 본문의
+     * {@code retryDelay}를 우선 사용하고, 없으면 지수 백오프로 물러난다.
+     */
+    private GenerateContentResponse postWithRetry(GenerateContentRequest request, int callNo) {
+        RuntimeException last = null;
+        for (int attempt = 1; attempt <= MAX_ATTEMPTS; attempt++) {
+            try {
+                return restClient.post()
+                        .uri(URI.create(ENDPOINT_TEMPLATE.formatted(model, apiKey)))
+                        .body(request)
+                        .retrieve()
+                        .body(GenerateContentResponse.class);
+            } catch (HttpClientErrorException.TooManyRequests e) {
+                last = e;
+                long waitMs = retryDelayMillis(e.getResponseBodyAsString(), attempt);
+                log.warn("Gemini 호출 #{} 429(분당 한도 초과) — {}ms 후 재시도 ({}/{})",
+                        callNo, waitMs, attempt, MAX_ATTEMPTS);
+                sleep(waitMs);
+            } catch (HttpServerErrorException e) {
+                last = e;
+                long waitMs = backoffMillis(attempt);
+                log.warn("Gemini 호출 #{} 서버 오류({}) — {}ms 후 재시도 ({}/{})",
+                        callNo, e.getStatusCode(), waitMs, attempt, MAX_ATTEMPTS);
+                sleep(waitMs);
+            }
+        }
+        throw last;
+    }
+
+    /** 응답 본문의 {@code "retryDelay": "6s"}를 우선 쓰고, 파싱 실패 시 지수 백오프로 물러난다. */
+    /* package-private for unit test */ static long retryDelayMillis(String responseBody, int attempt) {
+        if (responseBody != null) {
+            Matcher matcher = RETRY_DELAY_PATTERN.matcher(responseBody);
+            if (matcher.find()) {
+                try {
+                    // 서버가 알려준 값보다 살짝 더 기다려야 경계에서 또 걸리지 않는다.
+                    return Math.round(Double.parseDouble(matcher.group(1)) * 1000) + 500;
+                } catch (NumberFormatException ignored) {
+                    // 아래 지수 백오프로 폴백
+                }
+            }
+        }
+        return backoffMillis(attempt);
+    }
+
+    private static long backoffMillis(int attempt) {
+        return Math.min(MAX_BACKOFF_MS, BASE_BACKOFF_MS * (1L << (attempt - 1)));
+    }
+
+    private static void sleep(long millis) {
+        try {
+            Thread.sleep(millis);
+        } catch (InterruptedException e) {
+            Thread.currentThread().interrupt();
+            throw new IllegalStateException("Gemini 호출 재시도 대기 중 인터럽트됨", e);
+        }
     }
 
     /** 여러 이미지를 한 요청에 담을 때 이미지 하나를 표현. */

@@ -58,6 +58,7 @@ public class GeminiOcrService {
             return Map.of();
         }
 
+        long downloadStartedAt = System.currentTimeMillis();
         List<String> sentUrls = new ArrayList<>();
         List<GeminiClient.ImageInput> images = new ArrayList<>();
         for (String imageUrl : imageUrls) {
@@ -69,6 +70,8 @@ public class GeminiOcrService {
             sentUrls.add(imageUrl);
             images.add(new GeminiClient.ImageInput(guessMimeType(imageUrl), base64));
         }
+        log.info("[TIMING] 이미지 순차 다운로드 완료 — {}ms ({}장 요청 중 {}장 성공)",
+                System.currentTimeMillis() - downloadStartedAt, imageUrls.size(), sentUrls.size());
 
         List<String> texts = sentUrls.isEmpty() ? List.of() : callGemini(sentUrls.size(), images);
 

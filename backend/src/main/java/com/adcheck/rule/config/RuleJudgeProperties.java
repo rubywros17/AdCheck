@@ -41,11 +41,27 @@ public class RuleJudgeProperties {
             "L01_VISION"
     );
 
+    /**
+     * 규칙 판정을 동시에 몇 개까지 진행할지. 규칙 하나당 호출 1회(모든 Claim 배치)이므로 이 값이
+     * 곧 동시 Gemini 호출 수다 — 무료 티어 분당 한도(15회)를 한꺼번에 소진하지 않도록 보수적으로
+     * 잡는다. 429가 나도 {@code GeminiClient}가 재시도하므로 치명적이진 않지만, 재시도 대기가
+     * 오히려 전체를 느리게 만들 수 있다.
+     */
+    private int concurrency = 4;
+
     public List<String> getEnabledRuleCodes() {
         return enabledRuleCodes;
     }
 
     public void setEnabledRuleCodes(List<String> enabledRuleCodes) {
         this.enabledRuleCodes = enabledRuleCodes;
+    }
+
+    public int getConcurrency() {
+        return concurrency;
+    }
+
+    public void setConcurrency(int concurrency) {
+        this.concurrency = concurrency;
     }
 }

@@ -261,20 +261,198 @@ public class AiRuleEvaluator implements RuleEvaluator {
     private RuleEvaluation parseResponse(String rawJson) {
         try {
             RawJudgment judgment = objectMapper.readValue(rawJson, RawJudgment.class);
-            RuleEvaluation.Status status = parseStatus(judgment.status());
-            RuleEvaluation.ReasonCode reasonCode = parseReasonCode(judgment.reasonCode());
-            if (status == null || reasonCode == null) {
-                log.warn("Rule Judge 응답에 알 수 없는 status/reasonCode: {}", rawJson);
-                return new RuleEvaluation(REVIEW_REQUIRED, SEMANTIC_COMPARISON_REQUIRED,
-                        "AI 응답을 해석할 수 없어 확인이 필요합니다.");
-            }
-            String reason = isNotBlank(judgment.reason()) ? judgment.reason() : "판정 근거가 제공되지 않았습니다.";
-            return new RuleEvaluation(status, reasonCode, reason);
+            return toEvaluation(judgment, rawJson);
         } catch (JacksonException e) {
             log.warn("Rule Judge 응답 JSON 파싱 실패: {}", e.getMessage());
             return new RuleEvaluation(REVIEW_REQUIRED, SEMANTIC_COMPARISON_REQUIRED,
                     "AI 응답 파싱에 실패해 확인이 필요합니다.");
         }
+    }
+
+    private RuleEvaluation toEvaluation(RawJudgment judgment, String rawJsonForLogging) {
+        RuleEvaluation.Status status = parseStatus(judgment.status());
+        if (status == null) {
+            log.warn("Rule Judge 응답의 status를 해석할 수 없음: {}", rawJsonForLogging);
+            return new RuleEvaluation(REVIEW_REQUIRED, SEMANTIC_COMPARISON_REQUIRED,
+                    "AI 응답을 해석할 수 없어 확인이 필요합니다.");
+        }
+        RuleEvaluation.ReasonCode reasonCode = parseReasonCode(judgment.reasonCode());
+        if (reasonCode == null) {
+            // 모델이 목록에 없는 코드를 지어내는 경우가 실제로 관찰됐다(예: CONDITION_NOT_MET
+            // 대신 "CONDITION_NOT_MATCHED"). 판정(status) 자체는 멀쩡한데 코드 이름 하나 때문에
+            // 판정 전체를 버리면 멀쩡한 결과가 REVIEW_REQUIRED로 둔갑하므로, status에 맞는
+            // 기본 코드로 보정하고 로그만 남긴다.
+            reasonCode = defaultReasonCodeFor(status);
+            log.warn("Rule Judge 응답의 reasonCode '{}'를 알 수 없어 {}로 보정함", judgment.reasonCode(), reasonCode);
+        }
+        String reason = isNotBlank(judgment.reason()) ? judgment.reason() : "판정 근거가 제공되지 않았습니다.";
+        return new RuleEvaluation(status, reasonCode, reason);
+    }
+
+    private static RuleEvaluation.ReasonCode defaultReasonCodeFor(RuleEvaluation.Status status) {
+        return switch (status) {
+            case MATCHED -> RuleEvaluation.ReasonCode.SUPPORTED_CONDITION_CONFIRMED;
+            case NOT_MATCHED -> RuleEvaluation.ReasonCode.CONDITION_NOT_MET;
+            case REVIEW_REQUIRED -> SEMANTIC_COMPARISON_REQUIRED;
+        };
+    }
+
+    /**
+     * 같은 규칙을 여러 Claim에 한 프롬프트로 묶어 호출 수를 줄인다. 이전에 실패한 "Claim 1개 +
+     * 규칙 여러 개" 배치(needsOutsideContext 게이트가 방향 없이 흔들려 일치율 54~67%)와는 반대
+     * 축이다 — 여기서는 [판단 기준]이 배치 전체에서 동일해서 그 혼선이 구조적으로 없고, 검증
+     * 데이터셋 27건×3회 실측에서 91.4%(개별 호출과 동등 수준)가 나왔다.
+     *
+     * <p>다만 공짜는 아니다: 개별 호출에서 3회 반복 9/9로 완벽하던 B02_VIRUS·R02_MENOPAUSE의
+     * 특정 claim이 배치에서는 3회 내내 다르게 판정됐다(둘 다 더 보수적인 쪽으로). 같은 프롬프트
+     * 안의 다른 claim이 판단에 영향을 주는 것으로 추정된다.
+     *
+     * @return {@code requests}와 같은 순서·크기의 결과 리스트.
+     */
+    @Override
+    public List<RuleEvaluation> evaluateAcrossClaims(Rule rule, List<RuleAnalysisRequest> requests) {
+        List<RuleEvaluation> results = new java.util.ArrayList<>(java.util.Collections.nCopies(requests.size(), null));
+        List<Integer> pendingIndices = new java.util.ArrayList<>();
+        List<RuleAnalysisRequest> pendingRequests = new java.util.ArrayList<>();
+        for (int i = 0; i < requests.size(); i++) {
+            RuleEvaluation shortCircuit = precheckShortCircuit(requests.get(i).claim());
+            if (shortCircuit != null) {
+                results.set(i, shortCircuit);
+            } else {
+                pendingIndices.add(i);
+                pendingRequests.add(requests.get(i));
+            }
+        }
+        if (!pendingRequests.isEmpty()) {
+            String prompt = buildBatchPromptForRule(rule, pendingRequests);
+            String rawResponse = geminiClient.generate(prompt, true);
+            List<RuleEvaluation> batchResults = parseBatchResponse(rawResponse, pendingRequests.size());
+            for (int i = 0; i < pendingIndices.size(); i++) {
+                results.set(pendingIndices.get(i), batchResults.get(i));
+            }
+        }
+        return results;
+    }
+
+    private String buildBatchPromptForRule(Rule rule, List<RuleAnalysisRequest> requests) {
+        StringBuilder sb = new StringBuilder();
+        sb.append("당신은 건강기능식품 광고 문구가 특정 규칙에 해당하는지 판정하는 검수 도구입니다.\n");
+        sb.append("아래 [판단 기준]은 이어지는 모든 Claim에 공통으로 적용됩니다 — Claim마다 서로 ");
+        sb.append("독립적으로 판단하되(다른 Claim의 판단이 이 Claim에 영향을 주면 안 됨), 판단 기준은 하나입니다.\n\n");
+
+        sb.append("[판단 기준]\n");
+        sb.append("분류: ").append(rule.getJudgmentCategory()).append('\n');
+        sb.append("적용 조건: ").append(rule.getApplicationConditions()).append('\n');
+        sb.append("(주의: 위 조건에 나온 핵심 단어가 문장에 있다는 사실만으로 자동 충족되는 게 아닙니다 — ");
+        sb.append("문장이 실제로 구체적인 효능 확장·결합 주장을 담고 있는지 애매하면, 아래 needsOutsideContext를 ");
+        sb.append("반드시 true로 답하세요. 막연한 상황 묘사·부드러운 동기부여 문구·단순 증상 언급은 핵심 단어가 ");
+        sb.append("있어도 대부분 애매하거나 위반이 아닙니다.)\n");
+        if (isNotBlank(rule.getExceptions())) {
+            sb.append("예외 사항: ").append(rule.getExceptions()).append('\n');
+            if (rule.getExceptions().contains("별도")) {
+                sb.append("(주의: 위 예외 사항에 있는 \"별도\"라는 표현은 사람이 직접 재검토해야 한다는 뜻으로 ");
+                sb.append("적어둔 메모입니다 — 완전한 판단 기준이 아닙니다. 이 Claim이 그 키워드·상황과 관련 ");
+                sb.append("있어 보이면, 스스로 위반/정상 여부를 판단하지 말고 아래 needsOutsideContext를 ");
+                sb.append("반드시 true로 답해 REVIEW_REQUIRED로 넘기세요.)\n");
+            }
+        }
+        if (isNotBlank(rule.getCandidateExamples())) {
+            sb.append("참고 예시(전체 목록 아님, 이런 것도 해당할 수 있다는 힌트일 뿐): ")
+                    .append(rule.getCandidateExamples()).append('\n');
+        }
+        if (isNotBlank(rule.getRequiredEvidence())) {
+            sb.append("필요 근거(참고용 — 지금 판단엔 이 근거 자료가 없을 수 있음): ")
+                    .append(rule.getRequiredEvidence()).append('\n');
+        }
+        sb.append('\n');
+
+        List<RuleOfficialFunctionContext> officialFunctions = requests.get(0).officialFunctions().values();
+        if (!officialFunctions.isEmpty()) {
+            sb.append("[확정된 공식 기능성] (참고용 — 이 성분들에 실제로 인정된 기능성, 아래 모든 Claim에 공통)\n");
+            for (RuleOfficialFunctionContext fn : officialFunctions) {
+                sb.append("- ").append(fn.canonicalName()).append(": ").append(fn.officialFunctionText()).append('\n');
+            }
+            sb.append('\n');
+        }
+
+        sb.append("[판단 대상 Claim 목록] — 총 ").append(requests.size()).append("건, 각각 독립적으로 판단하세요\n");
+        for (int i = 0; i < requests.size(); i++) {
+            RuleAnalysisRequest.Claim claim = requests.get(i).claim();
+            sb.append(i + 1).append(". 문장: \"").append(claim.text()).append("\" | 문맥: ")
+                    .append(claim.context()).append(" (근거: ").append(claim.contextEvidence()).append(")\n");
+            List<RiskSignalContext> relatedSignals = requests.get(i).riskSignals().stream()
+                    .filter(rs -> rs.relatesTo(rule.getJudgmentCategory()))
+                    .toList();
+            for (RiskSignalContext rs : relatedSignals) {
+                sb.append("   [AI#1이 미리 표시해둔 위험 신호] ").append(rs.signalType())
+                        .append(": ").append(rs.text()).append('\n');
+            }
+        }
+        sb.append('\n');
+
+        sb.append("MATCHED는 \"이 Claim이 분류(").append(rule.getJudgmentCategory())
+                .append(")가 우려하는 광고 위반 패턴에 실제로 해당한다\"는 뜻입니다. ");
+        sb.append("[적용 조건]은 그 위반 여부를 판단하는 기준일 뿐, 조건 문장이 문자 그대로 참이라고 해서 ");
+        sb.append("무조건 MATCHED가 되는 건 아닙니다 — 조건을 충족하는 것 자체가 오히려 정상적인 표시(위반 아님)를 ");
+        sb.append("뜻하는 규칙도 있으니, 분류명과 취지를 보고 실제로 위반인지 최종 판단하세요. ");
+        sb.append("위반 패턴에 해당하고 [예외 사항]에 해당하지 않으면 MATCHED, ");
+        sb.append("위반이 아니면 NOT_MATCHED로 답하세요.\n\n");
+
+        sb.append("REVIEW_REQUIRED는 실패나 회피가 아니라, 문장만으로는 확정할 수 없을 때 내려야 하는 ");
+        sb.append("올바른 판단입니다 — 억지로 MATCHED/NOT_MATCHED 중 하나를 고르지 마세요. 다음 중 하나라도 ");
+        sb.append("해당하면 REVIEW_REQUIRED를 선택하세요: ");
+        sb.append("(1) 이 문장이 제품 효과를 암시하는지 단순 정보 제공인지 해석이 갈릴 수 있음, ");
+        sb.append("(2) 위반/정상 여부가 문장 밖의 정황(전체 광고 맥락, 이미지, 실제 데이터)에 달려 있어 ");
+        sb.append("이 문장만으로는 그 정황을 알 수 없음, ");
+        sb.append("(3) 위에 근거 문서 원문이 제공돼 있어도 그 문서는 일반적 기준일 뿐 이 Claim의 구체적 정황(예: 실제 시점·비교대상·수치의 진위)까지 ");
+        sb.append("확인해주지는 않음 — 근거 문서가 있다는 것과 이 Claim이 확정적이라는 것은 별개입니다.\n");
+        sb.append("각 Claim마다 답하기 전에 먼저 needsOutsideContext를 판단하세요: 이 Claim의 위반 여부를 확정하려면 ");
+        sb.append("문장 밖 정보 — 광고 전체 레이아웃·구획, 함께 실린 이미지, 이 제품의 실제 원료·인정 기능성 데이터, ");
+        sb.append("인용의 출처·시점, 수치의 실제 근거 자료 — 를 봐야 합니까?\n");
+        sb.append("- true: 문장 밖 정보 없이는 확정할 수 없다 → status는 반드시 REVIEW_REQUIRED\n");
+        sb.append("- false: 이 문장 자체가 위반인지 아닌지를 명확히 드러낸다 → MATCHED 또는 NOT_MATCHED\n");
+        sb.append("막연한 표현(무엇을 어떻게 한다는 게 특정되지 않은 문구), 질문·권유형 문구, 느낌·기분 표현, ");
+        sb.append("대상·상황만 언급하고 효과는 말하지 않는 문구는 대부분 true입니다.\n");
+        sb.append("주의: 문장 안에 \"자체 조사 결과\", 구체적 수치, \"연구에서\" 같은 데이터·연구 언급이 ");
+        sb.append("있다는 것 자체는 문장 밖 정보가 필요하다는 신호가 아닙니다 — 오히려 그런 언급 자체가 근거 ");
+        sb.append("없는 자체 주장임을 드러내는 위반 신호일 수 있어 MATCHED에 가까울 수 있습니다. ");
+        sb.append("\"이 수치·연구가 진짜인지 검증이 필요하다\"는 이유만으로 true를 고르지 마세요 — 그 기준이면 ");
+        sb.append("모든 광고 문구가 항상 애매해집니다. needsOutsideContext=true는 이 문장 자체의 의미·의도가 ");
+        sb.append("여러 갈래로 해석될 때만 쓰세요.\n");
+        sb.append("status는 다음 중 정확히 하나: ").append(STATUS_VALUES).append(".\n");
+        sb.append("reasonCode는 다음 중 정확히 하나: ").append(REASON_CODE_VALUES).append(".\n");
+        sb.append("reason에는 판단 근거를 한국어 한두 문장으로 쓰세요. 추측하지 말고, 모르면 REVIEW_REQUIRED를 쓰세요.\n\n");
+
+        sb.append("반드시 아래 JSON 배열 형식으로만 응답하세요 — 배열 길이는 정확히 ").append(requests.size())
+                .append("이고, 각 원소는 위 Claim 목록의 순서(1번, 2번, ...)와 정확히 같은 순서여야 합니다. ");
+        sb.append("다른 설명은 붙이지 마세요.\n");
+        sb.append("[{\"needsOutsideContext\": true 또는 false, ");
+        sb.append("\"status\": \"MATCHED\" 또는 \"NOT_MATCHED\" 또는 \"REVIEW_REQUIRED\", ");
+        sb.append("\"reasonCode\": \"...\", \"reason\": \"판단 근거\"}, ...]\n");
+
+        return sb.toString();
+    }
+
+    private List<RuleEvaluation> parseBatchResponse(String rawJson, int expectedSize) {
+        try {
+            List<RawJudgment> judgments = objectMapper.readValue(
+                    rawJson, new tools.jackson.core.type.TypeReference<List<RawJudgment>>() {
+                    });
+            if (judgments.size() != expectedSize) {
+                log.warn("Rule Judge 배치 응답 개수 불일치: 기대 {}건, 실제 {}건 — {}",
+                        expectedSize, judgments.size(), rawJson);
+                return fallbackList(expectedSize, "AI 배치 응답 개수가 기대와 달라 확인이 필요합니다.");
+            }
+            return judgments.stream().map(j -> toEvaluation(j, rawJson)).toList();
+        } catch (JacksonException e) {
+            log.warn("Rule Judge 배치 응답 JSON 파싱 실패: {}", e.getMessage());
+            return fallbackList(expectedSize, "AI 배치 응답 파싱에 실패해 확인이 필요합니다.");
+        }
+    }
+
+    private static List<RuleEvaluation> fallbackList(int size, String reason) {
+        return java.util.Collections.nCopies(
+                size, new RuleEvaluation(REVIEW_REQUIRED, SEMANTIC_COMPARISON_REQUIRED, reason));
     }
 
     private static RuleEvaluation.Status parseStatus(String raw) {

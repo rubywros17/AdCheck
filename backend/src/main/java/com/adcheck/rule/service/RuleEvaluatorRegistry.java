@@ -2,6 +2,7 @@ package com.adcheck.rule.service;
 
 import com.adcheck.rule.config.RuleJudgeProperties;
 import com.adcheck.rule.domain.Rule;
+import java.util.Collections;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
@@ -45,7 +46,22 @@ public class RuleEvaluatorRegistry {
     public RuleEvaluation evaluate(Rule rule, RuleAnalysisRequest request) {
         RuleEvaluator evaluator = evaluators.get(rule.getRuleCode());
         return evaluator == null
-                ? new RuleEvaluation(REVIEW_REQUIRED, UNSUPPORTED_RULE, "등록된 자동 평가기가 없습니다.")
+                ? unsupported()
                 : evaluator.evaluate(rule, request);
+    }
+
+    /**
+     * 같은 규칙을 여러 Claim에 한 번에 평가한다 — AI 평가기는 이걸 한 번의 호출로 묶어
+     * 처리한다({@link RuleEvaluator#evaluateAcrossClaims}).
+     */
+    public List<RuleEvaluation> evaluateAcrossClaims(Rule rule, List<RuleAnalysisRequest> requests) {
+        RuleEvaluator evaluator = evaluators.get(rule.getRuleCode());
+        return evaluator == null
+                ? Collections.nCopies(requests.size(), unsupported())
+                : evaluator.evaluateAcrossClaims(rule, requests);
+    }
+
+    private static RuleEvaluation unsupported() {
+        return new RuleEvaluation(REVIEW_REQUIRED, UNSUPPORTED_RULE, "등록된 자동 평가기가 없습니다.");
     }
 }
