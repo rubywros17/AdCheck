@@ -1,0 +1,15 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<configuration>
+    <include resource="org/springframework/boot/logging/logback/defaults.xml"/>
+
+    <!-- 실행 방식(bootRun/IDE Run/java -jar)과 무관하게 콘솔 출력을 항상 UTF-8로 강제한다.
+         Windows 콘솔의 기본 코드페이지(cp949 등)를 따라가는 file.encoding/OS 기본값에
+         기대지 않기 위함이다. -->
+    <property name="CONSOLE_LOG_CHARSET" value="UTF-8"/>
+
+    <include resource="org/springframework/boot/logging/logback/console-appender.xml"/>
+
+    <root level="INFO">
+        <appender-ref ref="CONSOLE"/>
+    </root>
+</configuration>
