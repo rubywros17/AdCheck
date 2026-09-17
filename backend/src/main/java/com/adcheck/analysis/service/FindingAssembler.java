@@ -349,10 +349,19 @@ public class FindingAssembler {
         );
     }
 
-    /** 심각도가 가장 높은(HIGH가 CAUTION/NORMAL보다 우선) RuleMatch 하나를 고른다. */
-    private Optional<RuleAnalysisResult.RuleMatch> mostSevere(List<RuleAnalysisResult.RuleMatch> matches) {
+    /**
+     * 대표로 고를 RuleMatch 하나를 정한다. 우선순위는 두 단계: ①{@code UNSUPPORTED_RULE}
+     * (evaluator가 아예 없어 판정 시도조차 안 된 것)이 아닌, 실제로 판정을 시도한 결과를
+     * 먼저 우선하고, ②그 안에서만 심각도(HIGH가 CAUTION/NORMAL보다 우선)로 고른다 — 그래야
+     * severity가 우연히 더 높다는 이유로 "안 본 것"이 "봤는데 애매한 것"을 밀어내지 않는다.
+     */
+    /* package-private for direct unit test coverage (FindingAssemblerMostSevereTest) without DB. */
+    Optional<RuleAnalysisResult.RuleMatch> mostSevere(List<RuleAnalysisResult.RuleMatch> matches) {
         return matches.stream()
-                .min(Comparator.comparingInt(m -> RiskLevel.fromSeverity(m.severity()).ordinal()));
+                .min(Comparator
+                        .comparing((RuleAnalysisResult.RuleMatch m) ->
+                                m.evaluation().reasonCode() == RuleEvaluation.ReasonCode.UNSUPPORTED_RULE)
+                        .thenComparingInt(m -> RiskLevel.fromSeverity(m.severity()).ordinal()));
     }
 
     private record ClaimRuleOutcome(

@@ -1,0 +1,118 @@
+ruleCode,scopeType,expectedStatus,claimText,expectedReasonSummary,source
+C01_DISEASE_PREVENTION,COMMON,MATCHED,매일 한 알로 감기를 예방하세요,질병명(감기)과 예방을 제품 효과로 직접 주장,AI_DRAFT
+C01_DISEASE_PREVENTION,COMMON,NOT_MATCHED,환절기 건강관리를 위해 손 씻기와 충분한 수분 섭취가 중요합니다,질병 예방을 제품과 연결짓지 않은 일반 건강정보,AI_DRAFT
+C01_DISEASE_PREVENTION,COMMON,REVIEW_REQUIRED,면역력이 튼튼하면 계절이 바뀌어도 걱정 없어요,'계절이 바뀌어도 걱정없다'가 질병 예방 암시인지 애매,AI_DRAFT
+C02_DISEASE_TREATMENT,COMMON,MATCHED,"신부전증에도 효과, 암보다 무섭다는 병 치매에 홍삼이 효과",인정 기능성을 벗어나 질병 치료 효과로 오인,BAD-03(RED_GINSENG)
+C02_DISEASE_TREATMENT,COMMON,NOT_MATCHED,"이 제품은 질병을 치료하지 않으며, 균형 잡힌 식단의 보조 역할을 합니다",치료효과를 명시적으로 부정,AI_DRAFT
+C02_DISEASE_TREATMENT,COMMON,REVIEW_REQUIRED,"무릎이 시큰거릴 때, 이 성분이 도움이 될 수 있어요",'시큰거림'이 질병·증상 치료 주장인지 불편함 완화 표현인지 애매,AI_DRAFT
+C03_MEDICINE_CONFUSION,COMMON,MATCHED,약국에서만 만나볼 수 있는 처방급 효능,'처방급'이 의약품 전용 명칭 오인 유발,AI_DRAFT
+C03_MEDICINE_CONFUSION,COMMON,NOT_MATCHED,전국 약국 및 온라인몰에서 구매 가능합니다,"단순 판매처 안내, 의약품 오인 요소 없음",AI_DRAFT
+C03_MEDICINE_CONFUSION,COMMON,REVIEW_REQUIRED,"약국용으로 만든 건강기능식품, 약국 매대에서 확인하세요",의약품급 기능 암시인지 단순 판매처 안내인지 애매,DISC-14
+C04_DISEASE_INFO_LINK,COMMON,MATCHED,외래진료 1위 치주질환 / 피가 난다 / 고름 / 붓는 잇몸,질병 통계·증상 정보 뒤 제품 소개가 구획 없이 이어짐,BAD-09(PROPOLIS)
+C04_DISEASE_INFO_LINK,COMMON,NOT_MATCHED,[건강정보] 잇몸 질환은 방치 시 진행될 수 있습니다(출처: 대한치과의사협회) --- 이 제품은 프로폴리스 구강항균 기능성이 인정된 건기식입니다,명확한 구획+출처 표기로 정보와 광고가 분리됨,AI_DRAFT
+C04_DISEASE_INFO_LINK,COMMON,REVIEW_REQUIRED,"요즘 부쩍 잦아진 잇몸 출혈, 원인이 궁금하다면? 프로폴리스 성분을 확인해보세요",건강정보와 제품 소개의 경계가 흐릿함,AI_DRAFT
+C11_SUB_INGREDIENT_FUNCTION,COMMON,MATCHED,세계에서 가장 귀한 식용오일인 아르간 오일 66% 이상 배합 / 항산화 노화방지 및 항암효과,부원료 기능·특허를 제품 기능처럼 주장,BAD-10(MARIGOLD)
+C11_SUB_INGREDIENT_FUNCTION,COMMON,NOT_MATCHED,아르간 오일이 함유되어 있습니다,"단순 함유 사실만 기재, 기능 확대 주장 없음",AI_DRAFT
+C11_SUB_INGREDIENT_FUNCTION,COMMON,REVIEW_REQUIRED,"비타민C, 아연, 마그네슘, 폴리페놀 함유",매체·함량표기·주부원료 분리 확인 필요,DISC-17
+C13_TESTIMONIAL,COMMON,MATCHED,유당이 없어서 아이가 이 제품 먹으면 1일 1응가해요,실제 경험·효과 보장 내용의 후기 중심,BAD-01(PROBIOTICS)
+C13_TESTIMONIAL,COMMON,NOT_MATCHED,건강한 장이 주는 편안함을 모델이 설명,인정기능성 범위 내 표현,GOOD-01(PROBIOTICS)
+C13_TESTIMONIAL,COMMON,REVIEW_REQUIRED,운동과 식단관리를 병행하며 이 제품도 함께 먹었는데 5kg 감량했어요,실제 경험·결과 보장 여부 확인 필요,DISC-15
+C14_EXPERT_ENDORSEMENT,COMMON,MATCHED,국내 최고 명의 OOO 박사가 적극 추천하는 제품!,전문가가 제품 기능성을 직접 보증·추천,AI_DRAFT
+C14_EXPERT_ENDORSEMENT,COMMON,NOT_MATCHED,이 성분은 다수의 논문에서 연구되어 왔습니다,개인 전문가의 보증·추천이 아닌 일반적 연구 언급,AI_DRAFT
+C14_EXPERT_ENDORSEMENT,COMMON,REVIEW_REQUIRED,이 제품 개발에 참여한 의사가 추천합니다,직접 개발 참여 입증인지 기능성 보증인지 애매,DISC-13
+C21_UNFAIR_COMPARISON,COMMON,MATCHED,two safe 인증 / 임산부 안전평가 인증 완료,자사 제품만 더 안전·우수한 것으로 오인,BAD-02(EPA_DHA)
+C21_UNFAIR_COMPARISON,COMMON,NOT_MATCHED,동일 함량 기준 국내 OO원료 사용 제품입니다,"객관적 함량 사실만 기재, 우월 주장 없음",AI_DRAFT
+C21_UNFAIR_COMPARISON,COMMON,REVIEW_REQUIRED,다른 제품보다 흡수가 잘 되는 이유가 있습니다,비교 기준·증빙자료 미명시로 애매,AI_DRAFT
+C27_FUNCTION_SYNERGY,COMMON,MATCHED,"혈당스파이크를 줄여야 간식도 줄일 수 있습니다, 안찌는 체질 어렵지않네",혈당관리+체중감량 시너지 암시,BAD-06(GREEN_TEA)
+C27_FUNCTION_SYNERGY,COMMON,NOT_MATCHED,이 제품은 혈당 조절에 도움을 줄 수 있습니다. 체지방 감소에는 규칙적인 운동이 중요합니다,"두 기능을 독립적으로 설명, 인과관계 연결 없음",AI_DRAFT
+C27_FUNCTION_SYNERGY,COMMON,REVIEW_REQUIRED,혈당이 안정되면 컨디션이 달라집니다,'컨디션'이 미인정 기능과 연결되는지 애매,AI_DRAFT
+C28_TARGET_SPECIALIZATION,COMMON,MATCHED,"수험생 입소문 에너지 비타민, 수험생 학업 스트레스 피로 개선",특정 계층 특화 기능 오인 유도,BAD-05(MILK_THISTLE)
+C28_TARGET_SPECIALIZATION,COMMON,NOT_MATCHED,바쁜 현대인을 위한 비타민입니다,특정 계층 오인 유도 없이 넓은 타깃 설정만 함,AI_DRAFT
+C28_TARGET_SPECIALIZATION,COMMON,REVIEW_REQUIRED,밤샘 작업이 많은 분들께 추천합니다,특정 직군 타깃이 특별 기능 오인으로 이어지는지 애매,AI_DRAFT
+P01_VAGINAL_SCOPE,INGREDIENT_SPECIFIC,MATCHED,유산균이 장은 물론 여성의 그곳 건강까지 지켜줘요,장 기능을 질 건강으로 확장,AI_DRAFT
+P01_VAGINAL_SCOPE,INGREDIENT_SPECIFIC,NOT_MATCHED,유산균 증식 및 유해균 억제로 장 건강에 도움을 줍니다,장 기능성 범위 내,AI_DRAFT
+P01_VAGINAL_SCOPE,INGREDIENT_SPECIFIC,REVIEW_REQUIRED,여성의 균형 잡힌 하루를 위한 유산균,'여성의 균형'이 질 건강 암시인지 애매,AI_DRAFT
+P05_INFANT,INGREDIENT_SPECIFIC,MATCHED,신생아 때부터 먹여도 좋은 유산균이에요,13개월 미만을 섭취 대상으로 권장,AI_DRAFT
+P05_INFANT,INGREDIENT_SPECIFIC,NOT_MATCHED,만 3세 이상 어린이부터 섭취 가능합니다,13개월 미만 섭취 권장 없음,AI_DRAFT
+P05_INFANT,INGREDIENT_SPECIFIC,REVIEW_REQUIRED,우리 아이 첫 영양제로 좋아요,'첫 영양제'가 영아 섭취 권장인지 유아기 시작 표현인지 애매,AI_DRAFT
+E01_VESSEL,INGREDIENT_SPECIFIC,MATCHED,막힌 혈관을 뻥 뚫어주는 혈행 개선 효과,혈행개선을 혈관 자체효과로 확장,AI_DRAFT
+E01_VESSEL,INGREDIENT_SPECIFIC,NOT_MATCHED,혈행 개선에 도움을 줄 수 있습니다,인정기능성 범위 내 표현,AI_DRAFT
+E01_VESSEL,INGREDIENT_SPECIFIC,MATCHED,혈관이 젊어지는 느낌이에요,혈행 개선 효과를 혈관 자체의 구조적 개선으로 확장 표현,AI_DRAFT
+E02_OTHER_FUNCTION,INGREDIENT_SPECIFIC,MATCHED,"이 오메가3, 집중력과 암기력까지 챙겨줘요",인정 기능성(혈행개선 등) 범위를 넘는 주장,AI_DRAFT
+E02_OTHER_FUNCTION,INGREDIENT_SPECIFIC,NOT_MATCHED,이 오메가3는 혈행 개선에 도움을 줄 수 있습니다,인정기능성 범위 내,AI_DRAFT
+E02_OTHER_FUNCTION,INGREDIENT_SPECIFIC,REVIEW_REQUIRED,눈이 편안해지는 기분입니다,충혈 완화 암시인지 주관적 표현인지 애매,AI_DRAFT
+E03_GENERATION,INGREDIENT_SPECIFIC,MATCHED,4세대 리포좀 기술로 흡수력이 2배 높아요,분자형태 차이를 기능성 우월로 표현,AI_DRAFT
+E03_GENERATION,INGREDIENT_SPECIFIC,NOT_MATCHED,리포좀 기술이 적용된 제품입니다,"단순 설명, 우월 주장 없음",AI_DRAFT
+E03_GENERATION,INGREDIENT_SPECIFIC,REVIEW_REQUIRED,차세대 기술로 만든 제품,우월 주장인지 단순 신기술 설명인지 애매,AI_DRAFT
+E04_ALIAS,INGREDIENT_SPECIFIC,MATCHED,오메가3 500mg,정식 원료명(EPA/DHA 등) 없이 통칭만 사용,AI_DRAFT
+E04_ALIAS,INGREDIENT_SPECIFIC,NOT_MATCHED,EPA·DHA 함유 유지(오메가3) 500mg,정식 원료명이 명확히 병기됨,AI_DRAFT
+E04_ALIAS,INGREDIENT_SPECIFIC,REVIEW_REQUIRED,오메가3(지방산 복합체) 500mg,정식 원료명 인지 여부 애매,AI_DRAFT
+R01_COLD,INGREDIENT_SPECIFIC,MATCHED,"홍삼 먹고 감기 뚝 떨어졌어요, 대상포진도 예방된대요",면역력 기능을 질병 예방·치료로 주장,AI_DRAFT
+R01_COLD,INGREDIENT_SPECIFIC,NOT_MATCHED,홍삼은 면역력 증진에 도움을 줄 수 있습니다,인정기능성 범위 내,AI_DRAFT
+R01_COLD,INGREDIENT_SPECIFIC,REVIEW_REQUIRED,"환절기에 든든한 면역력, 홍삼과 함께",감기 예방 암시인지 일반 면역 표현인지 애매,AI_DRAFT
+R02_MENOPAUSE,INGREDIENT_SPECIFIC,MATCHED,"안면홍조, 식은땀 갱년기 증상까지 홍삼이 잡아줘요",갱년기 건강을 세부 증상 효과로 확장,AI_DRAFT
+R02_MENOPAUSE,INGREDIENT_SPECIFIC,NOT_MATCHED,갱년기 여성 건강에 도움을 줄 수 있습니다,세부 증상 연결 없음,AI_DRAFT
+R02_MENOPAUSE,INGREDIENT_SPECIFIC,REVIEW_REQUIRED,갱년기 현상이 신경 쓰인다면,'현상'으로 바꿔도 세부 증상 연결 여부는 별도 확인 필요,AI_DRAFT
+G01_EASY_DIET,INGREDIENT_SPECIFIC,MATCHED,운동도 식단조절도 필요없이 이것만 먹으면 살이 빠져요,운동·식이조절 없이 제품만으로 감량되는 인상,AI_DRAFT
+G01_EASY_DIET,INGREDIENT_SPECIFIC,NOT_MATCHED,탄수화물이 지방으로 합성되는 것을 억제하여 체지방 감소에 도움을 줄 수 있습니다,"인정기능성 범위 내 표현(탄수화물 지방합성 억제), 운동·식이조절 불필요 암시 없음",GOOD-04(GARCINIA)
+G01_EASY_DIET,INGREDIENT_SPECIFIC,REVIEW_REQUIRED,간편하게 챙기는 다이어트 습관,'간편한'이 운동·식이조절 불필요 암시인지 섭취 편의성인지 애매,AI_DRAFT
+G03_WEIGHT_FAT,INGREDIENT_SPECIFIC,MATCHED,"뱃살, 허벅지살까지 쏙 빠지는 체중감량 효과",체지방 기능을 체중·특정 부위 지방 효과로 확대,AI_DRAFT
+G03_WEIGHT_FAT,INGREDIENT_SPECIFIC,NOT_MATCHED,체지방 감소에 도움을 줄 수 있습니다,인정기능성 범위 내,AI_DRAFT
+G03_WEIGHT_FAT,INGREDIENT_SPECIFIC,REVIEW_REQUIRED,내 몸의 군살이 정리되는 느낌,특정 부위 지방(인정범위 밖) 암시인지 애매,AI_DRAFT
+G04_SATIETY_COFFEE,INGREDIENT_SPECIFIC,MATCHED,"한 끼 대신 커피 한잔, 포만감 가득 다이어트 커피",식사대체·부원료 커피 강조·과다섭취 인상,AI_DRAFT
+G04_SATIETY_COFFEE,INGREDIENT_SPECIFIC,NOT_MATCHED,가르시니아 성분이 함유된 커피 맛 건강기능식품입니다,식사대체·과다섭취 암시 없음,AI_DRAFT
+G04_SATIETY_COFFEE,INGREDIENT_SPECIFIC,REVIEW_REQUIRED,든든한 한잔으로 하루를 가볍게,식사대체 암시인지 애매,AI_DRAFT
+G05_GLUCOSE_DIET,INGREDIENT_SPECIFIC,MATCHED,혈당을 잡으면 살도 저절로 빠져요,혈당과 체지방을 새로운 인과관계로 결합,AI_DRAFT
+G05_GLUCOSE_DIET,INGREDIENT_SPECIFIC,NOT_MATCHED,혈당 조절에 도움을 주는 성분입니다. 체지방 감소는 별도 원료가 도와줍니다,각 기능을 명확히 구분,AI_DRAFT
+G05_GLUCOSE_DIET,INGREDIENT_SPECIFIC,REVIEW_REQUIRED,혈당 관리가 다이어트의 시작입니다,인과관계 결합 주장인지 애매,AI_DRAFT
+M01_FATIGUE,INGREDIENT_SPECIFIC,MATCHED,"수험생 입소문 에너지 비타민, 수험생 학업 스트레스 피로 개선",간 건강을 전신 피로개선 기능으로 확장,BAD-05(MILK_THISTLE)
+M01_FATIGUE,INGREDIENT_SPECIFIC,NOT_MATCHED,간에 좋은,간 기능성 범위 내,GOOD-05(MILK_THISTLE)
+M01_FATIGUE,INGREDIENT_SPECIFIC,REVIEW_REQUIRED,요즘 유난히 무기력하다면 간 건강부터 챙기세요,전신 피로개선 확장 암시인지 애매,AI_DRAFT
+M04_REGEN_CANCER,INGREDIENT_SPECIFIC,MATCHED,손상된 간세포를 재생시켜 간암까지 예방하는 놀라운 효과,치료·재생 주장 또는 암 공포 유도,AI_DRAFT
+M04_REGEN_CANCER,INGREDIENT_SPECIFIC,NOT_MATCHED,간 건강에 도움을 줄 수 있습니다,치료·재생·공포유도 없음,AI_DRAFT
+M04_REGEN_CANCER,INGREDIENT_SPECIFIC,REVIEW_REQUIRED,"[건강정보] 간암은 초기 증상이 없어 주의가 필요합니다 --- 간 건강 챙기는 습관, 지금부터",건강정보 제목만으로 공포유도 예외 처리되는지 애매,AI_DRAFT
+T04_ANTIAGING,INGREDIENT_SPECIFIC,MATCHED,강력한 항산화 효과로 피부 노화를 막아줍니다,항산화를 노화방지 기능으로 확장,AI_DRAFT
+T04_ANTIAGING,INGREDIENT_SPECIFIC,NOT_MATCHED,항산화 작용을 하여 유해산소로부터 세포를 보호하는데 필요합니다,인정기능성 범위 내,AI_DRAFT
+T04_ANTIAGING,INGREDIENT_SPECIFIC,REVIEW_REQUIRED,젊음을 유지하는 비결,노화방지 확장 주장인지 막연한 문구인지 애매,AI_DRAFT
+S04_SEASON,INGREDIENT_SPECIFIC,MATCHED,관절이 고통스러운 계절 겨울!,특정 계절에 특화된 기능 오인,BAD-07(MSM)
+S04_SEASON,INGREDIENT_SPECIFIC,NOT_MATCHED,겨울맞이 특별 할인 이벤트,판매 계절성일 뿐 효과의 계절 특화 암시 없음,AI_DRAFT
+S04_SEASON,INGREDIENT_SPECIFIC,REVIEW_REQUIRED,"쌀쌀해진 날씨, 관절 건강 챙기세요",계절 특화 효과 암시인지 시의성 멘트인지 애매,AI_DRAFT
+O01_SEXUAL,INGREDIENT_SPECIFIC,MATCHED,아내가 좋다고 계속 먹으라고 해요 / 여친 없는 사람은 사지마세요,지구력 기능을 성기능으로 암시,BAD-08(OCTACOSANOL)
+O01_SEXUAL,INGREDIENT_SPECIFIC,NOT_MATCHED,지구력 증진에 도움을 줄 수 있습니다,인정기능성 범위 내,GOOD-08(OCTACOSANOL)
+O01_SEXUAL,INGREDIENT_SPECIFIC,REVIEW_REQUIRED,자신감 있는 하루하루를 위해,성기능 암시인지 일반적 활력 표현인지 애매,AI_DRAFT
+O02_ENERGY_EXPANSION,INGREDIENT_SPECIFIC,MATCHED,"10년은 젊어진 활력, 피로가 싹 가셨어요",지구력 범위 밖 피로개선·회춘·활력 회복 주장,AI_DRAFT
+O02_ENERGY_EXPANSION,INGREDIENT_SPECIFIC,NOT_MATCHED,지구력 증진에 도움을 줄 수 있습니다,인정기능성 범위 내,AI_DRAFT
+O02_ENERGY_EXPANSION,INGREDIENT_SPECIFIC,REVIEW_REQUIRED,힘없던 일상에 활력을 더해줍니다,피로개선·회춘 암시 확장인지 애매,AI_DRAFT
+B01_IMMUNE_INFLAMMATION,INGREDIENT_SPECIFIC,MATCHED,외래진료 1위 치주질환 / 피가 난다 / 고름 / 붓는 잇몸,항산화·구강항균을 면역·질환 효과로 확장,BAD-09(PROPOLIS)
+B01_IMMUNE_INFLAMMATION,INGREDIENT_SPECIFIC,NOT_MATCHED,항산화 작용에 도움을 줄 수 있습니다,인정기능성 범위 내,AI_DRAFT
+B01_IMMUNE_INFLAMMATION,INGREDIENT_SPECIFIC,REVIEW_REQUIRED,몸속 염증이 걱정된다면,항산화 범위를 넘는 면역·염증 질환 효과 암시인지 애매,AI_DRAFT
+B02_VIRUS,INGREDIENT_SPECIFIC,MATCHED,프로폴리스가 감기 바이러스까지 막아줘요,인체 바이러스 방어 주장(범위 초과),AI_DRAFT
+B02_VIRUS,INGREDIENT_SPECIFIC,NOT_MATCHED,프로폴리스는 벌이 나무의 수액과 분비물을 모아 만든 물질입니다,벌집 관련 원료 설명일 뿐,AI_DRAFT
+B02_VIRUS,INGREDIENT_SPECIFIC,MATCHED,바이러스 걱정 없는 계절을 보내세요,인체 바이러스 방어 주장에 해당,AI_DRAFT
+B03_OTHER_ORAL,INGREDIENT_SPECIFIC,MATCHED,외래진료 1위 치주질환 / 피가 난다 / 고름 / 붓는 잇몸,인정 기능성보다 넓은 구강 효과 주장,BAD-09(PROPOLIS)
+B03_OTHER_ORAL,INGREDIENT_SPECIFIC,NOT_MATCHED,"구강항균, 항산화",인정기능성 범위 내,GOOD-09(PROPOLIS)
+B03_OTHER_ORAL,INGREDIENT_SPECIFIC,REVIEW_REQUIRED,"미세먼지 많은 날, 목이 칼칼하다면",구강 항균이 호흡기·미세먼지까지 확장되는지 애매,AI_DRAFT
+L01_VISION,INGREDIENT_SPECIFIC,MATCHED,"노안, 근시까지 시력을 되돌려주는 눈 영양제",황반색소밀도 유지 기능을 시력 자체 개선으로 확장,AI_DRAFT
+L01_VISION,INGREDIENT_SPECIFIC,NOT_MATCHED,침침한 눈,인정기능성 범위 내 표현,GOOD-10(MARIGOLD)
+L01_VISION,INGREDIENT_SPECIFIC,MATCHED,선명한 시야를 되찾아보세요,황반색소밀도 유지 기능성을 시력 개선 효과로 오인 유도,AI_DRAFT
+L03_EYE_DISEASE,INGREDIENT_SPECIFIC,MATCHED,"황반변성, 백내장 예방에 좋은 루테인",질병명과 제품 효과를 직접 연결,AI_DRAFT
+L03_EYE_DISEASE,INGREDIENT_SPECIFIC,NOT_MATCHED,[건강정보] 황반변성은 노화로 인한 대표적 눈 질환입니다(출처: OO안과학회) --- 루테인은 황반색소밀도 유지에 도움을 줄 수 있습니다,공신력있는 출처로 구분된 건강정보와 제품 기능성이 명확히 분리,AI_DRAFT
+L03_EYE_DISEASE,INGREDIENT_SPECIFIC,MATCHED,"침침해지는 눈, 백내장 걱정 없이",백내장이라는 질병명을 직접 언급해 예방·치료 효과 암시,AI_DRAFT
+P03_DISEASE_GUT,INGREDIENT_SPECIFIC,MATCHED,유당이 없어서 아이가 이 제품 먹으면 1일 1응가해요,제품정보에서 배변 관련 증상 효과를 직접 주장,BAD-01(PROBIOTICS)
+P03_DISEASE_GUT,INGREDIENT_SPECIFIC,NOT_MATCHED,유산균 증식 및 유해균 억제·배변활동 원활·장 건강에 도움을 줄 수 있음,"인정기능성 범위 내, 질병명 언급 없음",AI_DRAFT
+P03_DISEASE_GUT,INGREDIENT_SPECIFIC,MATCHED,"변비 때문에 고생이라면, 유산균이 도움이 될 수 있어요",변비라는 질병명을 직접 언급해 제품 섭취로 치료된다는 효과 암시,DISC-03
+M02_LIVER_MARKER,INGREDIENT_SPECIFIC,MATCHED,"AST, ALT 수치가 이렇게 좋아졌어요! (자체 조사 결과)",제품 카피에서 간 지표 개선을 직접 주장,AI_DRAFT
+M02_LIVER_MARKER,INGREDIENT_SPECIFIC,NOT_MATCHED,간 건강에 도움을 줄 수 있습니다,지표 수치를 직접 언급하지 않음,AI_DRAFT
+M02_LIVER_MARKER,INGREDIENT_SPECIFIC,REVIEW_REQUIRED,이 제품을 드신 분들의 내장지방 수치가 개선된 사례가 있습니다,제품 카피인지 적정 인체시험 구획의 지표인지 애매,DISC-09
+S02_BODY_AREA,INGREDIENT_SPECIFIC,MATCHED,"허리, 목, 척추까지 챙기는 관절 영양제",특정 부위 효과를 제품 기능성으로 표현(PDF 제한 부위 강조),AI_DRAFT
+S02_BODY_AREA,INGREDIENT_SPECIFIC,NOT_MATCHED,관절 건강에 도움을 줄 수 있습니다,특정 부위 강조 없음,AI_DRAFT
+S02_BODY_AREA,INGREDIENT_SPECIFIC,REVIEW_REQUIRED,하루종일 앉아있는 당신의 허리를 위해,특정 부위 강조가 PDF 제한 부위에 해당하는지 애매,AI_DRAFT
+L02_UV,INGREDIENT_SPECIFIC,MATCHED,눈 속 선글라스처럼 자외선을 막아줘요,자외선 차단 기능을 암시,AI_DRAFT
+L02_UV,INGREDIENT_SPECIFIC,NOT_MATCHED,실외활동이 많은 분들께 추천합니다,자외선 차단 암시 없음,AI_DRAFT
+L02_UV,INGREDIENT_SPECIFIC,REVIEW_REQUIRED,"야외활동이 많은 요즘, 눈 건강도 챙기세요",자외선 차단 암시인지 일반 생활정보인지 애매,AI_DRAFT
+C22_SUPERLATIVE,COMMON,MATCHED,업계 최초로 개발된 고순도 원료를 사용합니다.,'최초'·'고순도' 최상급 표현에 기준·시점·범위 근거 자료 명시 없음,AI_DRAFT
+C22_SUPERLATIVE,COMMON,NOT_MATCHED,"2024년 12월 기준 자사 임상시험 결과, 동일 성분 함량 국내 제품 중 최대 함량입니다.",시점·비교 기준·범위를 구체적으로 명시한 조건부 최대함량 표현,AI_DRAFT
+C22_SUPERLATIVE,COMMON,REVIEW_REQUIRED,특별한 기술로 남다른 효과를 자랑하는 프리미엄 제품,구체적 비교 대상·기준 없이 막연한 우수성만 암시해 최상급 표현 해당 여부 확정 불가,AI_DRAFT
+C30_NATURAL_FREE,COMMON,MATCHED,"무첨가, 무검출입니다.",무첨가·무검출을 시험성적서 등 근거 제시 없이 단정적으로 주장,AI_DRAFT
+C30_NATURAL_FREE,COMMON,NOT_MATCHED,"정제수 외 첨가물 없이 원물 그대로 담았으며, 관련 시험성적서를 제품 상세페이지에 첨부했습니다.",실제 시험성적서 제시를 전제로 한 무첨가 표현으로 예외 요건 충족,AI_DRAFT
+C30_NATURAL_FREE,COMMON,REVIEW_REQUIRED,자연에서 온 순수함을 그대로 담았습니다.,자연 유래를 암시하는 표현이나 실제 원료·공정·첨가물 사용 여부를 문장만으로 확정 불가,AI_DRAFT

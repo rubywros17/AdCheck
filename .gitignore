@@ -41,6 +41,7 @@ out/
 uploads/
 *.log
 /backend/adcheck_before_flyway.sql
+gemini_claim_analyzer_19products_result.txt
 
 ### Chrome Extension ###
 extension/node_modules/
@@ -48,3 +49,7 @@ extension/dist/
 extension/.env
 extension/.env.*
 !extension/.env.example
+
+### Claude scratch/artifact working dirs ###
+.scratch/
+.artifact-work/
