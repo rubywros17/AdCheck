@@ -107,59 +107,57 @@ class FindingAssemblerTest {
     }
 
     /**
-     * 아래 REVIEW_REQUIRED 그룹핑/상한 테스트 3개는 전부 "이 제품은 피로 개선 효과를
-     * 보장하지 않습니다."를 claim 텍스트로 쓴다 — 이 문구는 C07의 NO_GUARANTEE 패턴과
-     * 정확히 일치해 C07이 NOT_MATCHED로 빠지므로(위 {@link #notMatchedProducesNoFinding()}
-     * 참고), {@code @BeforeEach}가 항상 심는 C07이 REVIEW_REQUIRED 목록에 섞이지 않는다.
-     * 그래서 각 테스트가 추가로 심는 평가기 없는(UNSUPPORTED_RULE → 항상 REVIEW_REQUIRED)
-     * 규칙들만으로 결과를 정확히 통제할 수 있다.
+     * 아래 두 테스트는 "이 제품은 피로 개선 효과를 보장하지 않습니다."를 claim 텍스트로 쓴다
+     * — 이 문구는 C07의 NO_GUARANTEE 패턴과 정확히 일치해 C07이 NOT_MATCHED로 빠지므로(위
+     * {@link #notMatchedProducesNoFinding()} 참고), {@code @BeforeEach}가 항상 심는 C07이
+     * REVIEW_REQUIRED 목록에 섞이지 않는다. 그래서 추가로 심는 평가기 없는 더미 규칙만으로
+     * "reasonCode=UNSUPPORTED_RULE만 있으면 Finding 없음"을 정확히 통제해서 검증할 수 있다.
      */
     @Test
-    void twoDistinctReviewRequiredCategoriesProduceSeparateFindings() {
-        seedUnsupportedRule("T01_CAT_A", "TEST_CATEGORY_A", "HIGH");
-        seedUnsupportedRule("T02_CAT_B", "TEST_CATEGORY_B", "CAUTION");
+    void reviewRequiredWithOnlyUnsupportedRuleProducesNoFinding() {
+        seedUnsupportedRule("T01_ONLY_UNSUPPORTED", "TEST_CATEGORY_ONLY", "HIGH");
 
         ClaimAnalysisResult claimResult = singleClaimResult("이 제품은 피로 개선 효과를 보장하지 않습니다.");
 
         FindingAssembler.Result result = findingAssembler.assemble(claimResult);
 
-        assertThat(result.findings()).hasSize(2);
-        assertThat(result.findings()).extracting(finding -> finding.category())
-                .containsExactlyInAnyOrder("TEST_CATEGORY_A", "TEST_CATEGORY_B");
+        assertThat(result.findings()).isEmpty();
         org.mockito.Mockito.verifyNoInteractions(geminiClaimComparisonService);
     }
 
     @Test
-    void sameCategoryReviewRequiredMatchesMergeToMostSevere() {
-        seedUnsupportedRule("T03_SAME_LOW", "TEST_CATEGORY_SAME", "CAUTION");
-        seedUnsupportedRule("T04_SAME_HIGH", "TEST_CATEGORY_SAME", "HIGH");
+    void unsupportedRuleAloneWithoutAnyGenuineReviewRequiredAlsoProducesNoFinding() {
+        seedUnsupportedRule("T02_UNSUPPORTED_A", "TEST_CATEGORY_A", "HIGH");
+        seedUnsupportedRule("T03_UNSUPPORTED_B", "TEST_CATEGORY_B", "CAUTION");
 
         ClaimAnalysisResult claimResult = singleClaimResult("이 제품은 피로 개선 효과를 보장하지 않습니다.");
+
+        FindingAssembler.Result result = findingAssembler.assemble(claimResult);
+
+        assertThat(result.findings()).isEmpty();
+    }
+
+    /**
+     * "정말 좋은 효과가 있어요"는 C07을 진짜(reasonCode=OUTSIDE_SUPPORTED_LANGUAGE)
+     * REVIEW_REQUIRED로 판정한다({@link #reviewRequiredOnlyProducesFixedMessageFindingWithoutCallingAi2}
+     * 참고). 여기에 rule_code가 알파벳순으로 "C07"보다 앞서는(그래서 필터링이 없다면
+     * {@code mostSevere()}의 동점 tie-break에서 이겨버리는) UNSUPPORTED_RULE 더미 규칙을
+     * 같은 HIGH severity로 추가해서, reasonCode 필터링이 실제로 UNSUPPORTED_RULE을
+     * 제외하고 진짜 REVIEW_REQUIRED(C07)만 남기는지 검증한다.
+     */
+    @Test
+    void genuineReviewRequiredSurvivesWhileUnsupportedRuleIsExcludedEvenIfItWouldWinByOrder() {
+        seedUnsupportedRule("A01_DUMMY_UNSUPPORTED", "TEST_CATEGORY_DUMMY", "HIGH");
+
+        ClaimAnalysisResult claimResult = singleClaimResult("정말 좋은 효과가 있어요");
 
         FindingAssembler.Result result = findingAssembler.assemble(claimResult);
 
         assertThat(result.findings()).hasSize(1);
         var finding = result.findings().getFirst();
-        assertThat(finding.category()).isEqualTo("TEST_CATEGORY_SAME");
-        assertThat(finding.riskLevel()).isEqualTo(RiskLevel.HIGH);
-    }
-
-    @Test
-    void moreThanCapReviewRequiredCategoriesAreTruncatedBySeverity() {
-        seedUnsupportedRule("T05_HIGH_1", "TEST_CATEGORY_HIGH_1", "HIGH");
-        seedUnsupportedRule("T06_HIGH_2", "TEST_CATEGORY_HIGH_2", "HIGH");
-        seedUnsupportedRule("T07_CAUTION", "TEST_CATEGORY_CAUTION", "CAUTION");
-        seedUnsupportedRule("T08_NORMAL", "TEST_CATEGORY_NORMAL", "NORMAL");
-
-        ClaimAnalysisResult claimResult = singleClaimResult("이 제품은 피로 개선 효과를 보장하지 않습니다.");
-
-        FindingAssembler.Result result = findingAssembler.assemble(claimResult);
-
-        assertThat(result.findings()).hasSize(3);
-        assertThat(result.findings()).extracting(finding -> finding.category())
-                .doesNotContain("TEST_CATEGORY_NORMAL");
-        assertThat(result.findings()).extracting(finding -> finding.riskLevel())
-                .doesNotContain(RiskLevel.NORMAL);
+        assertThat(finding.category()).isEqualTo("ABSOLUTE_EFFECT");
+        assertThat(finding.message()).isEqualTo("확인이 필요한 표현입니다.");
+        org.mockito.Mockito.verifyNoInteractions(geminiClaimComparisonService);
     }
 
     /** rule_code만 다르고 평가기가 없는(=항상 UNSUPPORTED_RULE→REVIEW_REQUIRED) 더미 규칙을 심는다. */
