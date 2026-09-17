@@ -13,6 +13,7 @@ export interface DetailListViewProps {
   pendingScrollIdx: number | null;
   currentPageTitle?: string;
   pageUrl?: string;
+  isFavorite?: boolean;
   onFilterChange: (filter: FilterCategory) => void;
   onToggleFinding: (idx: number) => void;
   onScrollComplete: () => void;
@@ -20,6 +21,7 @@ export interface DetailListViewProps {
   // "다른 광고 검사하기"는 바로 재분석하지 않고, "이 상품 광고 믿고 사도 될까요?" 버튼이 있는
   // IDLE 화면부터 다시 시작하도록 onReset(goHome)을 씁니다.
   onReset?: () => void;
+  onToggleFavorite?: () => void;
 }
 
 // finding.message("의약품 오인" / "과장 광고")를 2대 구분 버킷으로 매핑
@@ -34,11 +36,13 @@ export const DetailListView: React.FC<DetailListViewProps> = ({
   pendingScrollIdx,
   currentPageTitle,
   pageUrl,
+  isFavorite,
   onFilterChange,
   onToggleFinding,
   onScrollComplete,
   onLocateFinding,
   onReset,
+  onToggleFavorite,
 }) => {
   const indexedFindings = findings.map((finding, idx) => ({ finding, idx }));
 
@@ -92,7 +96,34 @@ export const DetailListView: React.FC<DetailListViewProps> = ({
     >
 
       {/* 1. 상단 타이틀 & 설명 앵커 */}
-      <div style={{ textAlign: 'center', marginBottom: '2px' }}>
+      <div style={{ position: 'relative', textAlign: 'center', marginBottom: '2px' }}>
+        {onToggleFavorite && (
+          <button
+            type="button"
+            onClick={onToggleFavorite}
+            aria-label={isFavorite ? '즐겨찾기 해제' : '즐겨찾기 추가'}
+            aria-pressed={!!isFavorite}
+            style={{
+              position: 'absolute',
+              top: 0,
+              right: 0,
+              width: '26px',
+              height: '26px',
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+              background: 'transparent',
+              border: 'none',
+              borderRadius: '50%',
+              fontSize: '17px',
+              lineHeight: 1,
+              color: isFavorite ? '#F59E0B' : '#CBD5E1',
+              cursor: 'pointer',
+            }}
+          >
+            {isFavorite ? '★' : '☆'}
+          </button>
+        )}
         <h2 style={{ fontSize: '20px', fontWeight: 800, color: '#190933', margin: '0 0 4px 0', letterSpacing: '-0.4px', lineHeight: 1.35 }}>
           광고 점검 상세 리포트
         </h2>
@@ -108,7 +139,7 @@ export const DetailListView: React.FC<DetailListViewProps> = ({
               display: 'inline-flex',
               alignItems: 'center',
               gap: '4px',
-              marginTop: '8px',
+              marginTop: '18px',
               fontSize: '12.5px',
               fontWeight: 700,
               color: '#0D9488',

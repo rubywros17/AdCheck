@@ -49,6 +49,9 @@ export function useAdCheck(status: ViewStatus, setStatus: Dispatch<SetStateActio
   const currentPageTitle = viewingHistory?.productName ?? CURRENT_PAGE_TITLE;
   const findings = MOCK_FINDINGS.slice(0, targetCount);
   const level = getReviewLevel(targetCount);
+  // 점검 기록에서 선택해 보는 중이면 그 기록의 id, 방금 분석을 마친 화면이면 가장 최근에 추가된 기록(맨 앞)의 id
+  const currentHistoryId = viewingHistory?.id ?? scanHistories[0]?.id;
+  const isCurrentFavorite = scanHistories.find((history) => history.id === currentHistoryId)?.favorite ?? false;
 
   useEffect(() => {
     try {
@@ -173,6 +176,7 @@ export function useAdCheck(status: ViewStatus, setStatus: Dispatch<SetStateActio
   return {
     testTarget, scanHistories, isHistoryOpen, activeFilter, expandedFindings,
     pendingScrollIdx, targetCount, currentPageTitle, findings, level,
+    currentHistoryId, isCurrentFavorite,
     pageUrl: CURRENT_PAGE_URL,
     showHistory: !["ANALYZING", "SUMMARY_HERO", "EMPTY"].includes(status),
     goHome, analyze, changeTestTarget, selectHistory, selectBubble, showAllFindings,

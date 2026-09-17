@@ -3,7 +3,7 @@ import type { ReviewLevel } from '../types';
 import { MoodFace } from '../components/MoodFace';
 
 // ==========================================
-// 결과 안내 화면: 위험 감지 문구 개수 우선 + 3단계 위험도 라벨 + 컬러 곰돌이 얼굴 + 반원 계기판
+// 결과 안내 화면: 위험 감지 문구 개수 우선 + 3단계 위험도 라벨 + 컬러 곰돌이 얼굴 + 글래시 반원 계기판
 // ==========================================
 interface SummaryHeroViewProps {
   count: number;
@@ -20,32 +20,30 @@ function getRiskTier(count: number): RiskTier {
   return 'REVIEW';
 }
 
-const RISK_BADGE: Record<RiskTier, { label: string; text: string }> = {
-  SAFE: { label: '안심', text: '#065F46' },
-  CAUTION: { label: '검토', text: '#92400E' },
-  REVIEW: { label: '주의', text: '#991B1B' },
+const RISK_BADGE: Record<RiskTier, { label: string; text: string; glow: string }> = {
+  SAFE: { label: '안심', text: '#059669', glow: 'rgba(16, 185, 129, 0.35)' },
+  CAUTION: { label: '검토', text: '#D97706', glow: 'rgba(245, 158, 11, 0.35)' },
+  REVIEW: { label: '주의', text: '#DC2626', glow: 'rgba(239, 68, 68, 0.35)' },
 };
 
 // ==========================================
-// 레퍼런스 스타일 반원 계기판: 3색 밴드 + 바깥 눈금 + 활성 구간 라벨
-// (다리(띠) 모양 밴드는 기존 게이지와 동일한 "바깥 호 -> 안쪽 호" 기법을 재사용)
+// 슬림 & 글래시 반원 계기판 사양 정의
 // ==========================================
 const GAUGE_CX = 130;
-const GAUGE_CY = 128;
-const GAUGE_OUTER_R = 118;
-const GAUGE_ACTIVE_OUTER_R = GAUGE_OUTER_R + 8; // 활성 구간만 살짝 바깥으로 튀어나오게
-const GAUGE_INNER_R = 76;
+const GAUGE_CY = 126;
+const GAUGE_OUTER_R = 114;           // 외경
+const GAUGE_ACTIVE_OUTER_R = 120;    // 활성 구간만 살짝 볼록하게 확장 (+6px)
+const GAUGE_INNER_R = 82;            // 내경 확대 (두께: 42px -> 32px로 약 24% 슬림화하여 여백 확보)
 const GAUGE_SWEEP_DEG = 160;
 const GAUGE_START_DEG = 270 - GAUGE_SWEEP_DEG / 2;
-const GAUGE_GAP_DEG = 1;
+const GAUGE_GAP_DEG = 1.2;
 
 function gaugePoint(angleDeg: number, radius: number) {
   const rad = (angleDeg * Math.PI) / 180;
   return { x: GAUGE_CX + radius * Math.cos(rad), y: GAUGE_CY + radius * Math.sin(rad) };
 }
 
-// 바깥 호 -> 안쪽 호를 잇는 두꺼운 띠(밴드) 경로. outerR을 구간마다 다르게 줘서
-// 활성 구간만 살짝 부풀어 오르게 할 수 있다.
+// 띠(Band) 경로 생성
 function bandPath(startDeg: number, endDeg: number, outerR: number) {
   const outerStart = gaugePoint(startDeg, outerR);
   const outerEnd = gaugePoint(endDeg, outerR);
@@ -60,11 +58,18 @@ function bandPath(startDeg: number, endDeg: number, outerR: number) {
   ].join(' ');
 }
 
-// 왼쪽부터 안심(초록) → 검토(노랑) → 주의(빨강)
-const GAUGE_ZONE_STYLES: { tier: RiskTier; fill: string }[] = [
-  { tier: 'SAFE', fill: '#10B981' },
-  { tier: 'CAUTION', fill: '#F59E0B' },
-  { tier: 'REVIEW', fill: '#EF4444' },
+// 바깥 상단 림라이트(빛 반사선) 경로
+function outerRimPath(startDeg: number, endDeg: number, outerR: number) {
+  const start = gaugePoint(startDeg + 0.5, outerR - 0.8);
+  const end = gaugePoint(endDeg - 0.5, outerR - 0.8);
+  return `M ${start.x.toFixed(2)} ${start.y.toFixed(2)} A ${outerR - 0.8} ${outerR - 0.8} 0 0 1 ${end.x.toFixed(2)} ${end.y.toFixed(2)}`;
+}
+
+// 구간별 글래시 그라데이션 및 색상 매핑
+const GAUGE_ZONE_STYLES: { tier: RiskTier; gradId: string; baseColor: string }[] = [
+  { tier: 'SAFE', gradId: 'glassGradSafe', baseColor: '#10B981' },
+  { tier: 'CAUTION', gradId: 'glassGradCaution', baseColor: '#F59E0B' },
+  { tier: 'REVIEW', gradId: 'glassGradReview', baseColor: '#EF4444' },
 ];
 
 const GAUGE_ZONE_RAW_SPAN = GAUGE_SWEEP_DEG / GAUGE_ZONE_STYLES.length;
@@ -80,26 +85,22 @@ const GAUGE_ZONES = GAUGE_ZONE_STYLES.map((style, i) => {
   };
 });
 
-// 바깥 둘레를 따라 도는 작은 눈금 (스피도미터 느낌)
-const GAUGE_TICK_COUNT = 28;
+// 바깥 눈금 (스피도미터 틱)
+const GAUGE_TICK_COUNT = 24;
 const GAUGE_TICKS = Array.from({ length: GAUGE_TICK_COUNT + 1 }, (_, i) => {
   const angle = GAUGE_START_DEG + (i * GAUGE_SWEEP_DEG) / GAUGE_TICK_COUNT;
-  const inner = gaugePoint(angle, GAUGE_OUTER_R + 6);
-  const outer = gaugePoint(angle, GAUGE_OUTER_R + 12);
+  const inner = gaugePoint(angle, GAUGE_OUTER_R + 5);
+  const outer = gaugePoint(angle, GAUGE_OUTER_R + 10);
   return { angle, inner, outer };
 });
 
-// 포인터: 기본(0deg)이 아래쪽을 가리키는 기준으로, 각 구간 중앙(midDeg)을 향하는 회전각
 function getPointerAngle(tier: RiskTier) {
   const zone = GAUGE_ZONES.find((z) => z.tier === tier)!;
   return zone.midDeg - 90;
 }
 
-// 포인터가 스핀 중에도 절대 호(arc) 밖으로 나가지 않도록, 왕복 스윙의 양 끝을
-// 호의 실제 시작/끝 각도에 맞춰 제한한다 (호 밖으로 나가는 360도 풀회전 금지)
 const GAUGE_POINTER_MIN_ANGLE = GAUGE_START_DEG - 90;
 const GAUGE_POINTER_MAX_ANGLE = GAUGE_START_DEG + GAUGE_SWEEP_DEG - 90;
-
 const GAUGE_SPIN_MS = 1300;
 
 export const SummaryHeroView: React.FC<SummaryHeroViewProps> = ({ count, onContinue }) => {
@@ -108,7 +109,6 @@ export const SummaryHeroView: React.FC<SummaryHeroViewProps> = ({ count, onConti
   const isSafe = count === 0;
   const targetPointerAngle = getPointerAngle(tier);
 
-  // 계기판이 왼쪽으로 계속 돌아가다가(룰렛처럼) 현재 등급에 감속 정지하면, 그 순간 결과 곰돌이가 팡 튀어오름
   const [isSpinning, setIsSpinning] = useState(true);
 
   useEffect(() => {
@@ -134,7 +134,7 @@ export const SummaryHeroView: React.FC<SummaryHeroViewProps> = ({ count, onConti
           width: 100%;
           background: #FFFFFF;
           border-radius: 20px;
-          padding: 22px 20px 16px;
+          padding: 22px 20px 18px;
           display: flex;
           flex-direction: column;
           align-items: center;
@@ -145,32 +145,27 @@ export const SummaryHeroView: React.FC<SummaryHeroViewProps> = ({ count, onConti
 
         .mood-header {
           text-align: center;
-          margin-top: 4px;
+          margin-top: 2px;
         }
 
         .risk-header {
-          font-size: 23px;
+          font-size: 22px;
           font-weight: 800;
           color: #0F172A;
           margin: 0;
+          line-height: 1.35;
           letter-spacing: -0.5px;
           word-break: keep-all;
         }
 
-        /* 중앙 곰돌이: 계기판이 멈추는 순간 팡 튀어오르며 등장 */
+        /* 중앙 곰돌이 영역: 80px -> 66px로 최적화하여 상하 여백 확보 */
         .mood-face-stage {
           display: flex;
           flex-direction: column;
           align-items: center;
           justify-content: center;
-          margin: 14px 0 6px 0;
-          min-height: 88px;
-        }
-
-        .gauge-count-label {
-          font-weight: 800;
-          fill: ${badge.text};
-          transition: fill 0.3s ease;
+          margin: 10px 0 4px 0;
+          min-height: 72px;
         }
 
         .bear-pop-enter {
@@ -178,11 +173,12 @@ export const SummaryHeroView: React.FC<SummaryHeroViewProps> = ({ count, onConti
           flex-direction: column;
           align-items: center;
           animation: bearPopIn 0.45s cubic-bezier(0.34, 1.56, 0.64, 1) forwards;
+          filter: drop-shadow(0 6px 12px rgba(15, 23, 42, 0.08));
         }
 
         @keyframes bearPopIn {
           0% { transform: scale(0.55); opacity: 0; }
-          60% { transform: scale(1.18); opacity: 1; }
+          60% { transform: scale(1.15); opacity: 1; }
           100% { transform: scale(1); opacity: 1; }
         }
 
@@ -190,9 +186,9 @@ export const SummaryHeroView: React.FC<SummaryHeroViewProps> = ({ count, onConti
         .mood-gauge-wrap {
           position: relative;
           width: 100%;
-          max-width: 260px;
-          margin: 4px auto 0;
-          aspect-ratio: 260 / 145;
+          max-width: 250px;
+          margin: 2px auto 0;
+          aspect-ratio: 250 / 138;
         }
 
         .gauge-svg {
@@ -203,16 +199,18 @@ export const SummaryHeroView: React.FC<SummaryHeroViewProps> = ({ count, onConti
         }
 
         .gauge-band {
-          transition: fill 0.3s ease, d 0.3s ease;
+          transition: all 0.35s cubic-bezier(0.4, 0, 0.2, 1);
         }
 
         .gauge-zone-label {
-          font-weight: 500;
+          font-weight: 700;
           fill: #FFFFFF;
-          text-shadow: 0 1px 2px rgba(15, 23, 42, 0.18);
+          letter-spacing: -0.3px;
+          text-shadow: 0 1px 3px rgba(15, 23, 42, 0.3);
+          pointer-events: none;
         }
 
-        /* 포인터: 호 양 끝(${GAUGE_POINTER_MIN_ANGLE}deg~${GAUGE_POINTER_MAX_ANGLE}deg) 안에서만 왕복하다가 감속 정지 — 호 밖으로 나가는 풀회전 금지 */
+        /* 포인터 애니메이션 */
         .gauge-pointer.spinning {
           animation: gaugeSpinStop ${GAUGE_SPIN_MS}ms cubic-bezier(0.2, 0.7, 0.25, 1) forwards;
         }
@@ -229,7 +227,7 @@ export const SummaryHeroView: React.FC<SummaryHeroViewProps> = ({ count, onConti
         /* 하단 CTA 버튼 */
         .mood-cta-btn {
           width: 100%;
-          height: 52px;
+          height: 50px;
           background: #0F172A;
           color: #FFFFFF;
           border: none;
@@ -237,12 +235,12 @@ export const SummaryHeroView: React.FC<SummaryHeroViewProps> = ({ count, onConti
           font-size: 15px;
           font-weight: 600;
           cursor: pointer;
-          transition: transform 0.1s ease, background 0.2s ease;
+          transition: transform 0.1s ease, background 0.2s ease, box-shadow 0.2s ease;
           display: flex;
           align-items: center;
           justify-content: center;
-          box-shadow: 0 8px 16px -4px rgba(15, 23, 42, 0.15);
-          margin-top: 14px;
+          box-shadow: 0 6px 16px -4px rgba(15, 23, 42, 0.16);
+          margin-top: 12px;
         }
 
         .mood-cta-btn:active {
@@ -251,7 +249,7 @@ export const SummaryHeroView: React.FC<SummaryHeroViewProps> = ({ count, onConti
         }
       `}</style>
 
-      {/* 1. 상단 영역: 위험 감지 문구 헤더 (건수는 게이지 안으로 이동) */}
+      {/* 1. 상단 안내 문구 */}
       <div className="mood-header">
         <h2 className="risk-header">
           {isSafe ? (
@@ -261,24 +259,51 @@ export const SummaryHeroView: React.FC<SummaryHeroViewProps> = ({ count, onConti
               전혀 발견되지 않았어요
             </>
           ) : (
-            '위험 감지 문구가 발견되었어요'
+            <>
+              위험 감지 문구가
+              <br />
+              <span style={{ color: badge.text }}>{count}건</span>
+              <br />
+              발견되었어요
+            </>
           )}
         </h2>
       </div>
 
-      {/* 2. 중앙 영역: 계기판이 멈추는 순간에만 결과 곰돌이가 팡 튀어오름 */}
+      {/* 2. 중앙 곰돌이: 66px로 슬림화되어 계기판과 환상적인 비례 구성 */}
       <div className="mood-face-stage">
         {showResult && (
           <div key={tier} className="bear-pop-enter">
-            <MoodFace level={tier} size={80} />
+            <MoodFace level={tier} size={66} />
           </div>
         )}
       </div>
 
-      {/* 3. 하단 반원 계기판: 3색 밴드 + 바깥 눈금 */}
+      {/* 3. 하단 글래시 반원 계기판 */}
       <div className="mood-gauge-wrap">
-        <svg className="gauge-svg" viewBox="0 0 260 145">
-          {/* 바깥 눈금: 스피도미터 느낌의 작은 틱 */}
+        <svg className="gauge-svg" viewBox="0 0 260 140">
+          <defs>
+            {/* 1) 글래시 그라데이션 (상단 빛 반사 효과) */}
+            <linearGradient id="glassGradSafe" x1="0%" y1="0%" x2="0%" y2="100%">
+              <stop offset="0%" stopColor="#34D399" />
+              <stop offset="100%" stopColor="#059669" />
+            </linearGradient>
+            <linearGradient id="glassGradCaution" x1="0%" y1="0%" x2="0%" y2="100%">
+              <stop offset="0%" stopColor="#FBBF24" />
+              <stop offset="100%" stopColor="#D97706" />
+            </linearGradient>
+            <linearGradient id="glassGradReview" x1="0%" y1="0%" x2="0%" y2="100%">
+              <stop offset="0%" stopColor="#F87171" />
+              <stop offset="100%" stopColor="#DC2626" />
+            </linearGradient>
+
+            {/* 2) 활성 구간 네온 글로우 필터 */}
+            <filter id="activeZoneGlow" x="-20%" y="-20%" width="140%" height="140%">
+              <feDropShadow dx="0" dy="3" stdDeviation="3.5" floodColor={badge.glow} floodOpacity="0.8" />
+            </filter>
+          </defs>
+
+          {/* 바깥 미니 눈금 */}
           {GAUGE_TICKS.map((tick, i) => (
             <line
               key={i}
@@ -286,33 +311,47 @@ export const SummaryHeroView: React.FC<SummaryHeroViewProps> = ({ count, onConti
               y1={tick.inner.y}
               x2={tick.outer.x}
               y2={tick.outer.y}
-              stroke="#CBD5E1"
+              stroke="#E2E8F0"
               strokeWidth={1.5}
               strokeLinecap="round"
             />
           ))}
 
-          {/* 3색 밴드: 계기판이 멈춘 뒤 활성 구간만 살짝 바깥으로 튀어나오고, 그 안에 위험도 단어가 표시됨 */}
+          {/* 3색 밴드 (글래시 렌더링) */}
           {GAUGE_ZONES.map((zone) => {
             const isActive = showResult && zone.tier === tier;
             const outerR = isActive ? GAUGE_ACTIVE_OUTER_R : GAUGE_OUTER_R;
             const labelPoint = gaugePoint(zone.midDeg, (GAUGE_INNER_R + outerR) / 2);
+
             return (
-              <g key={zone.tier}>
+              <g key={zone.tier} filter={isActive ? 'url(#activeZoneGlow)' : undefined}>
+                {/* 메인 밴드 바디 */}
                 <path
                   className="gauge-band"
                   d={bandPath(zone.startDeg, zone.endDeg, outerR)}
-                  fill={zone.fill}
-                  opacity={isActive ? 1 : 0.55}
+                  fill={`url(#${zone.gradId})`}
+                  opacity={isActive ? 1 : 0.38}
                 />
+
+                {/* 상단 림라이트 (유리 엣지 반사 하이라이트) */}
+                <path
+                  d={outerRimPath(zone.startDeg, zone.endDeg, outerR)}
+                  fill="none"
+                  stroke="#FFFFFF"
+                  strokeWidth={1.2}
+                  strokeLinecap="round"
+                  opacity={isActive ? 0.75 : 0.3}
+                />
+
+                {/* 활성 상태일 때 텍스트 라벨 표시 */}
                 {isActive && (
                   <text
                     className="gauge-zone-label"
                     x={labelPoint.x}
-                    y={labelPoint.y}
+                    y={labelPoint.y + 0.5}
                     textAnchor="middle"
                     dominantBaseline="middle"
-                    fontSize={15}
+                    fontSize={13.5}
                   >
                     {badge.label}
                   </text>
@@ -321,19 +360,7 @@ export const SummaryHeroView: React.FC<SummaryHeroViewProps> = ({ count, onConti
             );
           })}
 
-          {/* 건수: 게이지 안쪽 빈 공간(포인터 위쪽)에 표시 */}
-          <text
-            className="gauge-count-label"
-            x={GAUGE_CX}
-            y={GAUGE_CY - 38}
-            textAnchor="middle"
-            dominantBaseline="middle"
-            fontSize={26}
-          >
-            {count}건
-          </text>
-
-          {/* 포인터: 왼쪽으로 계속 돌아가다가 현재 등급 쪽에 감속 정지 */}
+          {/* 포인터 */}
           <g
             className={isSpinning ? 'gauge-pointer spinning' : 'gauge-pointer'}
             style={{
@@ -344,14 +371,15 @@ export const SummaryHeroView: React.FC<SummaryHeroViewProps> = ({ count, onConti
             }}
           >
             <path
-              d={`M ${GAUGE_CX - 9} ${GAUGE_CY} A 9 9 0 1 1 ${GAUGE_CX + 9} ${GAUGE_CY} Q ${GAUGE_CX + 3} ${GAUGE_CY + 20} ${GAUGE_CX} ${GAUGE_CY + 26} Q ${GAUGE_CX - 3} ${GAUGE_CY + 20} ${GAUGE_CX - 9} ${GAUGE_CY} Z`}
-              fill="#334155"
+              d={`M ${GAUGE_CX - 8} ${GAUGE_CY} A 8 8 0 1 1 ${GAUGE_CX + 8} ${GAUGE_CY} Q ${GAUGE_CX + 2.5} ${GAUGE_CY + 18} ${GAUGE_CX} ${GAUGE_CY + 24} Q ${GAUGE_CX - 2.5} ${GAUGE_CY + 18} ${GAUGE_CX - 8} ${GAUGE_CY} Z`}
+              fill="#C0C0C0"
             />
+            <circle cx={GAUGE_CX} cy={GAUGE_CY} r={2.8} fill="#FFFFFF" />
           </g>
         </svg>
       </div>
 
-      {/* 4. 하단 액션 버튼: 0건일 땐 재검사, 그 외엔 상세 확인으로 이동 */}
+      {/* 4. 하단 CTA 버튼 */}
       <button className="mood-cta-btn" onClick={onContinue}>
         {isSafe ? '다시 검사하기' : '어떤 문구인지 확인하기'}
       </button>

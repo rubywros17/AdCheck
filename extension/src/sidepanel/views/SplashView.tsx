@@ -141,10 +141,12 @@ export const SplashView: React.FC<SplashViewProps> = ({ onFinish }) => {
             <stop offset="100%" stopColor="#0D9488" stopOpacity="0" />
           </linearGradient>
 
-          {/* 청록색 Check 글자 그라데이션 */}
+          {/* 'Check' 글자 그라데이션: 상단바 로고(.glass-brand-check)와 동일한 색상 구성 */}
           <linearGradient id="checkTealGrad" x1="0%" y1="0%" x2="100%" y2="100%">
-            <stop offset="0%" stopColor="#2DD4BF" />
-            <stop offset="100%" stopColor="#0D9488" />
+            <stop offset="0%" stopColor="#0D9488" />
+            <stop offset="40%" stopColor="#14B8A6" />
+            <stop offset="70%" stopColor="#5EEAD4" />
+            <stop offset="100%" stopColor="#0F766E" />
           </linearGradient>
 
           {/* 블러 필터 */}
@@ -168,11 +170,9 @@ export const SplashView: React.FC<SplashViewProps> = ({ onFinish }) => {
           height="74"
         />
 
-        {/* 곰돌이 눈동자 발광 점 */}
+        {/* 곰돌이 눈동자 발광 점 (하이라이트 흰 점은 삭제하여 눈을 깔끔하게 정리) */}
         <circle className="bear-eye-glow" cx="149" cy="64" r="3" fill="#5EEAD4" filter="url(#lightBlur)" />
-        <circle className="bear-eye-glow" cx="149" cy="64" r="1.5" fill="#FFFFFF" />
         <circle className="bear-eye-glow" cx="171" cy="64" r="3" fill="#5EEAD4" filter="url(#lightBlur)" />
-        <circle className="bear-eye-glow" cx="171" cy="64" r="1.5" fill="#FFFFFF" />
 
         {/* ─── 2. 스캔 광선 레이어: 곰돌이보다 나중에 그려서 곰돌이 위로 겹치게 함
              (왼쪽 눈 X=149, 오른쪽 눈 X=171, 둘 다 Y=64에서 각각 출발) ─── */}

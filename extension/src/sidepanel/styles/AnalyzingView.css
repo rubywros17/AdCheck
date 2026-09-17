@@ -58,19 +58,21 @@
   to { transform: translateX(0); opacity: 1; }
 }
 
-/* 상단 그래픽 영역: 4가지 그래픽 크기가 제각각이라도(80~96px) 항상 같은 높이 좌표에 고정 */
+/* 상단 그래픽 영역: 4가지 그래픽 크기가 제각각이라도(80~96px) 항상 같은 높이 좌표에 고정.
+   위아래로 둥둥 뜨는 바운스(최대 -12px)와 drop-shadow 필터의 번짐이 부모(.analyzing-tip-card)의
+   overflow: hidden 경계에 걸려 위쪽이 살짝 잘리지 않도록, 그래픽 실제 크기보다 여유 있게 잡음 */
 .analyzing-graphic-wrap {
   display: flex;
   align-items: center;
   justify-content: center;
-  height: 100px;
+  height: 148px;
   margin-bottom: 24px;
 }
 
 /* 메인 단독 문장 (사족 없는 헤드라인) */
 .analyzing-main-headline {
   margin: 0;
-  font-size: 17px;
+  font-size: 19px;
   font-weight: 700;
   line-height: 1.45;
   color: #0F172A;
@@ -86,12 +88,16 @@
 /* CertMarkAnimation: 공인 건강기능식품 인증마크(실제 이미지)가 둥둥 뜬 채 사선 쉬머가 스쳐 지나감 */
 .health-mark-badge {
   position: relative;
-  width: 96px;
-  height: 96px;
+  width: 110px;
+  height: 110px;
   border-radius: 50%;
   overflow: hidden;
   animation: floatMark 2.6s ease-in-out infinite;
   filter: drop-shadow(0 6px 16px rgba(16, 185, 129, 0.35));
+  /* 원형 경계의 위/아래 꼭짓점 부근에서 대각선 셰이머 빛이 각지게 잘려 보이지 않도록,
+     바깥쪽 가장자리로 갈수록 부드럽게 옅어지는 원형 그라데이션 마스크를 겹쳐서 부드럽게 처리 */
+  mask-image: radial-gradient(circle, rgba(0, 0, 0, 1) 55%, rgba(0, 0, 0, 0) 85%);
+  -webkit-mask-image: radial-gradient(circle, rgba(0, 0, 0, 1) 55%, rgba(0, 0, 0, 0) 85%);
 }
 .health-mark-img {
   display: block;
@@ -123,8 +129,8 @@
 /* ShieldAnimation: 3D 렌더링 방패+체크 이미지가 둥둥 뜬 채 살짝 갸우뚱 (기본 shield 그래픽) */
 .shield-3d-stage {
   position: relative;
-  width: 84px;
-  height: 84px;
+  width: 97px;
+  height: 97px;
   display: flex;
   align-items: center;
   justify-content: center;
@@ -152,8 +158,8 @@
 /* WarningAnimation: 3D 렌더링 문서+경고(X) 스탬프 이미지가 둥둥 뜬 채 살짝 갸우뚱 */
 .warning-3d-stage {
   position: relative;
-  width: 84px;
-  height: 84px;
+  width: 97px;
+  height: 97px;
   display: flex;
   align-items: center;
   justify-content: center;
@@ -181,8 +187,8 @@
 /* ReviewAnimation: 3D 렌더링 별점 리뷰 말풍선 + 주의 뱃지 이미지가 둥둥 유영 */
 .review-3d-stage {
   position: relative;
-  width: 88px;
-  height: 88px;
+  width: 101px;
+  height: 101px;
   display: flex;
   align-items: center;
   justify-content: center;
@@ -210,8 +216,8 @@
 /* PillAnimation: 3D 렌더링 알약 이미지의 입체 틸팅 부유 모션 */
 .pill-3d-stage {
   position: relative;
-  width: 80px;
-  height: 80px;
+  width: 92px;
+  height: 92px;
   display: flex;
   align-items: center;
   justify-content: center;

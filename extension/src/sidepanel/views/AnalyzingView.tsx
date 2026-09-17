@@ -30,7 +30,7 @@ function getGraphicForTip(tip: TipItem): React.ComponentType {
 }
 
 // 카드 1장이 화면에 머무는 시간
-const CARD_DISPLAY_MS = 7000;
+const CARD_DISPLAY_MS = 6000;
 // 카드가 옆으로 밀려나며 전환되는 데 걸리는 시간
 const SLIDE_MS = 500;
 

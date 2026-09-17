@@ -3,10 +3,9 @@
 interface Props {
   variant?: "IDLE" | "UNSUPPORTED";
   onAnalyze: () => void;
-  onReset: () => void;
 }
 
-export function IdleView({ variant = "IDLE", onAnalyze, onReset }: Props) {
+export function IdleView({ variant = "IDLE", onAnalyze }: Props) {
   if (variant === "UNSUPPORTED") {
     return (
       <div className="toss-hero-box">
@@ -26,13 +25,14 @@ export function IdleView({ variant = "IDLE", onAnalyze, onReset }: Props) {
             <line x1="4.93" y1="4.93" x2="19.07" y2="19.07" />
           </svg>
         </div>
-        <h2 className="hero-title">
+        <h2 className="hero-title hero-title-unsupported">
           현재 페이지는<br />
           분석할 수 없어요
         </h2>
-        <p className="hero-sub hero-sub-spacious">상품 상세페이지에서 다시 실행해 주세요.</p>
-        <button className="btn-brand-primary btn-idle-margin" type="button" onClick={onReset}>
-          처음으로 돌아가기
+        <p className="hero-sub hero-sub-spacious hero-sub-unsupported">상품 상세페이지에서 다시 실행해 주세요.</p>
+        {/* 홈으로 돌아가는 대신, 현재 탭을 바로 재분석 */}
+        <button className="btn-brand-primary btn-idle-margin btn-idle-margin-lg" type="button" onClick={onAnalyze}>
+          다시 분석하기
         </button>
       </div>
     );

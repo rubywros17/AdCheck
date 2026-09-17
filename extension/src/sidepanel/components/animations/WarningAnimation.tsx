@@ -11,8 +11,8 @@ export function WarningAnimation() {
       <img
         src="/icons/3d_warning.png"
         alt="문제 문구가 표시된 문서"
-        width={51}
-        height={80}
+        width={59}
+        height={92}
         className="warning-3d-img"
       />
     </div>

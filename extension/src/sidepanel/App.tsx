@@ -34,7 +34,7 @@ export function App() {
 
       <main className={`toss-viewport ${status === "DETAIL_LIST" ? "toss-viewport-top" : ""}`}>
         <div className="tab-panel">
-          {status === "IDLE" && <IdleView onAnalyze={adCheck.analyze} onReset={adCheck.goHome} />}
+          {status === "IDLE" && <IdleView onAnalyze={adCheck.analyze} />}
 
           {status === "ANALYZING" && <AnalyzingView />}
 
@@ -63,16 +63,18 @@ export function App() {
               pendingScrollIdx={adCheck.pendingScrollIdx}
               currentPageTitle={adCheck.currentPageTitle}
               pageUrl={adCheck.pageUrl}
+              isFavorite={adCheck.isCurrentFavorite}
               onFilterChange={adCheck.setActiveFilter}
               onToggleFinding={adCheck.toggleFinding}
               onScrollComplete={adCheck.completeScroll}
               onLocateFinding={adCheck.locateFinding}
               onReset={adCheck.goHome}
+              onToggleFavorite={() => adCheck.currentHistoryId && adCheck.toggleFavorite(adCheck.currentHistoryId)}
             />
           )}
 
           {status === "UNSUPPORTED" && (
-            <IdleView variant={status} onAnalyze={adCheck.analyze} onReset={adCheck.goHome} />
+            <IdleView variant={status} onAnalyze={adCheck.analyze} />
           )}
         </div>
       </main>
@@ -86,7 +88,13 @@ export function App() {
         />
       )}
 
-      <SidepanelFooter testTarget={adCheck.testTarget} onTestTargetChange={adCheck.changeTestTarget} />
+      {/* 고지 문구는 결과 화면("위험 감지 문구가 발견되었어요")에서만 노출하고 다른 화면에서는 숨김.
+          테스트 스위처는 화면과 무관하게 항상 유지 */}
+      <SidepanelFooter
+        testTarget={adCheck.testTarget}
+        onTestTargetChange={adCheck.changeTestTarget}
+        hideDisclaimer={!(status === "SUMMARY_HERO" || status === "EMPTY")}
+      />
     </div>
   );
 }

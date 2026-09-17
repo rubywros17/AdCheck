@@ -11,8 +11,8 @@ export function PillAnimation() {
       <img
         src="/icons/3d_pill.png"
         alt="돋보기로 확인하는 3D 캡슐"
-        width={74}
-        height={88}
+        width={85}
+        height={101}
         className="pill-3d-img"
       />
     </div>
