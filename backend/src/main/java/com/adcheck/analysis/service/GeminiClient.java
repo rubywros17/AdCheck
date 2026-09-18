@@ -44,6 +44,23 @@ class GeminiClient {
     /** 파이프라인 1건이 Gemini를 실제로 몇 번 부르는지/각 호출이 몇 초 걸리는지 실측용 카운터. */
     private static final java.util.concurrent.atomic.AtomicInteger CALL_COUNTER =
             new java.util.concurrent.atomic.AtomicInteger();
+    /** 429를 맞은 횟수(재시도 1회당 1). 무료 티어 분당 한도에 얼마나 붙어 있는지 보는 지표. */
+    private static final java.util.concurrent.atomic.AtomicInteger RATE_LIMITED_COUNTER =
+            new java.util.concurrent.atomic.AtomicInteger();
+
+    /**
+     * 앱 기동 후 누적 호출 수. 분석 1건이 몇 회를 썼는지는 분석 시작·종료 시점의 값을 빼서 구한다
+     * ({@code AnalysisBackgroundJob} 참고) — 분석이 동시에 돌면 서로 섞이지만, 무료 티어에서는
+     * 사실상 한 번에 하나만 도는 전제라 예산을 보는 용도로는 충분하다.
+     */
+    public static int totalCalls() {
+        return CALL_COUNTER.get();
+    }
+
+    /** 앱 기동 후 누적 429 횟수. */
+    public static int totalRateLimited() {
+        return RATE_LIMITED_COUNTER.get();
+    }
 
     private final RestClient restClient;
     private final String apiKey;
@@ -116,6 +133,7 @@ class GeminiClient {
                         .body(GenerateContentResponse.class);
             } catch (HttpClientErrorException.TooManyRequests e) {
                 last = e;
+                RATE_LIMITED_COUNTER.incrementAndGet();
                 long waitMs = retryDelayMillis(e.getResponseBodyAsString(), attempt);
                 log.warn("Gemini 호출 #{} 429(분당 한도 초과) — {}ms 후 재시도 ({}/{})",
                         callNo, waitMs, attempt, MAX_ATTEMPTS);
