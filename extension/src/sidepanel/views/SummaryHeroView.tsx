@@ -256,15 +256,11 @@ export const SummaryHeroView: React.FC<SummaryHeroViewProps> = ({ count, onConti
             <>
               위험 의심문구가
               <br />
-              전혀 발견되지 않았어요
+              발견되지 않았어요
             </>
           ) : (
             <>
-              위험 감지 문구가
-              <br />
-              <span style={{ color: badge.text }}>{count}건</span>
-              <br />
-              발견되었어요
+              위험 감지 문구 <span style={{ color: badge.text }}>{count}건</span>
             </>
           )}
         </h2>

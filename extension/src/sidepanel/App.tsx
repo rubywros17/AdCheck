@@ -73,7 +73,7 @@ export function App() {
             />
           )}
 
-          {status === "UNSUPPORTED" && (
+          {(status === "ERROR" || status === "UNSUPPORTED") && (
             <IdleView variant={status} onAnalyze={adCheck.analyze} />
           )}
         </div>

@@ -94,6 +94,10 @@ export function useAdCheck(status: ViewStatus, setStatus: Dispatch<SetStateActio
 
     scanTimerRef.current = setTimeout(() => {
       scanTimerRef.current = null;
+      if (testTarget === "ERROR") {
+        setStatus("ERROR");
+        return;
+      }
       if (testTarget === "INVALID") {
         setStatus("UNSUPPORTED");
         return;

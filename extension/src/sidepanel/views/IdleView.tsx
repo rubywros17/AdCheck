@@ -1,11 +1,43 @@
 //"이 상품 광고 믿고 사도 될까요?" 버튼 있는 첫 화면
 
 interface Props {
-  variant?: "IDLE" | "UNSUPPORTED";
+  variant?: "IDLE" | "ERROR" | "UNSUPPORTED";
   onAnalyze: () => void;
 }
 
 export function IdleView({ variant = "IDLE", onAnalyze }: Props) {
+  if (variant === "ERROR") {
+    return (
+      <div className="toss-hero-box">
+        <div className="hero-icon-circle icon-circle-red">
+          <svg
+            width={32}
+            height={32}
+            viewBox="0 0 24 24"
+            fill="none"
+            stroke="#EF4444"
+            strokeWidth="2.5"
+            strokeLinecap="round"
+            strokeLinejoin="round"
+            aria-hidden="true"
+          >
+            <circle cx="12" cy="12" r="10" />
+            <line x1="12" y1="8" x2="12" y2="12" />
+            <line x1="12" y1="16" x2="12.01" y2="16" />
+          </svg>
+        </div>
+        <h2 className="hero-title">
+          분석 서버에<br />
+          연결할 수 없어요
+        </h2>
+        <p className="hero-sub hero-sub-spacious">잠시 후 다시 시도해주세요.</p>
+        <button className="btn-brand-primary btn-idle-margin" type="button" onClick={onAnalyze}>
+          다시 시도
+        </button>
+      </div>
+    );
+  }
+
   if (variant === "UNSUPPORTED") {
     return (
       <div className="toss-hero-box">
