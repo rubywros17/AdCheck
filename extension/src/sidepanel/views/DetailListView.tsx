@@ -287,6 +287,15 @@ export const DetailListView: React.FC<DetailListViewProps> = ({
                   }}
                 >
                   <div style={{ padding: '4px 14px 14px', display: 'flex', flexDirection: 'column', gap: '8px' }}>
+                    {/* 왜 문제인가요: AI가 정리한 소비자용 설명(finding.message). 가장 먼저 눈에 띄어야 하는 핵심 설명이라
+                        무채색 대신 주의를 끄는 앰버 톤으로 강조 */}
+                    {finding.message && (
+                      <div style={{ background: '#FFFBEB', borderRadius: '8px', padding: '10px 11px', borderLeft: '3px solid #F59E0B' }}>
+                        <div style={{ fontSize: '11px', fontWeight: 700, color: '#92400E', marginBottom: '3px' }}>왜 문제인가요</div>
+                        <div style={{ fontSize: '12.5px', color: '#190933', fontWeight: 600, lineHeight: 1.45 }}>{finding.message}</div>
+                      </div>
+                    )}
+
                     {/* 광고 속 문제 문구: 카테고리 테마 틴트 + 라인 인디케이터 + 카테고리 배지 칩 */}
                     <div style={{ background: theme.badgeBg, borderRadius: '8px', padding: '10px 11px', borderLeft: `3px solid ${theme.indicatorColor}` }}>
                       <span
