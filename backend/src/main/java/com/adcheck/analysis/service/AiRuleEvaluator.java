@@ -36,9 +36,11 @@ import static com.adcheck.rule.service.RuleEvaluation.Status.REVIEW_REQUIRED;
  * {@code LiteralRuleEvaluator}(정규식 기반)가 대신 담당하고, 데이터부재형(~19개)은
  * 대상이 아니다.
  *
- * <p><b>아직 어디에도 등록하지 않았다</b>({@code @Component} 없음, {@code RuleEvaluatorRegistry}가
- * 이 클래스를 모른다) — 로드맵상 다음 단계(검증 데이터셋으로 정확도 확인, 리터럴형 확정)를
- * 마친 뒤 등록할 예정이라 지금은 프롬프트 설계를 검증하는 용도로만 존재한다.
+ * <p><b>등록돼 있으나 전체가 켜진 건 아니다</b>: {@code @Component}로 등록되고
+ * {@code RuleEvaluatorRegistry}가 잡아가지만, 실제로 판정이 나가는 것은
+ * {@code RuleJudgeProperties}의 allowlist에 있는 규칙뿐이다 — 이 클래스가 선언한 39개 중
+ * 20개(2026-09-17 기준). 검증된 것부터 단계적으로 넓히려는 구조이고, allowlist 밖의 코드는
+ * 평가기가 있어도 {@code UNSUPPORTED_RULE}로 남는다.
  *
  * <p>AI 호출 전 사전 체크 3가지는 {@code CommonRuleEvaluator}와 정확히 동일한 로직을 그대로
  * 재사용한다 — 이 필터를 통과한 것만 실제로 Gemini를 호출해서, 판단할 필요가 없는 요청에는
@@ -276,6 +278,19 @@ public class AiRuleEvaluator implements RuleEvaluator {
             return new RuleEvaluation(REVIEW_REQUIRED, SEMANTIC_COMPARISON_REQUIRED,
                     "AI 응답을 해석할 수 없어 확인이 필요합니다.");
         }
+        String reason = isNotBlank(judgment.reason()) ? judgment.reason() : "판정 근거가 제공되지 않았습니다.";
+
+        // 프롬프트는 "needsOutsideContext=true면 status는 반드시 REVIEW_REQUIRED"라고 지시하지만,
+        // 지금까지 그 약속은 모델이 지켜주기만 바라는 상태였다 — 이 필드를 파싱조차 하지 않아
+        // 어겨도 그대로 통과했다. 어긋나는 방향이 NOT_MATCHED면 Finding이 아예 만들어지지 않아
+        // 사용자 화면에서 흔적 없이 사라지므로(실측: R02_MENOPAUSE), 게이트는 프롬프트가 아니라
+        // 여기서 강제한다.
+        if (Boolean.TRUE.equals(judgment.needsOutsideContext()) && status != REVIEW_REQUIRED) {
+            log.warn("Rule Judge가 needsOutsideContext=true인데 status={} 를 반환 — REVIEW_REQUIRED로 보정함: {}",
+                    status, rawJsonForLogging);
+            return new RuleEvaluation(REVIEW_REQUIRED, SEMANTIC_COMPARISON_REQUIRED, reason);
+        }
+
         RuleEvaluation.ReasonCode reasonCode = parseReasonCode(judgment.reasonCode());
         if (reasonCode == null) {
             // 모델이 목록에 없는 코드를 지어내는 경우가 실제로 관찰됐다(예: CONDITION_NOT_MET
@@ -285,7 +300,6 @@ public class AiRuleEvaluator implements RuleEvaluator {
             reasonCode = defaultReasonCodeFor(status);
             log.warn("Rule Judge 응답의 reasonCode '{}'를 알 수 없어 {}로 보정함", judgment.reasonCode(), reasonCode);
         }
-        String reason = isNotBlank(judgment.reason()) ? judgment.reason() : "판정 근거가 제공되지 않았습니다.";
         return new RuleEvaluation(status, reasonCode, reason);
     }
 
@@ -301,11 +315,14 @@ public class AiRuleEvaluator implements RuleEvaluator {
      * 같은 규칙을 여러 Claim에 한 프롬프트로 묶어 호출 수를 줄인다. 이전에 실패한 "Claim 1개 +
      * 규칙 여러 개" 배치(needsOutsideContext 게이트가 방향 없이 흔들려 일치율 54~67%)와는 반대
      * 축이다 — 여기서는 [판단 기준]이 배치 전체에서 동일해서 그 혼선이 구조적으로 없고, 검증
-     * 데이터셋 27건×3회 실측에서 91.4%(개별 호출과 동등 수준)가 나왔다.
+     * 데이터셋 실측(1차 파일럿 9개 규칙 × claim 3건 = 27건)에서 개별 호출과 25/27(92.6%)이 일치했다.
      *
      * <p>다만 공짜는 아니다: 개별 호출에서 3회 반복 9/9로 완벽하던 B02_VIRUS·R02_MENOPAUSE의
-     * 특정 claim이 배치에서는 3회 내내 다르게 판정됐다(둘 다 더 보수적인 쪽으로). 같은 프롬프트
-     * 안의 다른 claim이 판단에 영향을 주는 것으로 추정된다.
+     * 특정 claim이 배치에서는 3회 내내 다르게 판정됐다. <b>둘의 성격은 다르다</b> — B02는
+     * {@code MATCHED → REVIEW_REQUIRED}라 경고가 약해지는 정도지만, R02는
+     * {@code REVIEW_REQUIRED → NOT_MATCHED}라 Finding 자체가 사라져 화면에 아무것도 남지 않는다.
+     * 같은 프롬프트 안의 다른 claim이 판단에 영향을 주는 것으로 추정된다. 참고로 배치로 검증한
+     * 것은 allowlist의 AI 규칙 20개 중 9개뿐이고, 나머지 11개는 아직 측정하지 않았다.
      *
      * @return {@code requests}와 같은 순서·크기의 결과 리스트.
      */
@@ -424,9 +441,11 @@ public class AiRuleEvaluator implements RuleEvaluator {
         sb.append("reason에는 판단 근거를 한국어 한두 문장으로 쓰세요. 추측하지 말고, 모르면 REVIEW_REQUIRED를 쓰세요.\n\n");
 
         sb.append("반드시 아래 JSON 배열 형식으로만 응답하세요 — 배열 길이는 정확히 ").append(requests.size())
-                .append("이고, 각 원소는 위 Claim 목록의 순서(1번, 2번, ...)와 정확히 같은 순서여야 합니다. ");
+                .append("이고, 각 원소의 \"no\"에는 위 [판단 대상 Claim 목록]에서 그 Claim에 붙은 번호를 ")
+                .append("그대로 적으세요(1부터 ").append(requests.size())
+                .append("까지 하나씩, 빠지거나 겹치면 안 됩니다). ");
         sb.append("다른 설명은 붙이지 마세요.\n");
-        sb.append("[{\"needsOutsideContext\": true 또는 false, ");
+        sb.append("[{\"no\": 1, \"needsOutsideContext\": true 또는 false, ");
         sb.append("\"status\": \"MATCHED\" 또는 \"NOT_MATCHED\" 또는 \"REVIEW_REQUIRED\", ");
         sb.append("\"reasonCode\": \"...\", \"reason\": \"판단 근거\"}, ...]\n");
 
@@ -443,11 +462,40 @@ public class AiRuleEvaluator implements RuleEvaluator {
                         expectedSize, judgments.size(), rawJson);
                 return fallbackList(expectedSize, "AI 배치 응답 개수가 기대와 달라 확인이 필요합니다.");
             }
-            return judgments.stream().map(j -> toEvaluation(j, rawJson)).toList();
+            return alignByClaimNo(judgments, expectedSize, rawJson);
         } catch (JacksonException e) {
             log.warn("Rule Judge 배치 응답 JSON 파싱 실패: {}", e.getMessage());
             return fallbackList(expectedSize, "AI 배치 응답 파싱에 실패해 확인이 필요합니다.");
         }
+    }
+
+    /**
+     * 배치 응답을 Claim에 짝짓는다. 예전에는 응답 순서를 그대로 믿었는데, 응답에 Claim 식별자가
+     * 없어서 모델이 순서를 바꿔도 개수만 맞으면 통과했다 — 그러면 "A 문장이 위반"이라는 판정이
+     * B 문장에 붙는다. 이제 프롬프트가 매긴 번호를 응답에 되받아 그 번호로 맞춘다.
+     *
+     * <p>세 갈래로 나뉜다: 번호가 전부 제대로 오면 <b>번호로</b> 맞추고(순서가 바뀌어도 안전),
+     * 번호가 아예 없으면 예전처럼 <b>순서로</b> 맞춘다(모델이 필드를 무시해도 기능이 죽지 않게).
+     * 번호가 있는데 1..N을 정확히 한 번씩 덮지 못하면 — 빠지거나 겹치거나 범위를 벗어나면 —
+     * 어느 판정이 어느 Claim 것인지 알 수 없으므로 <b>전부 확인 필요</b>로 돌린다. 잘못 짝지어진
+     * 판정을 사용자에게 보여주느니 사람이 보게 하는 편이 낫다.
+     */
+    private List<RuleEvaluation> alignByClaimNo(List<RawJudgment> judgments, int expectedSize, String rawJson) {
+        if (judgments.stream().noneMatch(judgment -> judgment.no() != null)) {
+            log.warn("Rule Judge 배치 응답에 Claim 번호(no)가 없어 순서대로 짝지음 — {}", rawJson);
+            return judgments.stream().map(judgment -> toEvaluation(judgment, rawJson)).toList();
+        }
+        RuleEvaluation[] aligned = new RuleEvaluation[expectedSize];
+        for (RawJudgment judgment : judgments) {
+            Integer no = judgment.no();
+            if (no == null || no < 1 || no > expectedSize || aligned[no - 1] != null) {
+                log.warn("Rule Judge 배치 응답의 Claim 번호가 1~{}을 한 번씩 덮지 않음(no={}) — "
+                        + "짝을 신뢰할 수 없어 전부 확인 필요로 처리: {}", expectedSize, no, rawJson);
+                return fallbackList(expectedSize, "AI 배치 응답의 Claim 번호가 어긋나 확인이 필요합니다.");
+            }
+            aligned[no - 1] = toEvaluation(judgment, rawJson);
+        }
+        return List.of(aligned);
     }
 
     private static List<RuleEvaluation> fallbackList(int size, String reason) {
@@ -483,6 +531,7 @@ public class AiRuleEvaluator implements RuleEvaluator {
 
     /** Gemini 응답 JSON 그대로의 모양 — 모르는 필드가 있어도 깨지지 않도록 ignoreUnknown. */
     @JsonIgnoreProperties(ignoreUnknown = true)
-    private record RawJudgment(String status, String reasonCode, String reason) {
+    private record RawJudgment(Integer no, Boolean needsOutsideContext,
+                               String status, String reasonCode, String reason) {
     }
 }
