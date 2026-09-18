@@ -127,38 +127,39 @@ public class FindingAssembler {
                 false
         );
 
+        long ruleStartedAt = System.currentTimeMillis();
+        List<ExtractedClaim> claims = claimResult.claims();
+        List<RuleAnalysisRequest> ruleRequests = claims.stream()
+                .map(claim -> toRuleAnalysisRequest(
+                        claim, claimResult.riskSignalCandidates(), confirmedIngredientMasterIds, officialFunctionsContext))
+                .toList();
+        // Claim마다 규칙 전체를 도는 대신 규칙 축으로 한 번에 분석한다 — AI 평가기가 규칙 하나당
+        // 모든 Claim을 한 호출로 묶으므로 호출 수가 "Claim수 × 규칙수"에서 "규칙수"로 줄어든다.
+        List<RuleAnalysisResult> ruleResults = ruleAnalysisService.analyzeAll(ruleRequests);
+
         List<ClaimRuleOutcome> outcomes = new ArrayList<>();
-        for (ExtractedClaim claim : claimResult.claims()) {
-            try {
-                outcomes.add(evaluateClaim(
-                        claim, claimResult.riskSignalCandidates(), confirmedIngredientMasterIds, officialFunctionsContext
-                ));
-            } catch (RuntimeException e) {
-                log.warn("Claim {} 의 Rule 판정 중 오류가 발생해 이 Claim은 건너뜁니다: {}",
-                        claim.claimId(), e.getMessage(), e);
-            }
+        for (int i = 0; i < claims.size(); i++) {
+            outcomes.add(toOutcome(claims.get(i), ruleResults.get(i)));
         }
+        log.info("[TIMING] ④ 규칙 판정 완료 — {}ms (Claim {}건)",
+                System.currentTimeMillis() - ruleStartedAt, claims.size());
 
         List<ClaimRuleOutcome> needsAi2 = outcomes.stream().filter(o -> !o.matched().isEmpty()).toList();
+        long ragStartedAt = System.currentTimeMillis();
         Map<String, List<Evidence>> evidenceByClaimId = searchEvidence(needsAi2);
+        log.info("[TIMING] ⑤ RAG 근거 검색 완료 — {}ms (대상 Claim {}건)",
+                System.currentTimeMillis() - ragStartedAt, needsAi2.size());
 
-        List<Finding> findings = new ArrayList<>();
+        long ai2StartedAt = System.currentTimeMillis();
+        List<Finding> findings = new ArrayList<>(compareAllWithAi2(needsAi2, confirmedProduct, assembled, evidenceByClaimId));
         for (ClaimRuleOutcome outcome : outcomes) {
-            if (!outcome.matched().isEmpty()) {
-                try {
-                    findings.addAll(compareWithAi2(
-                            outcome, confirmedProduct, assembled,
-                            evidenceByClaimId.getOrDefault(outcome.claim().claimId(), List.of())
-                    ));
-                } catch (RuntimeException e) {
-                    log.warn("Claim {} 의 AI#2 비교 중 오류가 발생해 이 Claim은 건너뜁니다: {}",
-                            outcome.claim().claimId(), e.getMessage(), e);
-                }
-            } else if (!outcome.reviewRequired().isEmpty()) {
+            if (outcome.matched().isEmpty() && !outcome.reviewRequired().isEmpty()) {
                 toReviewRequiredFinding(outcome).ifPresent(findings::add);
             }
             // matched/reviewRequired 둘 다 비어있으면(전부 NOT_MATCHED) Finding을 만들지 않는다.
         }
+        log.info("[TIMING] ⑥ AI#2 비교+Finding 조립 완료 — {}ms (AI#2 호출 대상 {}건, 최종 Finding {}건)",
+                System.currentTimeMillis() - ai2StartedAt, needsAi2.size(), findings.size());
 
         return new Result(product, List.copyOf(findings), assembled.officialFunctions().size());
     }
@@ -224,7 +225,7 @@ public class FindingAssembler {
         );
     }
 
-    private ClaimRuleOutcome evaluateClaim(
+    private RuleAnalysisRequest toRuleAnalysisRequest(
             ExtractedClaim claim,
             List<RiskSignalCandidate> allRiskSignals,
             Set<Long> confirmedIngredientMasterIds,
@@ -241,18 +242,16 @@ public class FindingAssembler {
                 .map(rs -> new RiskSignalContext(rs.signalType(), rs.text()))
                 .toList();
 
-        RuleAnalysisRequest request = new RuleAnalysisRequest(
-                ruleClaim, riskSignals, confirmedIngredientMasterIds, officialFunctionsContext
-        );
-        RuleAnalysisResult result = ruleAnalysisService.analyze(request);
+        return new RuleAnalysisRequest(ruleClaim, riskSignals, confirmedIngredientMasterIds, officialFunctionsContext);
+    }
 
+    private ClaimRuleOutcome toOutcome(ExtractedClaim claim, RuleAnalysisResult result) {
         List<RuleAnalysisResult.RuleMatch> matched = result.matches().stream()
                 .filter(m -> m.evaluation().status() == RuleEvaluation.Status.MATCHED)
                 .toList();
         List<RuleAnalysisResult.RuleMatch> reviewRequired = result.matches().stream()
                 .filter(m -> m.evaluation().status() == RuleEvaluation.Status.REVIEW_REQUIRED)
                 .toList();
-
         return new ClaimRuleOutcome(claim, matched, reviewRequired);
     }
 
@@ -277,6 +276,97 @@ public class FindingAssembler {
             log.warn("RAG 근거 문단 검색 실패, 근거 없이 진행합니다: {}", e.getMessage(), e);
             return Map.of();
         }
+    }
+
+    /**
+     * MATCHED Claim 전체를 <b>한 번의 AI#2 호출</b>로 비교한다 — {@code ClaimComparisonRequest}는
+     * 원래부터 여러 Claim을 받도록 설계돼 있었는데 호출부가 Claim마다 1건짜리 리스트로 감싸
+     * 개별 호출하고 있었다. 무료 티어에서는 이 호출들이 분당 한도를 갉아먹어 뒤쪽 Claim이
+     * 429로 설명을 못 받는 일이 실제로 발생했다(실측 확인).
+     *
+     * <p>배치가 실패하면 기존의 Claim 단위 개별 호출로 폴백한다 — 원 설계의 "Claim 단위 실패
+     * 격리" 의도를 유지하기 위함이다(호출 하나가 실패해도 나머지 Claim의 설명은 살린다).
+     */
+    private List<Finding> compareAllWithAi2(
+            List<ClaimRuleOutcome> needsAi2,
+            ConfirmedProduct confirmedProduct,
+            ConfirmedIngredientAssembler.Assembled assembled,
+            Map<String, List<Evidence>> evidenceByClaimId
+    ) {
+        if (needsAi2.isEmpty()) {
+            return List.of();
+        }
+        try {
+            return compareBatchWithAi2(needsAi2, confirmedProduct, assembled, evidenceByClaimId);
+        } catch (RuntimeException e) {
+            log.warn("AI#2 배치 비교에 실패해 Claim 단위 개별 호출로 폴백합니다: {}", e.getMessage(), e);
+        }
+
+        List<Finding> findings = new ArrayList<>();
+        for (ClaimRuleOutcome outcome : needsAi2) {
+            try {
+                findings.addAll(compareWithAi2(outcome, confirmedProduct, assembled,
+                        evidenceByClaimId.getOrDefault(outcome.claim().claimId(), List.of())));
+            } catch (RuntimeException e) {
+                log.warn("Claim {} 의 AI#2 비교 중 오류가 발생해 이 Claim은 건너뜁니다: {}",
+                        outcome.claim().claimId(), e.getMessage(), e);
+            }
+        }
+        return findings;
+    }
+
+    private List<Finding> compareBatchWithAi2(
+            List<ClaimRuleOutcome> needsAi2,
+            ConfirmedProduct confirmedProduct,
+            ConfirmedIngredientAssembler.Assembled assembled,
+            Map<String, List<Evidence>> evidenceByClaimId
+    ) {
+        List<ComparisonClaim> comparisonClaims = needsAi2.stream()
+                .map(outcome -> new ComparisonClaim(outcome.claim().claimId(), outcome.claim().claimText()))
+                .toList();
+        List<RuleMatch> slimMatches = needsAi2.stream()
+                .flatMap(outcome -> outcome.matched().stream())
+                .map(this::toSlimRuleMatch)
+                .toList();
+        List<Evidence> allEvidence = needsAi2.stream()
+                .flatMap(outcome -> evidenceByClaimId.getOrDefault(outcome.claim().claimId(), List.of()).stream())
+                .toList();
+
+        ClaimComparisonResult result = geminiClaimComparisonService.compare(new ClaimComparisonRequest(
+                comparisonClaims, confirmedProduct, assembled.confirmedIngredients(),
+                assembled.officialFunctions(), slimMatches, allEvidence));
+
+        Map<String, ClaimRuleOutcome> outcomeByClaimId = needsAi2.stream()
+                .collect(java.util.stream.Collectors.toMap(o -> o.claim().claimId(), o -> o, (a, b) -> a));
+
+        List<Finding> findings = new ArrayList<>();
+        for (ClaimComparison comparison : result.claimComparisons()) {
+            ClaimRuleOutcome outcome = outcomeByClaimId.get(comparison.claimId());
+            if (outcome == null) {
+                log.warn("AI#2 응답에 알 수 없는 claimId가 있어 무시합니다: {}", comparison.claimId());
+                continue;
+            }
+            findings.add(toFinding(outcome, comparison));
+        }
+        return findings;
+    }
+
+    private Finding toFinding(ClaimRuleOutcome outcome, ClaimComparison comparison) {
+        RiskLevel riskLevel = mostSevere(outcome.matched())
+                .map(m -> RiskLevel.fromSeverity(m.severity()))
+                .orElse(RiskLevel.CAUTION);
+        String category = mostSevere(outcome.matched())
+                .map(RuleAnalysisResult.RuleMatch::judgmentCategory)
+                .orElse("UNKNOWN");
+        return new Finding(
+                outcome.claim().claimText(),
+                outcome.claim().source() != null ? outcome.claim().source().selector() : null,
+                riskLevel,
+                category,
+                (comparison.explanation() != null && !comparison.explanation().isBlank())
+                        ? comparison.explanation() : comparison.reason(),
+                comparison.officialFunction()
+        );
     }
 
     private List<Finding> compareWithAi2(
