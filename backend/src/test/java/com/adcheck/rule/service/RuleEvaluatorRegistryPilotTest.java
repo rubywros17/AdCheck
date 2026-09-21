@@ -49,9 +49,9 @@ class RuleEvaluatorRegistryPilotTest {
     }
 
     @Test
-    void 기본_RuleJudgeProperties는_Common3_Literal9_AI파일럿22_총34개를_포함한다() {
+    void 기본_RuleJudgeProperties는_Common3_Literal9_AI파일럿25_총37개를_포함한다() {
         RuleJudgeProperties defaults = new RuleJudgeProperties();
-        assertThat(defaults.getEnabledRuleCodes()).hasSize(34)
+        assertThat(defaults.getEnabledRuleCodes()).hasSize(37)
                 .contains("C05_FUNCTION_EXCEED", "C07_ABSOLUTE_EFFECT", "C24_OVERCONSUMPTION")
                 .contains("C08_RESULT_TIME_AMOUNT", "M03_ALCOHOL", "S01_PAIN")
                 .contains("B02_VIRUS", "R02_MENOPAUSE", "T04_ANTIAGING")
@@ -59,6 +59,8 @@ class RuleEvaluatorRegistryPilotTest {
                 .contains("E01_VESSEL", "L03_EYE_DISEASE", "C22_SUPERLATIVE")
                 .contains("L01_VISION")
                 // 5차 확장(라벨 정정 후 재검증) — 2개
-                .contains("G05_GLUCOSE_DIET", "M04_REGEN_CANCER");
+                .contains("G05_GLUCOSE_DIET", "M04_REGEN_CANCER")
+                // 6차 확장(개별 targeted 프롬프트 수정) — 3개
+                .contains("C04_DISEASE_INFO_LINK", "C14_EXPERT_ENDORSEMENT", "C21_UNFAIR_COMPARISON");
     }
 }
