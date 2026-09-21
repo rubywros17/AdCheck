@@ -67,6 +67,22 @@ body {
 
 .hero-title { font-size: 23px; font-weight: 800; line-height: 1.35; color: #0F172A; margin-bottom: 8px; letter-spacing: -0.5px; }
 
+/* 박스/텍스트 없이 화살표 아이콘 하나만 두는 뒤로가기 버튼 (BubblePreviewView, DetailListView 공용) */
+.icon-back-btn {
+  background: none;
+  border: none;
+  padding: 0;
+  margin: 0;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  transition: opacity 0.15s ease;
+}
+
+.icon-back-btn:hover {
+  opacity: 0.7;
+}
+
 .hero-sub { font-size: 13px; color: #64748B; line-height: 1.5; }
 .hero-sub-clean { margin-bottom: 8px; line-height: 1.55; }
 .hero-sub-spacious { margin-bottom: 0px; line-height: 1.55; }

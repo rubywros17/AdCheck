@@ -26,7 +26,8 @@
 }
 .history-item-card:hover { background: #F1F5F9; }
 
-/* 카드 안의 실제 선택 영역: 버튼이지만 카드에 녹아드는 무장식 스타일 */
+/* 카드 안의 실제 선택 영역: 버튼이지만 카드에 녹아드는 무장식 스타일.
+   좌측(제품명+일시, 세로 스택) / 우측(작은 상태 뱃지) 한 줄 구성 */
 .history-item-select {
   flex: 1;
   min-width: 0;
@@ -41,6 +42,13 @@
   cursor: pointer;
   font: inherit;
   color: inherit;
+}
+
+.history-item-info {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 0;
 }
 
 /* 즐겨찾기 별표 버튼: 카드 클릭과 분리된 독립 버튼 */
@@ -64,58 +72,50 @@
 .history-star-btn:active { transform: scale(0.9); }
 .history-star-btn.active { color: #F59E0B; }
 
-.history-item-info { display: flex; flex-direction: column; gap: 2px; overflow: hidden; padding-right: 8px; }
-.history-date { font-size: 10.5px; font-weight: 600; color: #94A3B8; }
-.history-prod-name { font-size: 12.5px; font-weight: 700; color: #0F172A; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.history-date { font-size: 11px; font-weight: 600; color: #94A3B8; }
+.history-prod-name {
+  font-size: 12.5px;
+  font-weight: 700;
+  color: #0F172A;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  max-width: 190px;
+}
 
 .no-filtered-item { text-align: center; font-size: 12px; color: #94A3B8; padding: 20px 0; font-weight: 600; }
 
-/* 신호등 원색 대신 차분한 모노톤 캡슐 + 포인트 도트로 상태를 표시 */
-.history-status-badge {
+/* 결과 요약 화면 게이지 바와 동일한 3색 체계를 쓰는, 행 우측 끝의 작은 뱃지(칩) */
+.history-status-chip {
   display: inline-flex;
   align-items: center;
-  gap: 5px;
-  padding: 5px 10px;
-  border-radius: 9999px;
-  font-size: 11px;
-  font-weight: 600;
   flex-shrink: 0;
-}
-.history-status-badge::before {
-  content: "";
-  width: 6px;
-  height: 6px;
-  border-radius: 50%;
-  flex-shrink: 0;
-}
-
-/* [안심] 0건: Clean White & Pearl Silver */
-.history-status-badge.safe {
-  background: #FFFFFF !important;
-  color: #475569 !important;
-  border: 1px solid #E2E8F0 !important;
-  box-shadow: 0 1px 3px rgba(15, 23, 42, 0.04);
-}
-.history-status-badge.safe::before {
-  background: #94A3B8; /* 차분한 실버 도트 */
+  align-self: center;
+  height: 25px;
+  padding: 2px 8px;
+  border-radius: 6px;
+  font-size: 11.5px;
+  font-weight: 700;
+  white-space: nowrap;
 }
 
-/* [중간 검토] 3~4건: Soft Warm Coral Rose */
-.history-status-badge.warning {
-  background: rgba(251, 113, 133, 0.14) !important;
-  color: #E11D48 !important;
-  border: 1px solid rgba(251, 113, 133, 0.35) !important;
-}
-.history-status-badge.warning::before {
-  background: #FB7185;
+/* [안심] 0건: AdCheck 브랜드 민트 */
+.history-status-chip.tier-safe {
+  background: #F0FDFA;
+  border: 1px solid #CCFBF1;
+  color: #0D9488;
 }
 
-/* [집중 주의] 5건 이상: Deep Ruby Crimson */
-.history-status-badge.review {
-  background: rgba(225, 29, 72, 0.12) !important;
-  color: #BE123C !important;
-  border: 1px solid rgba(225, 29, 72, 0.35) !important;
+/* [검토] 1~4건: 옐로우/앰버 */
+.history-status-chip.tier-caution {
+  background: #FEFCE8;
+  border: 1px solid #FEF08A;
+  color: #A16207;
 }
-.history-status-badge.review::before {
-  background: #E11D48;
+
+/* [주의] 5건 이상: 로즈 */
+.history-status-chip.tier-review {
+  background: #FFF1F2;
+  border: 1px solid #FFE4E6;
+  color: #E11D48;
 }

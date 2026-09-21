@@ -28,6 +28,7 @@ export interface DetailListViewProps {
   // IDLE 화면부터 다시 시작하도록 onReset(goHome)을 씁니다.
   onReset?: () => void;
   onToggleFavorite?: () => void;
+  onBack?: () => void;
 }
 
 // finding.message("의약품" 포함 여부)로 2대 구분 버킷(기능성표시/광고심의)을 매핑
@@ -55,6 +56,7 @@ export const DetailListView: React.FC<DetailListViewProps> = ({
   onLocateFinding,
   onReset,
   onToggleFavorite,
+  onBack,
 }) => {
   const indexedFindings = findings.map((finding, idx) => ({ finding, idx }));
 
@@ -136,9 +138,24 @@ export const DetailListView: React.FC<DetailListViewProps> = ({
             {isFavorite ? '★' : '☆'}
           </button>
         )}
-        <h2 style={{ fontSize: '20px', fontWeight: 800, color: '#190933', margin: 0, letterSpacing: '-0.4px', lineHeight: 1.35 }}>
-          광고 점검 상세 리포트
-        </h2>
+        {/* 화살표(좌) / 제목(중앙) / 여백(우) 3칸 그리드로 나눠 화살표와 제목이 절대 겹치지 않게 함 */}
+        <div style={{ display: 'grid', gridTemplateColumns: '22px 1fr 22px', alignItems: 'center', columnGap: '6px', width: '100%' }}>
+          {onBack && (
+            <button
+              type="button"
+              className="icon-back-btn"
+              onClick={onBack}
+              aria-label="뒤로가기"
+            >
+              <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="#0F172A" strokeWidth="2.4" strokeLinecap="round" strokeLinejoin="round">
+                <polyline points="15 18 9 12 15 6" />
+              </svg>
+            </button>
+          )}
+          <h2 style={{ gridColumn: 2, fontSize: '20px', fontWeight: 800, color: '#190933', margin: 0, letterSpacing: '-0.4px', lineHeight: 1.35 }}>
+            광고 점검 상세 리포트
+          </h2>
+        </div>
         {currentPageTitle && pageUrl && (
           <a
             href={pageUrl}

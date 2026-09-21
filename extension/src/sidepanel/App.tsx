@@ -66,6 +66,7 @@ export function App() {
               onLocateFinding={adCheck.locateFinding}
               onReset={adCheck.goHome}
               onToggleFavorite={() => adCheck.currentHistoryId && adCheck.toggleFavorite(adCheck.currentHistoryId)}
+              onBack={() => setStatus("BUBBLE_PREVIEW")}
             />
           )}
 
