@@ -159,6 +159,16 @@ public class AiRuleEvaluator implements RuleEvaluator {
         sb.append("[판단 기준]\n");
         sb.append("분류: ").append(rule.getJudgmentCategory()).append('\n');
         sb.append("적용 조건: ").append(rule.getApplicationConditions()).append('\n');
+        if (rule.getApplicationConditions() != null && rule.getApplicationConditions().contains("구분")) {
+            // C04_DISEASE_INFO_LINK 실측에서, 문장에 이미 "---" 같은 구분 기호나 "출처: OOO" 같은
+            // 명시적 인용이 있는데도 모델이 이걸 "구분됐다"는 신호로 안 쓰고 그냥 MATCHED로 확정하는
+            // 것이 반복 관찰됐다(3회 중 2회). 적용 조건 자체가 "구분됐는지"를 묻고 있으니, 그 구분을
+            // 알아볼 수 있는 텍스트 신호를 명시해준다.
+            sb.append("(주의: 문장 안에 구분 기호(예: \"---\", 줄바꿈, 괄호)나 \"출처: OOO\" 같은 명시적 ");
+            sb.append("인용이 있으면, 그것 자체가 \"명확히 구분됐다\"는 강한 신호입니다 — 구분 기호가 ");
+            sb.append("있는데도 질병 정보와 제품 광고가 섞여 있다고 보려면, 그 구분을 무효화할 만한 다른 ");
+            sb.append("근거(예: 구분 직후 곧바로 질병명과 제품을 같은 문장에서 연결)가 있어야 합니다.)\n");
+        }
         sb.append("(주의: 위 조건에 나온 핵심 단어가 문장에 있다는 사실만으로 자동 충족되는 게 아닙니다 — ");
         sb.append("문장이 실제로 구체적인 효능 확장·결합 주장을 담고 있는지 애매하면, 아래 needsOutsideContext를 ");
         sb.append("반드시 true로 답하세요. 막연한 상황 묘사·부드러운 동기부여 문구·단순 증상 언급은 핵심 단어가 ");
@@ -175,6 +185,21 @@ public class AiRuleEvaluator implements RuleEvaluator {
         if (isNotBlank(rule.getCandidateExamples())) {
             sb.append("참고 예시(전체 목록 아님, 이런 것도 해당할 수 있다는 힌트일 뿐): ")
                     .append(rule.getCandidateExamples()).append('\n');
+        }
+        if ("C21_UNFAIR_COMPARISON".equals(rule.getRuleCode())) {
+            // 실제 심의 사례(ad_cases BAD-02)를 그대로 예시로 넣는다 — 일반 지침("핵심 단어만으로
+            // 판단하지 마세요" 등)은 C14/C21 등 여러 규칙에서 두 번 시도해도 전혀 안 먹혔다(문서
+            // 참고). C21의 candidateExamples가 "함량 n배이므로 효과 n배" 같은 명시적 수치 비교만
+            // 담고 있어서, 모델이 "명시적 비교 문구가 없으면 해당 없음"으로 좁게 해석하는 것으로
+            // 보인다 — 실제로는 인증·안전성 표시를 나열하는 것만으로도 암묵적 우월 주장이 될 수
+            // 있는데, 그 유형이 candidateExamples에 아예 없다. 지침 대신 실제 사례를 보여준다.
+            sb.append("(실제 사례: \"two safe 인증 / 임산부 안전평가 인증 완료\"라는 문구는 ");
+            sb.append("\"~보다\", \"n배\" 같은 명시적 비교 표현이 전혀 없지만, 실제 심의에서 ");
+            sb.append("위반(MATCHED)으로 판정됐습니다 — 사유: \"자사 제품만 더 안전하고 우수한 ");
+            sb.append("것으로 오인할 우려\". 인증·안전성 표시를 여러 개 나열하는 것 자체가, ");
+            sb.append("비교 대상을 직접 언급하지 않고도 \"우리 제품만 특별히 안전·우수하다\"는 ");
+            sb.append("암묵적 비교·우월 주장이 될 수 있습니다. 명시적 비교 문구가 없다고 해서 ");
+            sb.append("이 규칙이 적용되지 않는다고 단정하지 마세요.)\n");
         }
         if (isNotBlank(rule.getRequiredEvidence())) {
             sb.append("필요 근거(참고용 — 지금 판단엔 이 근거 자료가 없을 수 있음): ")
@@ -370,6 +395,16 @@ public class AiRuleEvaluator implements RuleEvaluator {
         sb.append("[판단 기준]\n");
         sb.append("분류: ").append(rule.getJudgmentCategory()).append('\n');
         sb.append("적용 조건: ").append(rule.getApplicationConditions()).append('\n');
+        if (rule.getApplicationConditions() != null && rule.getApplicationConditions().contains("구분")) {
+            // C04_DISEASE_INFO_LINK 실측에서, 문장에 이미 "---" 같은 구분 기호나 "출처: OOO" 같은
+            // 명시적 인용이 있는데도 모델이 이걸 "구분됐다"는 신호로 안 쓰고 그냥 MATCHED로 확정하는
+            // 것이 반복 관찰됐다(3회 중 2회). 적용 조건 자체가 "구분됐는지"를 묻고 있으니, 그 구분을
+            // 알아볼 수 있는 텍스트 신호를 명시해준다.
+            sb.append("(주의: 문장 안에 구분 기호(예: \"---\", 줄바꿈, 괄호)나 \"출처: OOO\" 같은 명시적 ");
+            sb.append("인용이 있으면, 그것 자체가 \"명확히 구분됐다\"는 강한 신호입니다 — 구분 기호가 ");
+            sb.append("있는데도 질병 정보와 제품 광고가 섞여 있다고 보려면, 그 구분을 무효화할 만한 다른 ");
+            sb.append("근거(예: 구분 직후 곧바로 질병명과 제품을 같은 문장에서 연결)가 있어야 합니다.)\n");
+        }
         sb.append("(주의: 위 조건에 나온 핵심 단어가 문장에 있다는 사실만으로 자동 충족되는 게 아닙니다 — ");
         sb.append("문장이 실제로 구체적인 효능 확장·결합 주장을 담고 있는지 애매하면, 아래 needsOutsideContext를 ");
         sb.append("반드시 true로 답하세요. 막연한 상황 묘사·부드러운 동기부여 문구·단순 증상 언급은 핵심 단어가 ");
@@ -386,6 +421,21 @@ public class AiRuleEvaluator implements RuleEvaluator {
         if (isNotBlank(rule.getCandidateExamples())) {
             sb.append("참고 예시(전체 목록 아님, 이런 것도 해당할 수 있다는 힌트일 뿐): ")
                     .append(rule.getCandidateExamples()).append('\n');
+        }
+        if ("C21_UNFAIR_COMPARISON".equals(rule.getRuleCode())) {
+            // 실제 심의 사례(ad_cases BAD-02)를 그대로 예시로 넣는다 — 일반 지침("핵심 단어만으로
+            // 판단하지 마세요" 등)은 C14/C21 등 여러 규칙에서 두 번 시도해도 전혀 안 먹혔다(문서
+            // 참고). C21의 candidateExamples가 "함량 n배이므로 효과 n배" 같은 명시적 수치 비교만
+            // 담고 있어서, 모델이 "명시적 비교 문구가 없으면 해당 없음"으로 좁게 해석하는 것으로
+            // 보인다 — 실제로는 인증·안전성 표시를 나열하는 것만으로도 암묵적 우월 주장이 될 수
+            // 있는데, 그 유형이 candidateExamples에 아예 없다. 지침 대신 실제 사례를 보여준다.
+            sb.append("(실제 사례: \"two safe 인증 / 임산부 안전평가 인증 완료\"라는 문구는 ");
+            sb.append("\"~보다\", \"n배\" 같은 명시적 비교 표현이 전혀 없지만, 실제 심의에서 ");
+            sb.append("위반(MATCHED)으로 판정됐습니다 — 사유: \"자사 제품만 더 안전하고 우수한 ");
+            sb.append("것으로 오인할 우려\". 인증·안전성 표시를 여러 개 나열하는 것 자체가, ");
+            sb.append("비교 대상을 직접 언급하지 않고도 \"우리 제품만 특별히 안전·우수하다\"는 ");
+            sb.append("암묵적 비교·우월 주장이 될 수 있습니다. 명시적 비교 문구가 없다고 해서 ");
+            sb.append("이 규칙이 적용되지 않는다고 단정하지 마세요.)\n");
         }
         if (isNotBlank(rule.getRequiredEvidence())) {
             sb.append("필요 근거(참고용 — 지금 판단엔 이 근거 자료가 없을 수 있음): ")

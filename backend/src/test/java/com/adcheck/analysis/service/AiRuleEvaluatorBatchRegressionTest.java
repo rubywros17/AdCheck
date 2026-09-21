@@ -52,18 +52,23 @@ class AiRuleEvaluatorBatchRegressionTest {
         AiRuleEvaluator evaluator =
                 new AiRuleEvaluator(new GeminiClient(apiKey, "gemini-3.5-flash-lite"), null);
 
-        Set<String> allowlist = Set.copyOf(new RuleJudgeProperties().getEnabledRuleCodes());
-        List<String> targets = new ArrayList<>(new TreeSet<>(
-                evaluator.ruleCodes().stream().filter(allowlist::contains).toList()));
-        // REGRESSION_RULES로 일부만 골라 잴 수 있다 — 프롬프트를 고친 뒤 특정 규칙의 퇴행
-        // 여부만 확인할 때 전체 60회를 다 돌리지 않아도 된다.
+        // REGRESSION_RULES로 특정 규칙만 골라 잴 수 있다 — 이때는 allowlist를 거치지 않는다.
+        // allowlist는 "지금 실전에 켜진 것 전체가 안 나빠졌는지" 볼 때만 의미가 있고, 아직 켜지
+        // 않은 백로그 규칙(예: C14/C21처럼 "매번 같은 케이스를 틀림"으로 보류된 것)을 프롬프트
+        // 수정 후 재보려면 allowlist 밖 규칙도 evaluator가 알기만 하면 잴 수 있어야 한다.
         String only = System.getenv("REGRESSION_RULES");
+        List<String> targets;
         if (only != null && !only.isBlank()) {
             Set<String> picked = java.util.Arrays.stream(only.split(","))
                     .map(String::strip).filter(code -> !code.isEmpty())
                     .collect(java.util.stream.Collectors.toSet());
-            targets.retainAll(picked);
+            targets = new ArrayList<>(new TreeSet<>(
+                    evaluator.ruleCodes().stream().filter(picked::contains).toList()));
             Assumptions.assumeTrue(!targets.isEmpty(), "REGRESSION_RULES와 겹치는 규칙 없음 - 스킵");
+        } else {
+            Set<String> allowlist = Set.copyOf(new RuleJudgeProperties().getEnabledRuleCodes());
+            targets = new ArrayList<>(new TreeSet<>(
+                    evaluator.ruleCodes().stream().filter(allowlist::contains).toList()));
         }
         Map<String, List<Map<String, String>>> byRule = ValidationDatasetFixture.byRuleCode(targets);
         Assumptions.assumeTrue(!byRule.isEmpty(), "검증 케이스 없음 - 스킵");
