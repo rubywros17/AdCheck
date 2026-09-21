@@ -48,6 +48,16 @@ public class GeminiOcrService {
     /** 이 크기를 넘는 이미지는 OCR에서 제외한다(애니메이션 GIF 같은 초대형 배너 방어). */
     private static final int MAX_IMAGE_BYTES = 4 * 1024 * 1024;
 
+    /**
+     * 이 크기 미만인 이미지는 OCR에서 제외한다 — 사이트 로고·아이콘·버튼류 방어. 실제 상품페이지
+     * 2건(아루침·라이락틴, 각 50장)의 실측 기준으로 정했다: 두 사이트 모두 장식용 이미지는 전부
+     * 10KB 미만이었고(cafe24 스킨 아이콘·버튼 1~10KB), 실제 상세 이미지는 두 사이트 모두 12KB
+     * 이상부터 시작했다(아루침 최소 19.8KB, 라이락틴 최소 12.2KB) — 그 사이 어디를 잡아도
+     * 안전하지만, 두 표본의 여유를 함께 보고 10KB로 잡았다. 아루침 실측에서 UI 이미지 13장의
+     * OCR 결과 합계가 42자(10장은 0자)였던 것과 대조된다 — 청크 슬롯만 차지하고 얻는 게 없었다.
+     */
+    private static final int MIN_IMAGE_BYTES = 10 * 1024;
+
     private final GeminiClient geminiClient;
     private final RestClient downloadClient;
     private final ObjectMapper objectMapper;
@@ -163,6 +173,11 @@ public class GeminiOcrService {
         if (imageBytes.length > MAX_IMAGE_BYTES) {
             log.info("이미지가 너무 커서 OCR에서 제외합니다 ({}KB, 상한 {}KB): {}",
                     imageBytes.length / 1024, MAX_IMAGE_BYTES / 1024, imageUrl);
+            return null;
+        }
+        if (imageBytes.length < MIN_IMAGE_BYTES) {
+            log.info("이미지가 너무 작아 OCR에서 제외합니다 (로고·아이콘 추정, {}B, 하한 {}KB): {}",
+                    imageBytes.length, MIN_IMAGE_BYTES / 1024, imageUrl);
             return null;
         }
         return new GeminiClient.ImageInput(guessMimeType(imageUrl), Base64.getEncoder().encodeToString(imageBytes));
