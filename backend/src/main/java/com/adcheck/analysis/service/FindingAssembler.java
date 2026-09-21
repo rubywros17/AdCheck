@@ -161,7 +161,8 @@ public class FindingAssembler {
         log.info("[TIMING] ⑥ AI#2 비교+Finding 조립 완료 — {}ms (AI#2 호출 대상 {}건, 최종 Finding {}건)",
                 System.currentTimeMillis() - ai2StartedAt, needsAi2.size(), findings.size());
 
-        return new Result(product, List.copyOf(findings), assembled.officialFunctions().size());
+        return new Result(product, List.copyOf(findings), assembled.officialFunctions().size(),
+                assembled.confirmedIngredients().size());
     }
 
     private Product identifyProduct(List<ProductCandidate> candidates) {
@@ -453,6 +454,7 @@ public class FindingAssembler {
     ) {
     }
 
-    public record Result(Product product, List<Finding> findings, int officialFunctionMatchedCount) {
+    public record Result(Product product, List<Finding> findings, int officialFunctionMatchedCount,
+                         int confirmedIngredientCount) {
     }
 }

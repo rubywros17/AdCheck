@@ -71,7 +71,7 @@ class AnalysisBackgroundJobTest {
         );
         when(claimAnalyzer.analyze(input.texts(), input.images())).thenReturn(claimResult);
         when(findingAssembler.assemble(claimResult))
-                .thenReturn(new FindingAssembler.Result(product, List.of(finding), 1));
+                .thenReturn(new FindingAssembler.Result(product, List.of(finding), 1, 1));
 
         backgroundJob.process(7L, input);
 
@@ -100,7 +100,7 @@ class AnalysisBackgroundJobTest {
         ClaimAnalysisResult claimResult = claimResult();
         when(claimAnalyzer.analyze(input.texts(), input.images())).thenReturn(claimResult);
         when(findingAssembler.assemble(claimResult))
-                .thenReturn(new FindingAssembler.Result(null, List.of(), 0));
+                .thenReturn(new FindingAssembler.Result(null, List.of(), 0, 0));
 
         backgroundJob.process(12L, input);
 
