@@ -5,6 +5,8 @@ import type { FindingWithKeyword, ScanHistoryItem } from "./types";
 // "분석(목업)이 몇 초간 진행되는가"는 오직 이 값으로만 제어됩니다.
 export const SCAN_CYCLE_MS = 6000; // 6초
 export const SCAN_HISTORY_STORAGE_KEY = "adcheck_scan_histories";
+// chrome.storage.local에 무한정 쌓이지 않도록, 최근 N건만 보관하고 그 이상은 오래된 것부터 버립니다.
+export const MAX_SCAN_HISTORY_COUNT = 20;
 export const CURRENT_PAGE_TITLE = "프리미엄 눈 건강 루테인 지아잔틴 1000mg";
 
 export const CURRENT_PAGE_URL = "https://example.com/product/12345";

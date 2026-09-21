@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useRef, useState, type Dispatch, type SetStateAction } from "react";
 import {
   CURRENT_PAGE_TITLE, CURRENT_PAGE_URL, DEFAULT_SCAN_HISTORIES,
-  MOCK_FINDINGS, SCAN_CYCLE_MS, SCAN_HISTORY_STORAGE_KEY,
+  MAX_SCAN_HISTORY_COUNT, MOCK_FINDINGS, SCAN_CYCLE_MS, SCAN_HISTORY_STORAGE_KEY,
 } from "../data";
 import type { FilterCategory, FindingWithKeyword, ReviewLevel, ScanHistoryItem, TestTarget, ViewStatus } from "../types";
 import { getCategoryTheme } from "../../constants/judgmentCategories";
@@ -22,14 +22,24 @@ function isScanHistoryItem(value: unknown): value is ScanHistoryItem {
     && (item.favorite === undefined || typeof item.favorite === "boolean");
 }
 
-function loadScanHistories(): ScanHistoryItem[] {
+// extraction-test-recorder.ts와 동일한 chrome.storage.local 패턴 — 사이드패널을 닫았다 다시
+// 열어도(문서가 새로 만들어져 sessionStorage가 비워져도) 점검 기록이 유지되도록 한다.
+async function loadScanHistories(): Promise<ScanHistoryItem[]> {
   try {
-    const raw = sessionStorage.getItem(SCAN_HISTORY_STORAGE_KEY);
-    if (!raw) return DEFAULT_SCAN_HISTORIES;
-    const parsed: unknown = JSON.parse(raw);
+    const stored = await chrome.storage.local.get(SCAN_HISTORY_STORAGE_KEY);
+    const parsed: unknown = stored[SCAN_HISTORY_STORAGE_KEY];
+    if (parsed === undefined) return DEFAULT_SCAN_HISTORIES;
     return Array.isArray(parsed) ? parsed.filter(isScanHistoryItem) : DEFAULT_SCAN_HISTORIES;
   } catch {
     return DEFAULT_SCAN_HISTORIES;
+  }
+}
+
+async function saveScanHistories(histories: ScanHistoryItem[]): Promise<void> {
+  try {
+    await chrome.storage.local.set({ [SCAN_HISTORY_STORAGE_KEY]: histories });
+  } catch {
+    // The sidepanel remains usable when chrome.storage is unavailable.
   }
 }
 
@@ -48,7 +58,10 @@ function toFindingWithKeyword(finding: FindingResponse): FindingWithKeyword {
 
 export function useAdCheck(status: ViewStatus, setStatus: Dispatch<SetStateAction<ViewStatus>>) {
   const [testTarget, setTestTarget] = useState<TestTarget>("NORMAL");
-  const [scanHistories, setScanHistories] = useState(loadScanHistories);
+  // chrome.storage.local 로드는 비동기라 빈 배열로 시작한다 — 로드 완료 전에는 기존 UI의
+  // "저장된 점검 기록이 없어요" 빈 상태 그대로 보여주고, 로드 끝나면 채운다(깜빡임 없음).
+  const [scanHistories, setScanHistories] = useState<ScanHistoryItem[]>([]);
+  const [historiesLoaded, setHistoriesLoaded] = useState(false);
   const [isHistoryOpen, setIsHistoryOpen] = useState(false);
   const [viewingHistory, setViewingHistory] = useState<ScanHistoryItem | null>(null);
   const [activeFilter, setActiveFilter] = useState<FilterCategory>("ALL");
@@ -70,12 +83,24 @@ export function useAdCheck(status: ViewStatus, setStatus: Dispatch<SetStateActio
   const isCurrentFavorite = scanHistories.find((history) => history.id === currentHistoryId)?.favorite ?? false;
 
   useEffect(() => {
-    try {
-      sessionStorage.setItem(SCAN_HISTORY_STORAGE_KEY, JSON.stringify(scanHistories));
-    } catch {
-      // The sidepanel remains usable when session storage is unavailable.
-    }
-  }, [scanHistories]);
+    let cancelled = false;
+    void loadScanHistories().then((histories) => {
+      if (!cancelled) {
+        setScanHistories(histories);
+        setHistoriesLoaded(true);
+      }
+    });
+    return () => {
+      cancelled = true;
+    };
+  }, []);
+
+  useEffect(() => {
+    // 초기 로드가 끝나기 전(scanHistories가 아직 빈 배열)에 저장하면 실제 저장된 기록을
+    // 빈 배열로 덮어써버리므로, 로드가 끝난 뒤의 변경만 저장한다.
+    if (!historiesLoaded) return;
+    void saveScanHistories(scanHistories);
+  }, [scanHistories, historiesLoaded]);
 
   const cancelAnalysis = useCallback(() => {
     analysisRequestIdRef.current += 1; // 진행 중이던 실제 응답을 stale 처리
@@ -109,7 +134,8 @@ export function useAdCheck(status: ViewStatus, setStatus: Dispatch<SetStateActio
       count,
       level: getReviewLevel(count),
     };
-    setScanHistories((previous) => [history, ...previous]);
+    // 최신순으로 맨 앞에 추가하므로, 오래된 것을 버리려면 뒤쪽(끝)을 잘라내면 된다.
+    setScanHistories((previous) => [history, ...previous].slice(0, MAX_SCAN_HISTORY_COUNT));
   }
 
   async function analyze() {
