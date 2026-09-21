@@ -58,6 +58,17 @@ public class IngredientMatchingService {
     private static final Pattern FALLBACK_NO_PATTERN = Pattern.compile("제\\s*([0-9]{4}\\s*-\\s*[0-9]+)\\s*호");
     private static final Pattern WHITESPACE_PATTERN = Pattern.compile("\\s+");
 
+    /**
+     * 원료명 끝에 붙은 "숫자+함량단위"를 제거한다(예: "비타민c500mg" -> "비타민c"). 반드시
+     * 문자열 끝(anchor $)에서만, 단위가 실제로 붙어있을 때만 지운다 — 숫자만 있고 단위가
+     * 없으면(예: "비타민b12") 매치되지 않아 원료명 자체의 숫자는 건드리지 않는다. 괄호로
+     * 끝나는 문자열은 $ 바로 앞이 ')'라 이 패턴이 애초에 매치되지 않으므로, 괄호 안 내용은
+     * IngredientSplitter가 보장하는 괄호 균형과 무관하게 항상 그대로 보존된다. whitespace
+     * 제거·소문자화 다음 단계로 적용하므로 단위 앞뒤 공백·대소문자는 이미 정리된 상태다.
+     */
+    private static final Pattern TRAILING_DOSAGE_PATTERN =
+            Pattern.compile("(?:[0-9][0-9,.]*(?:mg|g|%|μg|ug|iu))+$");
+
     public static final String MATCHED = "MATCHED";
     public static final String REVIEW_REQUIRED = "REVIEW_REQUIRED";
     public static final String UNMATCHED = "UNMATCHED";
@@ -126,15 +137,22 @@ public class IngredientMatchingService {
     }
 
     /**
-     * 공백(개행 포함) 제거 + 소문자화만 한다 — 괄호 안 내용은 절대 지우지 않는다. 팀원의
-     * 실제 계산 결과(product_ingredient_matches_v0.2.csv)로 검증해보니, 괄호를 통째로 지워
-     * 비교하면(예: "인삼분말(가루, 과립)(인삼근 70%, 인삼미삼 30%)" -> "인삼분말") 원래
-     * UNMATCHED여야 할 설명형 문자열이 괄호 없는 동의어와 우연히 같아져 오매칭이 발생했다.
-     * 반대로 "Bifidobacteriumbifidum(고시형)"처럼 공백 유무 차이만 있는 표기는 동의어사전에
-     * 공백 포함 형태 그대로(괄호까지 포함해서) 등록돼 있어서, 공백만 제거해도 정확히 일치한다.
+     * 공백(개행 포함) 제거 + 소문자화 + 끝단 함량단위 제거를 한다 — 괄호 안 내용은 절대
+     * 지우지 않는다. 팀원의 실제 계산 결과(product_ingredient_matches_v0.2.csv)로
+     * 검증해보니, 괄호를 통째로 지워 비교하면(예: "인삼분말(가루, 과립)(인삼근 70%, 인삼미삼
+     * 30%)" -> "인삼분말") 원래 UNMATCHED여야 할 설명형 문자열이 괄호 없는 동의어와
+     * 우연히 같아져 오매칭이 발생했다. 반대로 "Bifidobacteriumbifidum(고시형)"처럼 공백
+     * 유무 차이만 있는 표기는 동의어사전에 공백 포함 형태 그대로(괄호까지 포함해서) 등록돼
+     * 있어서, 공백만 제거해도 정확히 일치한다.
+     *
+     * <p>끝단 함량단위 제거는 "비타민c500mg" -> "비타민c"처럼 상세페이지 원료표시(원료명 뒤에
+     * 실제 함량이 따라붙는 표기)가 동의어사전의 순수 원료명과 매칭되게 하려고 추가했다
+     * ({@link #TRAILING_DOSAGE_PATTERN} 참고) — 위 괄호 보존 원칙, 완전일치만 쓰는 원칙과
+     * 동일하게 적용된다.
      */
     private static String normalizedKey(String name) {
-        return WHITESPACE_PATTERN.matcher(name).replaceAll("").toLowerCase();
+        String noWhitespace = WHITESPACE_PATTERN.matcher(name).replaceAll("").toLowerCase();
+        return TRAILING_DOSAGE_PATTERN.matcher(noWhitespace).replaceAll("");
     }
 
     /** 인정번호 패턴을 뽑아서 조회한다. productType 문자열에도 그대로 재사용 가능(①번 매칭용). */
