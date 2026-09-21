@@ -12,6 +12,8 @@ import java.util.Objects;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
+import java.util.concurrent.TimeUnit;
+import java.util.concurrent.atomic.AtomicInteger;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -45,16 +47,29 @@ public class RuleAnalysisService {
         this.selector = selector;
         this.registry = registry;
         this.sourceResolver = sourceResolver;
+        AtomicInteger threadCount = new AtomicInteger();
         this.ruleJudgeExecutor = Executors.newFixedThreadPool(Math.max(1, concurrency), runnable -> {
-            Thread thread = new Thread(runnable, "rule-judge-");
+            Thread thread = new Thread(runnable, "rule-judge-" + threadCount.getAndIncrement());
             thread.setDaemon(true);
             return thread;
         });
     }
 
+    /**
+     * 데몬 스레드라 JVM 종료를 막지는 않지만, 그냥 shutdown()만 부르면 도중이던 규칙 판정이
+     * 끊긴 채로 스레드가 죽을 수 있다 — 짧게 기다려주고, 그래도 안 끝나면 강제 종료한다.
+     */
     @PreDestroy
     void shutdownExecutor() {
         ruleJudgeExecutor.shutdown();
+        try {
+            if (!ruleJudgeExecutor.awaitTermination(5, TimeUnit.SECONDS)) {
+                ruleJudgeExecutor.shutdownNow();
+            }
+        } catch (InterruptedException e) {
+            ruleJudgeExecutor.shutdownNow();
+            Thread.currentThread().interrupt();
+        }
     }
 
     private record EvaluatedRule(Rule rule, RuleEvaluation evaluation) { }
@@ -77,8 +92,18 @@ public class RuleAnalysisService {
         if (requests.isEmpty()) {
             return List.of();
         }
-        // 확정 원료는 상품 단위라 Claim마다 같다 — 규칙 선택은 한 번이면 된다.
-        var rules = selector.select(requests.get(0).confirmedIngredientMasterIds());
+        // 확정 원료는 상품 단위라 Claim마다 같다는 전제로, 규칙 선택을 한 번만 한다. 이 전제가
+        // 깨지면(예: 나중에 Claim별로 다른 원료를 확정하는 경로가 생기면) 뒤쪽 Claim들이 조용히
+        // 틀린 규칙 세트로 평가되므로, 여기서 미리 확인해 어긋나면 바로 실패시킨다.
+        var confirmedIngredientMasterIds = requests.get(0).confirmedIngredientMasterIds();
+        for (RuleAnalysisRequest request : requests) {
+            if (!request.confirmedIngredientMasterIds().equals(confirmedIngredientMasterIds)) {
+                throw new IllegalArgumentException(
+                        "analyzeAll()은 모든 요청이 같은 확정 원료 집합을 공유한다고 전제한다 — "
+                                + "Claim별로 다른 원료가 확정된 요청이 섞여 들어왔다.");
+            }
+        }
+        var rules = selector.select(confirmedIngredientMasterIds);
 
         // 규칙끼리는 서로 독립적이라 동시에 평가한다 — 규칙 하나당 호출 1회이므로 동시 호출 수는
         // concurrency 설정값을 넘지 않는다(무료 티어 분당 한도를 한꺼번에 소진하지 않기 위함).

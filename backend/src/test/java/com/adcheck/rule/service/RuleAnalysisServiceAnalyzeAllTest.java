@@ -22,6 +22,7 @@ import static com.adcheck.rule.service.RuleEvaluation.Status.MATCHED;
 import static com.adcheck.rule.service.RuleEvaluation.Status.NOT_MATCHED;
 import static com.adcheck.rule.service.RuleEvaluation.Status.REVIEW_REQUIRED;
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.verifyNoInteractions;
@@ -156,6 +157,24 @@ class RuleAnalysisServiceAnalyzeAllTest {
         assertThat(results).allSatisfy(result ->
                 assertThat(result.diagnostics()).containsExactly(INGREDIENT_SPECIFIC_NOT_EVALUATED));
         verifyNoInteractions(ingredients);
+    }
+
+    @Test
+    void Claim마다_확정_원료가_다르면_예외를_던진다() {
+        ScriptedEvaluator evaluator = new ScriptedEvaluator(Map.of(RULE_A, always(MATCHED)));
+        List<RuleAnalysisRequest> requests = List.of(
+                new RuleAnalysisRequest(
+                        new Claim("claim-1", "가", PRODUCT_COPY, "page-1#copy: 주변 문맥 확인됨"),
+                        List.of(), Set.of(1L), null),
+                // 원료 매칭은 상품 단위로 한 번만 확정되므로 같은 분석 안의 모든 Claim은 같은
+                // 확정 원료 집합을 공유해야 한다 — 여기서는 그 전제를 일부러 깨뜨린다.
+                new RuleAnalysisRequest(
+                        new Claim("claim-2", "나", PRODUCT_COPY, "page-1#copy: 주변 문맥 확인됨"),
+                        List.of(), Set.of(2L), null));
+
+        assertThatThrownBy(() -> service(evaluator).analyzeAll(requests))
+                .isInstanceOf(IllegalArgumentException.class)
+                .hasMessageContaining("같은 확정 원료 집합을 공유");
     }
 
     private RuleAnalysisService service(RuleEvaluator evaluator) {
