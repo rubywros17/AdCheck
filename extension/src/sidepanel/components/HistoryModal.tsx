@@ -9,11 +9,12 @@ interface Props {
   onToggleFavorite: (id: string) => void;
 }
 
-function getBadge(history: ScanHistoryItem) {
-  const state = history.level === "SAFE" ? "safe" : history.level === "CAUTION" ? "warning" : "review";
+// 결과 요약 화면 게이지 바와 동일한 3색 체계(안심=민트/검토=옐로우/주의=로즈)를 그대로 재사용
+function getStatusChip(history: ScanHistoryItem) {
+  const tier = history.level.toLowerCase(); // "safe" | "caution" | "review"
   const label = REVIEW_LEVEL_LABEL[history.level];
   const text = history.level === "SAFE" ? label : `${label} ${history.count}건`;
-  return { state, text };
+  return { tier, text };
 }
 
 export function HistoryModal({ histories, onClose, onSelect, onToggleFavorite }: Props) {
@@ -76,7 +77,7 @@ export function HistoryModal({ histories, onClose, onSelect, onToggleFavorite }:
         ) : (
           <div className="history-list-stack">
             {sortedHistories.map((history) => {
-              const badge = getBadge(history);
+              const chip = getStatusChip(history);
               return (
                 <div key={history.id} className="history-item-card">
                   <button
@@ -93,10 +94,10 @@ export function HistoryModal({ histories, onClose, onSelect, onToggleFavorite }:
                   </button>
                   <button type="button" className="history-item-select" onClick={() => onSelect(history)}>
                     <span className="history-item-info">
-                      <span className="history-date">{history.dateStr}</span>
                       <strong className="history-prod-name">{history.productName}</strong>
+                      <span className="history-date">{history.dateStr}</span>
                     </span>
-                    <span className={`history-status-badge ${badge.state}`}>{badge.text}</span>
+                    <span className={`history-status-chip tier-${chip.tier}`}>{chip.text}</span>
                   </button>
                 </div>
               );

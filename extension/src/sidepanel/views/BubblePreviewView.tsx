@@ -11,12 +11,20 @@ interface Props {
   onShowAll: () => void;
 }
 
-export function BubblePreviewView({ findings, onSelect, onShowAll }: Props) {
+export function BubblePreviewView({ findings, onBack, onSelect, onShowAll }: Props) {
   return (
     <div className="toss-hero-box bubble-preview-box">
-      <h2 className="hero-title">
-        주요 문구를 먼저 살펴볼까요?
-      </h2>
+      {/* 화살표(좌) / 제목(중앙) / 여백(우)을 3칸 그리드로 나눠, 제목이 길어져도 화살표와 절대 겹치지 않게 함 */}
+      <div style={{ display: 'grid', gridTemplateColumns: '22px 1fr 22px', alignItems: 'center', columnGap: '6px', width: '100%', marginBottom: '8px' }}>
+        <button type="button" className="icon-back-btn" onClick={onBack} aria-label="뒤로가기">
+          <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="#0F172A" strokeWidth="2.4" strokeLinecap="round" strokeLinejoin="round">
+            <polyline points="15 18 9 12 15 6" />
+          </svg>
+        </button>
+        <h2 className="hero-title" style={{ gridColumn: 2, margin: 0 }}>
+          주요 문구를 먼저 살펴볼까요?
+        </h2>
+      </div>
       <p className="hero-sub hero-sub-clean">
         궁금한 문구를 눌러보면<br />
         자세한 내용을 확인할 수 있어요.
