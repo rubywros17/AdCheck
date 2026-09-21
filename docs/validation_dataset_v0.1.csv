@@ -67,7 +67,7 @@ G05_GLUCOSE_DIET,INGREDIENT_SPECIFIC,NOT_MATCHED,혈당 조절에 도움을 주�
 G05_GLUCOSE_DIET,INGREDIENT_SPECIFIC,MATCHED,혈당 관리가 다이어트의 시작입니다,REVIEW-03 p.71: '혈당 다이어트' 패턴 — 두 기능성이 구분 없이 결합돼 사용 불가,"AI_DRAFT_CORRECTED(REVIEW-03 p.71, 팀 승인 2026-09-21)"
 M01_FATIGUE,INGREDIENT_SPECIFIC,MATCHED,"수험생 입소문 에너지 비타민, 수험생 학업 스트레스 피로 개선",간 건강을 전신 피로개선 기능으로 확장,BAD-05(MILK_THISTLE)
 M01_FATIGUE,INGREDIENT_SPECIFIC,NOT_MATCHED,간에 좋은,간 기능성 범위 내,GOOD-05(MILK_THISTLE)
-M01_FATIGUE,INGREDIENT_SPECIFIC,REVIEW_REQUIRED,요즘 유난히 무기력하다면 간 건강부터 챙기세요,전신 피로개선 확장 암시인지 애매,AI_DRAFT
+M01_FATIGUE,INGREDIENT_SPECIFIC,MATCHED,요즘 유난히 무기력하다면 간 건강부터 챙기세요,"REVIEW-03 p.72: '무기력'을 '피로/피곤'의 동의어 확장으로 해석 — 간 건강 기능을 전신 피로개선으로 확장하는 금지 패턴과 동일","AI_DRAFT_CORRECTED_INTERPRETIVE(REVIEW-03 p.72, 팀 승인 2026-09-21, 문구 직접 일치 아닌 동의어 확장 해석)"
 M04_REGEN_CANCER,INGREDIENT_SPECIFIC,MATCHED,손상된 간세포를 재생시켜 간암까지 예방하는 놀라운 효과,치료·재생 주장 또는 암 공포 유도,AI_DRAFT
 M04_REGEN_CANCER,INGREDIENT_SPECIFIC,NOT_MATCHED,간 건강에 도움을 줄 수 있습니다,치료·재생·공포유도 없음,AI_DRAFT
 M04_REGEN_CANCER,INGREDIENT_SPECIFIC,MATCHED,"[건강정보] 간암은 초기 증상이 없어 주의가 필요합니다 --- 간 건강 챙기는 습관, 지금부터",REVIEW-03 p.73: 건강정보 형식으로 암 관련 내용을 인용하는 것 자체가 공포 조성 우려로 불가,"AI_DRAFT_CORRECTED(REVIEW-03 p.73, 팀 승인 2026-09-21)"
@@ -76,7 +76,7 @@ T04_ANTIAGING,INGREDIENT_SPECIFIC,NOT_MATCHED,항산화 작용을 하여 유해�
 T04_ANTIAGING,INGREDIENT_SPECIFIC,REVIEW_REQUIRED,젊음을 유지하는 비결,노화방지 확장 주장인지 막연한 문구인지 애매,AI_DRAFT
 S04_SEASON,INGREDIENT_SPECIFIC,MATCHED,관절이 고통스러운 계절 겨울!,특정 계절에 특화된 기능 오인,BAD-07(MSM)
 S04_SEASON,INGREDIENT_SPECIFIC,NOT_MATCHED,겨울맞이 특별 할인 이벤트,판매 계절성일 뿐 효과의 계절 특화 암시 없음,AI_DRAFT
-S04_SEASON,INGREDIENT_SPECIFIC,REVIEW_REQUIRED,"쌀쌀해진 날씨, 관절 건강 챙기세요",계절 특화 효과 암시인지 시의성 멘트인지 애매,AI_DRAFT
+S04_SEASON,INGREDIENT_SPECIFIC,MATCHED,"쌀쌀해진 날씨, 관절 건강 챙기세요","REVIEW-03 p.76: 특정 계절·날씨 관련 표현은 일괄 사용 불가(BAD-07과 동일 패턴, 판매 계절성 예외 아님)","AI_DRAFT_CORRECTED(REVIEW-03 p.76, 팀 승인 2026-09-21)"
 O01_SEXUAL,INGREDIENT_SPECIFIC,MATCHED,아내가 좋다고 계속 먹으라고 해요 / 여친 없는 사람은 사지마세요,지구력 기능을 성기능으로 암시,BAD-08(OCTACOSANOL)
 O01_SEXUAL,INGREDIENT_SPECIFIC,NOT_MATCHED,지구력 증진에 도움을 줄 수 있습니다,인정기능성 범위 내,GOOD-08(OCTACOSANOL)
 O01_SEXUAL,INGREDIENT_SPECIFIC,REVIEW_REQUIRED,자신감 있는 하루하루를 위해,성기능 암시인지 일반적 활력 표현인지 애매,AI_DRAFT

@@ -16,7 +16,8 @@ import java.util.List;
  * 재실행해 5회 중 4~5회 정답으로 확인된 것, 3차 3개: 패턴1 프롬프트 수정 후 3회 반복 실행에서
  * 8~9/9로 안정적으로 정답, 4차 1개: 패턴2 프롬프트 수정 후 서로 다른 문구 버전 2개에서 연속
  * 3/3, 5차 2개(2026-09-21): 검증 데이터셋 라벨 오류로 확인돼 정정 후 3회 반복 9/9, 6차
- * 3개(2026-09-21): 개별 targeted 프롬프트 수정으로 3회 반복 8~9/9) = 37개. allowlist에
+ * 3개(2026-09-21): 개별 targeted 프롬프트 수정으로 3회 반복 8~9/9, 7차 1개(2026-09-21):
+ * 검증 데이터셋 라벨 오류로 확인돼 팀 승인 후 정정, 재측정 3회 반복 9/9) = 38개. allowlist에
  * 없는 코드는 evaluator가 있어도 무시되고 {@code UNSUPPORTED_RULE}로 남는다.
  */
 @Component
@@ -47,7 +48,11 @@ public class RuleJudgeProperties {
             // 인용을 인식하라는 경고 추가(56%→89%), C21은 실제 심의사례를 few-shot으로 추가
             // (67%→89%), C14는 별도 수정 없이 C22용 requiredEvidence 경고의 부수 효과로 이미
             // 100%였음을 확인만 함) — 3개
-            "C04_DISEASE_INFO_LINK", "C14_EXPERT_ENDORSEMENT", "C21_UNFAIR_COMPARISON"
+            "C04_DISEASE_INFO_LINK", "C14_EXPERT_ENDORSEMENT", "C21_UNFAIR_COMPARISON",
+            // AiRuleEvaluator 7차 확장(검증 데이터셋 라벨 오류로 확인돼 팀 승인 후 정정 —
+            // REVIEW-03 p.76 "특정 계절/날씨 관련 표현 사용 불가" 일괄 금지 조항과 실제
+            // 심의사례 BAD-07 패턴 일치로 확인, 라벨 정정 후 재측정 3회 반복 9/9) — 1개
+            "S04_SEASON"
     );
 
     /**
