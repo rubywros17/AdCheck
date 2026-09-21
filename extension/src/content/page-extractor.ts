@@ -1,3 +1,4 @@
+import { marketplaceKind, marketplaceFrameSource, prepareMarketplaceDetail } from "./marketplace-detail";
 import type { PageEvidence, PageImageEvidence, PageTextEvidence } from "../types/evidence";
 import { createSelector } from "./selector";
 
@@ -52,6 +53,29 @@ const LAZY_SCROLL_WAIT_MS = 100;
 const MAX_LAZY_SCROLL_STEPS = 20;
 
 export async function extractPageEvidence(): Promise<PageEvidence> {
+  if (marketplaceKind()) {
+    const originalUrl = location.href;
+    const originalY = scrollY;
+    try {
+      const root = await prepareMarketplaceDetail();
+      const frameUrl = marketplaceFrameSource();
+      let data: PageEvidence;
+      if (frameUrl) {
+        const response = await chrome.runtime.sendMessage({ type: "READ_MARKETPLACE_FRAME", url: frameUrl });
+        if (!response?.ok) throw new Error(response?.error?.message ?? "판매자 상세 문서를 읽지 못했습니다.");
+        data = response.data;
+      } else {
+        await loadLazyImagesThroughDetail(root);
+        data = { pageUrl: location.href, pageTitle: document.title, productName: null,
+          texts: extractTextEvidence(root), images: extractImageEvidence(root) };
+      }
+      if (location.href.split("#")[0] !== originalUrl.split("#")[0]) throw new Error("추출 중 상품이 변경되었습니다.");
+      if (!data.images.length && !data.texts.length) throw new Error("판매자 상세 내용이 비어 있습니다. 상세설명을 확인해주세요.");
+      return { ...data, pageUrl: location.href, pageTitle: document.title, productName: extractProductName() };
+    } finally {
+      if (location.href.split("#")[0] === originalUrl.split("#")[0]) window.scrollTo({top: originalY, behavior:"auto"});
+    }
+  }
   await prepareLazyDetailContent();
 
   return {
@@ -168,83 +192,59 @@ function extractProductName(): string | null {
   return truncateNullable(candidate, 200);
 }
 
-function extractTextEvidence(): PageTextEvidence[] {
-  const candidates: PageTextEvidence[] = [];
-  const elements = document.querySelectorAll<HTMLElement>(TEXT_ELEMENT_SELECTOR);
+export function extractTextEvidence(root: HTMLElement = document.body): PageTextEvidence[] {
+  const seen = new Set<string>();
+  const evidence: PageTextEvidence[] = [];
+  const elements = root.querySelectorAll<HTMLElement>(TEXT_ELEMENT_SELECTOR);
 
   for (const element of elements) {
-    if (element.closest("script, style, noscript, template") || !isVisible(element)) {
+    if (evidence.length >= MAX_TEXT_EVIDENCE_COUNT) {
+      break;
+    }
+    if (element.closest("script, style, noscript, template, nav, footer") || isExcludedText(element, root) || !isVisible(element)) {
       continue;
     }
 
-    const content = normalizeText(element.innerText).slice(0, MAX_TEXT_LENGTH);
-    if (content.length < MIN_TEXT_LENGTH) {
+    const content = normalizeText(cleanText(element)).slice(0, MAX_TEXT_LENGTH);
+    if (content.length < MIN_TEXT_LENGTH || seen.has(content)) {
       continue;
     }
 
-    candidates.push({ content, selector: createSelector(element) });
+    seen.add(content);
+    evidence.push({ content, selector: createSelector(element) });
   }
-  return dedupeByContent(candidates).slice(0, MAX_TEXT_EVIDENCE_COUNT);
+  return evidence;
 }
 
-/**
- * 앞뒤 공백 제거 + 연속 공백 정리(이미 {@link normalizeText}가 처리한) 후 완전히
- * 동일한 {@code content}는 첫 번째 것만 남긴다. 특수문자·이모지 등은 그대로 두고
- * 순수 공백 차이만 같은 텍스트로 취급한다 — 같은 홍보 문구가 배너·상품간략설명·
- * 팝업 등 서로 다른 위치(=다른 selector)에 반복돼도 하나만 남기기 위함이다.
- */
-export function dedupeByContent(texts: PageTextEvidence[]): PageTextEvidence[] {
-  const seen = new Set<string>();
-  const deduped: PageTextEvidence[] = [];
-  for (const text of texts) {
-    if (seen.has(text.content)) {
-      continue;
-    }
-    seen.add(text.content);
-    deduped.push(text);
-  }
-  return deduped;
-}
-
-function extractImageEvidence(): PageImageEvidence[] {
-  const container = findDetailContainer();
+export function extractImageEvidence(container: HTMLElement | null = findDetailContainer()): PageImageEvidence[] {
   if (!container) {
     console.info("[AdCheck] Product detail container was not found; skipping page-wide images");
     return [];
   }
 
-  const candidates: PageImageEvidence[] = [];
+  const seen = new Set<string>();
+  const evidence: PageImageEvidence[] = [];
 
   for (const image of container.querySelectorAll<HTMLImageElement>("img")) {
+    if (evidence.length >= MAX_IMAGE_EVIDENCE_COUNT) {
+      break;
+    }
     if (isInsideExcludedSection(image, container)) {
       continue;
     }
 
     const url = extractImageUrl(image);
-    if (!url || isIrrelevantImage(image, url)) {
+    if (!url || seen.has(url) || isIrrelevantImage(image, url)) {
       continue;
     }
 
-    candidates.push({
+    seen.add(url);
+    evidence.push({
       url,
       alt: truncateNullable(normalizeText(image.alt), 500),
     });
   }
-  return dedupeByUrl(candidates).slice(0, MAX_IMAGE_EVIDENCE_COUNT);
-}
-
-/** 완전히 동일한 이미지 URL은 첫 번째 것만 남긴다. */
-export function dedupeByUrl(images: PageImageEvidence[]): PageImageEvidence[] {
-  const seen = new Set<string>();
-  const deduped: PageImageEvidence[] = [];
-  for (const image of images) {
-    if (seen.has(image.url)) {
-      continue;
-    }
-    seen.add(image.url);
-    deduped.push(image);
-  }
-  return deduped;
+  return evidence;
 }
 
 function findDetailContainer(): HTMLElement | null {
@@ -481,4 +481,34 @@ export function normalizeText(value: string): string {
 
 function truncateNullable(value: string, maxLength: number): string | null {
   return value ? value.slice(0, maxLength) : null;
+}
+
+// Prune excluded descendants too: a parent <li> or <span> can contain a review.
+function isExcludedText(element: HTMLElement, root: HTMLElement): boolean {
+  let node: HTMLElement | null = element;
+  while (node) {
+    const descriptor = getElementDescriptor(node).replace(/preview/gi, "");
+    if (EXCLUDED_SECTION_PATTERN.test(descriptor) || /상품평|상품문의/.test(descriptor)) return true;
+    if (node !== root && node.matches("section, article, div, ul, aside")) {
+      const heading = Array.from(node.children).find(c => c.matches("h2,h3,h4,h5,[role='heading']"));
+      if (heading && /^(추천상품|연관상품|함께.*상품|상품후기|상품평|리뷰|구매후기|상품문의)/.test(normalizeText(heading.textContent ?? "").replace(/\s/g,""))) return true;
+    }
+    if (node === root) break;
+    node = node.parentElement;
+  }
+  return false;
+}
+function cleanText(element: HTMLElement): string {
+  const copy = element.cloneNode(true) as HTMLElement;
+  const originals = Array.from(element.querySelectorAll<HTMLElement>("*"));
+  const copies = Array.from(copy.querySelectorAll<HTMLElement>("*"));
+  originals.forEach((node, index) => {
+    if (node.matches("script,style,noscript,template,nav,footer") || isExcludedText(node, element) || !isVisible(node)) copies[index].remove();
+  });
+  return copy.innerText;
+}
+export async function extractMarketplaceFrameEvidence(): Promise<PageEvidence> {
+  await loadLazyImagesThroughDetail(document.body);
+  return { pageUrl: location.href, pageTitle: document.title, productName: null,
+    texts: extractTextEvidence(document.body), images: extractImageEvidence(document.body) };
 }
