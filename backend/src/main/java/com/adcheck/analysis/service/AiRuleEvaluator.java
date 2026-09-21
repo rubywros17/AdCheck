@@ -179,6 +179,16 @@ public class AiRuleEvaluator implements RuleEvaluator {
         if (isNotBlank(rule.getRequiredEvidence())) {
             sb.append("필요 근거(참고용 — 지금 판단엔 이 근거 자료가 없을 수 있음): ")
                     .append(rule.getRequiredEvidence()).append('\n');
+            // 여기 "실증자료"처럼 증빙을 요구하는 단어가 들어 있으면, 모델이 그 자료를 지금
+            // 볼 수 없다는 이유로 needsOutsideContext=true를 골라 전부 REVIEW_REQUIRED로
+            // 흘려보내는 일이 관찰됐다(C22 3회 내내). 아래 지침에 일반 경고가 있지만 규칙
+            // 텍스트가 더 가깝고 구체적이라 밀린다 — 같은 자리에서 한 번 더 막는다.
+            sb.append("(주의: 여기 적힌 자료를 지금 볼 수 없다는 사실 자체는 needsOutsideContext를 ");
+            sb.append("true로 만들 근거가 아닙니다. 광고 문구가 그 근거를 제시하지 않은 채 단정한다면 ");
+            sb.append("오히려 위반 신호이고, 반대로 문구 안에 비교 기준·시점·범위가 이미 명시돼 ");
+            sb.append("있다면 그 내용의 진위를 외부에서 확인할 수 없다는 이유만으로 판단을 미루지 마세요. ");
+            sb.append("다만 이건 \"자료의 진위\"에만 해당합니다 — 문구 자체의 의미가 여러 갈래로 읽혀서 ");
+            sb.append("무엇을 주장하는지 확정할 수 없는 경우는 별개이고, 그때는 true가 맞습니다.)\n");
         }
         sb.append('\n');
 
@@ -380,6 +390,16 @@ public class AiRuleEvaluator implements RuleEvaluator {
         if (isNotBlank(rule.getRequiredEvidence())) {
             sb.append("필요 근거(참고용 — 지금 판단엔 이 근거 자료가 없을 수 있음): ")
                     .append(rule.getRequiredEvidence()).append('\n');
+            // 여기 "실증자료"처럼 증빙을 요구하는 단어가 들어 있으면, 모델이 그 자료를 지금
+            // 볼 수 없다는 이유로 needsOutsideContext=true를 골라 전부 REVIEW_REQUIRED로
+            // 흘려보내는 일이 관찰됐다(C22 3회 내내). 아래 지침에 일반 경고가 있지만 규칙
+            // 텍스트가 더 가깝고 구체적이라 밀린다 — 같은 자리에서 한 번 더 막는다.
+            sb.append("(주의: 여기 적힌 자료를 지금 볼 수 없다는 사실 자체는 needsOutsideContext를 ");
+            sb.append("true로 만들 근거가 아닙니다. 광고 문구가 그 근거를 제시하지 않은 채 단정한다면 ");
+            sb.append("오히려 위반 신호이고, 반대로 문구 안에 비교 기준·시점·범위가 이미 명시돼 ");
+            sb.append("있다면 그 내용의 진위를 외부에서 확인할 수 없다는 이유만으로 판단을 미루지 마세요. ");
+            sb.append("다만 이건 \"자료의 진위\"에만 해당합니다 — 문구 자체의 의미가 여러 갈래로 읽혀서 ");
+            sb.append("무엇을 주장하는지 확정할 수 없는 경우는 별개이고, 그때는 true가 맞습니다.)\n");
         }
         sb.append('\n');
 
