@@ -12,11 +12,11 @@ import java.util.List;
  * 최종 결정한다 — 검증되지 않은 규칙까지 한꺼번에 켜지 않고 단계적으로 넓혀가기 위함.
  *
  * <p>기본값은 2026-09-17 파일럿(검증 데이터셋 반복 실행으로 검증된 것만) — Common 3개 +
- * 정규식 9개 + AI 20개(1차 9개: 3회 반복 9/9 안정 정답, 2차 7개: "왔다갔다"하던 것을 2회 더
+ * 정규식 9개 + AI 22개(1차 9개: 3회 반복 9/9 안정 정답, 2차 7개: "왔다갔다"하던 것을 2회 더
  * 재실행해 5회 중 4~5회 정답으로 확인된 것, 3차 3개: 패턴1 프롬프트 수정 후 3회 반복 실행에서
  * 8~9/9로 안정적으로 정답, 4차 1개: 패턴2 프롬프트 수정 후 서로 다른 문구 버전 2개에서 연속
- * 3/3) = 32개. allowlist에 없는 코드는 evaluator가 있어도 무시되고 {@code UNSUPPORTED_RULE}로
- * 남는다.
+ * 3/3, 5차 2개(2026-09-21): 검증 데이터셋 라벨 오류로 확인돼 정정 후 3회 반복 9/9) = 34개.
+ * allowlist에 없는 코드는 evaluator가 있어도 무시되고 {@code UNSUPPORTED_RULE}로 남는다.
  */
 @Component
 @ConfigurationProperties(prefix = "adcheck.rule-judge")
@@ -38,7 +38,10 @@ public class RuleJudgeProperties {
             "E01_VESSEL", "L03_EYE_DISEASE", "C22_SUPERLATIVE",
             // AiRuleEvaluator 4차 확장(패턴2 "핵심 단어=자동매치 아님" 수정 후 서로 다른 프롬프트
             // 버전 2개에서 연속 3/3) — 1개
-            "L01_VISION"
+            "L01_VISION",
+            // AiRuleEvaluator 5차 확장(검증 데이터셋 라벨 오류로 확인돼 팀 승인 후 정정 —
+            // 라벨 정정 후 재측정하니 모델은 원래 정답을 내고 있었음, 3회 반복 9/9) — 2개
+            "G05_GLUCOSE_DIET", "M04_REGEN_CANCER"
     );
 
     /**
@@ -49,16 +52,20 @@ public class RuleJudgeProperties {
      *
      * <p>목록은 추측이 아니라 실측으로 정했다. AI 규칙 20개 전체를 배치로 돌려 검증 데이터셋
      * 라벨과 대조하고(합계 51/60), 어긋난 규칙은 2회 더 돌려 "배치라서 틀린 것"과 "원래 흔들리는
-     * 것"을 갈랐다. 여기 있는 넷은 <b>반복해도 같은 방향으로</b> 틀렸다. 반면 E01_VESSEL은 회차마다
-     * 결과가 달라(flaky) 개별 호출로 바꿔도 소용이 없으므로 넣지 않았다.
+     * 것"을 갈랐다. 반면 E01_VESSEL은 회차마다 결과가 달라(flaky) 개별 호출로 바꿔도 소용이
+     * 없으므로 넣지 않았다.
      *
      * <p>C22_SUPERLATIVE도 3회 내내 틀렸지만 <b>일부러 뺐다</b> — COMMON이라 모든 페이지·모든
      * Claim에 적용돼서, 제외하면 어느 페이지를 분석하든 Claim 수만큼 호출이 늘어난다(텍스트만
      * 있는 가벼운 페이지도 6회 → 11회). 같은 방향으로 재현되는 오류라 고칠 수 있는 문제로 보고
      * 프롬프트 수정으로 가기로 팀에서 정했다.
+     *
+     * <p><b>R02_MENOPAUSE·O02_ENERGY_EXPANSION은 여기 있었다가 뺐다(2026-09-21)</b> — 애초에
+     * "배치가 라벨과 다르다"는 근거로 넣었는데, 그 라벨 자체가 검증 데이터셋 작성 오류였음이
+     * REVIEW-03 원문 대조와 팀 승인으로 확인됐다. 라벨을 정정한 뒤 다시 재보니 배치 결과가
+     * 오히려 원래부터 옳았다(R02 9/9, O02 8/9) — 배치가 틀렸던 게 아니라 정답이 틀렸던 것이다.
      */
-    private List<String> batchExcludedRuleCodes = List.of(
-            "B02_VIRUS", "R02_MENOPAUSE", "O02_ENERGY_EXPANSION", "L01_VISION");
+    private List<String> batchExcludedRuleCodes = List.of("B02_VIRUS", "L01_VISION");
 
     /**
      * 규칙 판정을 동시에 몇 개까지 진행할지. 규칙 하나당 호출 1회(모든 Claim 배치)이므로 이 값이
