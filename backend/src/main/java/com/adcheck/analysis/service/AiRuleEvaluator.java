@@ -465,7 +465,7 @@ public class AiRuleEvaluator implements RuleEvaluator {
             RawJudgment judgment = objectMapper.readValue(rawJson, RawJudgment.class);
             return toEvaluation(judgment, rawJson);
         } catch (JacksonException e) {
-            log.warn("Rule Judge 응답 JSON 파싱 실패: {}", e.getMessage());
+            log.warn("Rule Judge 응답 JSON 파싱 실패: {} — {}", e.getMessage(), rawJson);
             return new RuleEvaluation(REVIEW_REQUIRED, SEMANTIC_COMPARISON_REQUIRED,
                     "AI 응답 파싱에 실패해 확인이 필요합니다.");
         }
@@ -864,7 +864,10 @@ public class AiRuleEvaluator implements RuleEvaluator {
             }
             return alignByClaimNo(judgments, expectedSize, rawJson);
         } catch (JacksonException e) {
-            log.warn("Rule Judge 배치 응답 JSON 파싱 실패: {}", e.getMessage());
+            // 이전엔 e.getMessage()만 남겨서 실패 원인(모델이 JSON을 어떻게 깨뜨렸는지)을 재현할
+            // 방법이 없었다 — 원본 응답을 함께 남겨야 다음에 같은 실패가 나왔을 때 실제로 무엇이
+            // 잘못됐는지(잘림, 여분의 텍스트, 잘못된 이스케이프 등) 확인할 수 있다.
+            log.warn("Rule Judge 배치 응답 JSON 파싱 실패: {} — {}", e.getMessage(), rawJson);
             return fallbackList(expectedSize, "AI 배치 응답 파싱에 실패해 확인이 필요합니다.");
         }
     }
