@@ -10,7 +10,7 @@
   overflow: visible !important;
 }
 
-/* 필터 칩(전체/의약품 오인우려/과장표현)이 아래에서 살짝 커지며 부드럽게 떠오르는 순차 등장 */
+/* 필터 칩(전체/기능성표시/광고심의)이 아래에서 살짝 커지며 부드럽게 떠오르는 순차 등장 */
 .filter-chip-enter {
   opacity: 0;
   transform: translateY(-10px) scale(0.92);
@@ -65,4 +65,27 @@
     opacity: 1;
     transform: none;
   }
+}
+
+/* 아코디언 항목 트리거 행: 호버 시 배경이 아주 옅게 반응, 펼쳐진 상태도 같은 배경으로 고정 */
+.detail-row-trigger {
+  background: #FFFFFF;
+  transition: background 0.15s ease;
+}
+
+.detail-row-trigger:hover,
+.detail-row-trigger.is-open {
+  background: #F8FAFC;
+}
+
+/* 근거 법령 텍스트: 실제 링크가 붙기 전까지는 링크처럼 보이는 스타일만 제공 */
+.law-ref-link {
+  color: #64748B;
+  text-decoration: underline;
+  text-underline-offset: 2px;
+  transition: color 0.15s ease;
+}
+
+.law-ref-link:hover {
+  color: #0F172A;
 }

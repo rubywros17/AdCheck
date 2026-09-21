@@ -38,7 +38,7 @@ export const JUDGMENT_CATEGORY_MAP: Record<string, { severity: SeverityType; lab
   // 공통 규칙 (COMMON)
   DISEASE_PREVENTION: { severity: 'HIGH', label: '질병 예방 표방' },
   DISEASE_TREATMENT: { severity: 'HIGH', label: '질병 치료·완치 표방' },
-  MEDICINE_CONFUSION: { severity: 'HIGH', label: '의약품 오인 우려' },
+  MEDICINE_CONFUSION: { severity: 'HIGH', label: '의약품 오인' },
   DISEASE_INFO_LINK: { severity: 'CAUTION', label: '질병 정보 부당 연계' },
   FUNCTION_EXCEED: { severity: 'HIGH', label: '기능성 범위 초과' },
   OFFICIAL_FUNCTION: { severity: 'NORMAL', label: '공식 인정 기능성' },

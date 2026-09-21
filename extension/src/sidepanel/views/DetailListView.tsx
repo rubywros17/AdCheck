@@ -6,6 +6,12 @@ import React, { useEffect, useRef } from 'react';
 import type { FilterCategory, FindingWithKeyword } from '../types';
 import { getCategoryTheme } from '../../constants/judgmentCategories';
 
+// "주의가 필요한 이유" 박스 좌측의 물음표 곰돌이 아이콘. MoodFace.tsx와 동일한 방식으로 확장 아이콘 경로를 구함
+const BEAR_QUESTION_ICON_URL =
+  typeof chrome !== 'undefined' && chrome.runtime?.getURL
+    ? chrome.runtime.getURL('icons/bear-question.png')
+    : '/icons/bear-question.png';
+
 export interface DetailListViewProps {
   findings: FindingWithKeyword[];
   activeFilter: FilterCategory;
@@ -24,10 +30,16 @@ export interface DetailListViewProps {
   onToggleFavorite?: () => void;
 }
 
-// finding.message("의약품 오인" / "과장 광고")를 2대 구분 버킷으로 매핑
+// finding.message("의약품" 포함 여부)로 2대 구분 버킷(기능성표시/광고심의)을 매핑
 function getFindingBucket(finding: FindingWithKeyword): 'DISEASE' | 'GUARANTEE' {
   return finding.message.includes('의약품') ? 'DISEASE' : 'GUARANTEE';
 }
+
+// 토글 내부 뱃지에 쓰는 2대 구분 버킷 표시 문구 (71종 세부 카테고리 대신 큰 갈래만 보여줌)
+const FINDING_BUCKET_LABEL: Record<'DISEASE' | 'GUARANTEE', string> = {
+  DISEASE: '기능성표시',
+  GUARANTEE: '광고심의',
+};
 
 export const DetailListView: React.FC<DetailListViewProps> = ({
   findings,
@@ -65,16 +77,16 @@ export const DetailListView: React.FC<DetailListViewProps> = ({
 
   // 필터 칩 공통 스타일: 흐릿한 무채색 대신 선택/비선택이 또렷하게 대비되는 스타일
   const filterChipStyle = (active: boolean): React.CSSProperties => ({
-    padding: '8px 14px',
+    padding: '4px 12px',
     borderRadius: '20px',
     fontSize: '12.5px',
     cursor: 'pointer',
     whiteSpace: 'nowrap',
     transition: 'all 0.15s ease',
-    background: active ? '#0F172A' : '#FFFFFF',
+    background: active ? '#0F172A' : 'transparent',
     color: active ? '#FFFFFF' : '#64748B',
     fontWeight: active ? 700 : 600,
-    border: active ? 'none' : '1.5px solid #CBD5E1',
+    border: active ? 'none' : '1px solid #E2E8F0',
   });
 
   return (
@@ -124,12 +136,9 @@ export const DetailListView: React.FC<DetailListViewProps> = ({
             {isFavorite ? '★' : '☆'}
           </button>
         )}
-        <h2 style={{ fontSize: '20px', fontWeight: 800, color: '#190933', margin: '0 0 4px 0', letterSpacing: '-0.4px', lineHeight: 1.35 }}>
+        <h2 style={{ fontSize: '20px', fontWeight: 800, color: '#190933', margin: 0, letterSpacing: '-0.4px', lineHeight: 1.35 }}>
           광고 점검 상세 리포트
         </h2>
-        <p style={{ fontSize: '13px', color: '#64748B', margin: 0, lineHeight: 1.45, wordBreak: 'keep-all' }}>
-          총 {findings.length}건의 표현에 대해 식약처 기준을 확인해보세요.
-        </p>
         {currentPageTitle && pageUrl && (
           <a
             href={pageUrl}
@@ -158,7 +167,7 @@ export const DetailListView: React.FC<DetailListViewProps> = ({
         )}
       </div>
 
-      {/* 2. 카테고리 필터 칩: 전체 / 의약품 오인우려 / 과장표현 2대 구분 */}
+      {/* 2. 카테고리 필터 칩: 전체 / 기능성표시 / 광고심의 2대 구분 */}
       <div style={{ display: 'flex', gap: '8px', overflowX: 'auto', margin: '12px 0 16px' }}>
         <button
           type="button"
@@ -174,7 +183,7 @@ export const DetailListView: React.FC<DetailListViewProps> = ({
           onClick={() => onFilterChange('DISEASE')}
           style={{ ...filterChipStyle(activeFilter === 'DISEASE'), animationDelay: '0.08s' }}
         >
-          의약품 오인우려 {diseaseCount}
+          기능성표시 {diseaseCount}
         </button>
         <button
           type="button"
@@ -182,7 +191,7 @@ export const DetailListView: React.FC<DetailListViewProps> = ({
           onClick={() => onFilterChange('GUARANTEE')}
           style={{ ...filterChipStyle(activeFilter === 'GUARANTEE'), animationDelay: '0.16s' }}
         >
-          과장표현 {guaranteeCount}
+          광고심의 {guaranteeCount}
         </button>
       </div>
 
@@ -221,34 +230,43 @@ export const DetailListView: React.FC<DetailListViewProps> = ({
             >
               <div
                 onClick={() => onToggleFinding(idx)}
+                className={`detail-row-trigger${isOpen ? ' is-open' : ''}`}
                 style={{
-                  padding: '13px 14px',
+                  height: '48px',
+                  padding: '0 14px',
                   display: 'flex',
                   alignItems: 'center',
                   justifyContent: 'space-between',
+                  gap: '8px',
                   cursor: 'pointer',
-                  background: isOpen ? '#F8FAFC' : '#FFFFFF',
-                  transition: 'background 0.2s ease',
                 }}
               >
-                <div style={{ display: 'flex', alignItems: 'center', gap: '10px', flex: 1, minWidth: 0 }}>
+                {/* 한 줄 초간결 뷰: 위험도 컬러 도트 + 카테고리 타이틀 (배지/본문 미리보기는 토글 내부로 이동) */}
+                <div style={{ display: 'flex', alignItems: 'center', gap: '8px', flex: '1 1 auto', minWidth: 0 }}>
                   <span
                     aria-hidden="true"
                     style={{
                       display: 'inline-block',
-                      width: '9px',
-                      height: '9px',
+                      width: '8px',
+                      height: '8px',
                       borderRadius: '50%',
                       flexShrink: 0,
-                      transition: 'background 0.2s ease',
-                      background: isOpen ? theme.badgeText : theme.indicatorColor,
+                      background: theme.indicatorColor,
                     }}
                   />
-                  <span style={{ fontSize: '14px', fontWeight: 500, color: '#190933', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
-                    {finding.bubbleLabel}
+                  <span
+                    style={{
+                      fontSize: '14px',
+                      fontWeight: 700,
+                      color: '#0F172A',
+                      overflow: 'hidden',
+                      textOverflow: 'ellipsis',
+                      whiteSpace: 'nowrap',
+                    }}
+                  >
+                    {theme.label}
                   </span>
                 </div>
-
                 <svg
                   width="16"
                   height="16"
@@ -260,7 +278,6 @@ export const DetailListView: React.FC<DetailListViewProps> = ({
                   strokeLinejoin="round"
                   style={{
                     flexShrink: 0,
-                    marginLeft: '6px',
                     transform: isOpen ? 'rotate(180deg)' : 'rotate(0deg)',
                     transition: 'transform 0.35s cubic-bezier(0.34, 1.56, 0.64, 1)',
                   }}
@@ -286,63 +303,88 @@ export const DetailListView: React.FC<DetailListViewProps> = ({
                       'opacity 0.35s cubic-bezier(0.34, 1.56, 0.64, 1), transform 0.4s cubic-bezier(0.34, 1.56, 0.64, 1)',
                   }}
                 >
-                  <div style={{ padding: '4px 14px 14px', display: 'flex', flexDirection: 'column', gap: '8px' }}>
-                    {/* 왜 문제인가요: AI가 정리한 소비자용 설명(finding.message). 가장 먼저 눈에 띄어야 하는 핵심 설명이라
-                        무채색 대신 주의를 끄는 앰버 톤으로 강조 */}
-                    {finding.message && (
-                      <div style={{ background: '#FFFBEB', borderRadius: '8px', padding: '10px 11px', borderLeft: '3px solid #F59E0B' }}>
-                        <div style={{ fontSize: '11px', fontWeight: 700, color: '#92400E', marginBottom: '3px' }}>왜 문제인가요</div>
-                        <div style={{ fontSize: '12.5px', color: '#190933', fontWeight: 600, lineHeight: 1.45 }}>{finding.message}</div>
+                  <div style={{ padding: '4px 14px 14px' }}>
+                    {/* 단일 카드: 색색의 분절된 박스 대신 흰 카드 + 얇은 구분선으로 섹션을 나눔 */}
+                    <div
+                      style={{
+                        background: '#FFFFFF',
+                        border: '1px solid #E2E8F0',
+                        borderRadius: '12px',
+                        boxShadow: '0 2px 8px rgba(15, 23, 42, 0.04)',
+                        overflow: 'hidden',
+                      }}
+                    >
+                      {/* 상단 헤더: 위반 유형 뱃지(2대 구분 버킷) + "감지된 문구" 라벨 + 실제 광고 문구 전체 */}
+                      <div style={{ padding: '12px 14px 11px' }}>
+                        <span
+                          className="category-badge"
+                          style={{
+                            display: 'inline-block',
+                            background: '#F1F5F9',
+                            color: '#475569',
+                            fontSize: '11px',
+                            fontWeight: 700,
+                            padding: '3px 7px',
+                            borderRadius: '4px',
+                          }}
+                        >
+                          {FINDING_BUCKET_LABEL[getFindingBucket(finding)]}
+                        </span>
+                        <div style={{ fontSize: '11.5px', fontWeight: 700, color: '#0F172A', letterSpacing: '-0.2px', marginTop: '8px' }}>
+                          감지된 문구
+                        </div>
+                        <div style={{ fontSize: '13px', color: '#0F172A', lineHeight: 1.5, marginTop: '4px' }}>
+                          "{finding.sourceText}"
+                        </div>
                       </div>
-                    )}
 
-                    {/* 광고 속 문제 문구: 카테고리 테마 틴트 + 라인 인디케이터 + 카테고리 배지 칩 */}
-                    <div style={{ background: theme.badgeBg, borderRadius: '8px', padding: '10px 11px', borderLeft: `3px solid ${theme.indicatorColor}` }}>
-                      <span
-                        className="category-badge"
-                        style={{
-                          display: 'inline-block',
-                          backgroundColor: theme.badgeBg,
-                          color: theme.badgeText,
-                          border: `1px solid ${theme.badgeBorder}`,
-                          borderRadius: '9999px',
-                          padding: '2px 8px',
-                          fontSize: '10.5px',
-                          fontWeight: 700,
-                          marginBottom: '5px',
-                        }}
-                      >
-                        {theme.label}
-                      </span>
-                      <div style={{ fontSize: '13px', color: '#190933', fontWeight: 700, lineHeight: 1.45 }}>{finding.sourceText}</div>
-                    </div>
+                      {/* 주의가 필요한 이유: AI 요약 한 문장 설명(finding.message)을 옅은 에드체크 민트 톤 박스로 */}
+                      {finding.message && (
+                        <div style={{ padding: '11px 14px', borderTop: '1px solid #F1F5F9' }}>
+                          <div style={{ fontSize: '12px', fontWeight: 700, color: '#0F172A', letterSpacing: '-0.2px' }}>
+                            주의가 필요한 이유
+                          </div>
+                          <div
+                            style={{
+                              marginTop: '6px',
+                              background: '#F0FDFA',
+                              border: '1px solid #CCFBF1',
+                              borderRadius: '8px',
+                              padding: '10px 12px',
+                              display: 'flex',
+                              alignItems: 'flex-start',
+                              gap: '10px',
+                            }}
+                          >
+                            <img
+                              src={BEAR_QUESTION_ICON_URL}
+                              alt=""
+                              aria-hidden="true"
+                              style={{ width: '32px', height: '32px', flexShrink: 0, objectFit: 'contain', marginTop: '2px' }}
+                            />
+                            <div style={{ fontSize: '12.5px', fontWeight: 500, color: '#1E293B', lineHeight: 1.5 }}>
+                              {finding.message}
+                            </div>
+                          </div>
+                        </div>
+                      )}
 
-                    {/* 식약처 공식 기준: 카테고리와 무관하게 항상 동일한 민트 틴트(상단 브랜드 컬러와 통일) */}
-                    <div style={{ background: '#F2FDF9', borderRadius: '8px', padding: '10px 11px', borderLeft: '3px solid #5DD9C1' }}>
-                      <div style={{ fontSize: '11px', fontWeight: 700, color: '#0D9488', marginBottom: '3px' }}>식약처 고시 기준</div>
-                      <div style={{ fontSize: '12px', color: '#334155', fontWeight: 400, lineHeight: 1.45 }}>
-                        {finding.officialFunction ?? '해당 표현에 대응하는 공인 기능성 문구가 없어요.'}
+                      {/* 공식 인정 문구 + 근거 법령: 서로 다른 섹션으로 분리하지 않고,
+                          문구가 끝나는 바로 아래에 근거가 이어지도록 한 블록으로 묶음.
+                          실제 이동할 법령 원문 URL을 아직 확정하지 못해 <a href>는 붙이지 않고,
+                          링크처럼 보이는 스타일(밑줄+호버)만 우선 적용 */}
+                      <div style={{ padding: '11px 14px 12px', borderTop: '1px solid #F1F5F9' }}>
+                        <div style={{ fontSize: '11.5px', fontWeight: 700, color: '#0F172A', letterSpacing: '-0.2px' }}>
+                          공식 인정 문구
+                        </div>
+                        <div style={{ fontSize: '12.5px', color: '#334155', lineHeight: 1.5, marginTop: '4px' }}>
+                          {finding.officialFunction ? `"${finding.officialFunction}"` : '해당 표현에 대응하는 공인 기능성 문구가 없어요.'}
+                        </div>
+                        <span className="law-ref-link" style={{ display: 'block', marginTop: '6px', fontSize: '11px' }}>
+                          근거: 식품 등의 표시·광고에 관한 법률 ↗
+                        </span>
                       </div>
                     </div>
-
-                    {onLocateFinding && (
-                      <button
-                        type="button"
-                        onClick={() => onLocateFinding(finding)}
-                        style={{
-                          alignSelf: 'flex-end',
-                          background: 'transparent',
-                          border: 'none',
-                          color: '#0D9488',
-                          fontSize: '11.5px',
-                          fontWeight: 700,
-                          cursor: 'pointer',
-                          padding: '2px 0',
-                        }}
-                      >
-                        본문에서 위치 확인 →
-                      </button>
-                    )}
                   </div>
                 </div>
               </div>

@@ -26,6 +26,13 @@ const RISK_BADGE: Record<RiskTier, { label: string; text: string; glow: string }
   REVIEW: { label: '주의', text: '#DC2626', glow: 'rgba(239, 68, 68, 0.35)' },
 };
 
+// 타이틀 바로 아래에 붙는 소비자(구매자) 관점 안내 문구
+const CONSUMER_SUBTITLE: Record<RiskTier, string> = {
+  SAFE: '허위·과장 광고 없이 공식 기준을 잘 지킨 정직한 상품이에요!',
+  CAUTION: '효능을 다소 부풀리거나 오해하기 쉬운 표현이 포함되어 있어요.',
+  REVIEW: '효능을 다소 부풀리거나 오해하기 쉬운 표현이 포함되어 있어요.\n구매 전 꼭 확인해 보세요!',
+};
+
 // ==========================================
 // 슬림 & 글래시 반원 계기판 사양 정의
 // ==========================================
@@ -158,6 +165,17 @@ export const SummaryHeroView: React.FC<SummaryHeroViewProps> = ({ count, onConti
           word-break: keep-all;
         }
 
+        .mood-consumer-subtitle {
+          font-size: 13px;
+          font-weight: 500;
+          color: #64748B;
+          line-height: 1.45;
+          text-align: center;
+          margin: 6px 0 10px;
+          word-break: keep-all;
+          white-space: pre-line;
+        }
+
         /* 중앙 곰돌이 영역: 80px -> 66px로 최적화하여 상하 여백 확보 */
         .mood-face-stage {
           display: flex;
@@ -265,6 +283,9 @@ export const SummaryHeroView: React.FC<SummaryHeroViewProps> = ({ count, onConti
           )}
         </h2>
       </div>
+
+      {/* 1-1. 소비자(구매자) 관점 안내 서브 카피: 타이틀과 곰돌이 사이 */}
+      <p className="mood-consumer-subtitle">{CONSUMER_SUBTITLE[tier]}</p>
 
       {/* 2. 중앙 곰돌이: 66px로 슬림화되어 계기판과 환상적인 비례 구성 */}
       <div className="mood-face-stage">

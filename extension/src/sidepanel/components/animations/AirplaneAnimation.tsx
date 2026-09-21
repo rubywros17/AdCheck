@@ -11,8 +11,8 @@ export const AirplaneAnimation: React.FC = () => {
       <style>{`
         .airplane-anim-stage {
           position: relative;
-          width: 161px;
-          height: 104px;
+          width: 178px;
+          height: 114px;
           display: flex;
           align-items: center;
           justify-content: center;
@@ -23,8 +23,8 @@ export const AirplaneAnimation: React.FC = () => {
         .airplane-body-wrap {
           position: relative;
           z-index: 2;
-          width: 90px;
-          height: 90px;
+          width: 102px;
+          height: 102px;
           animation: airplaneFloat 2.6s ease-in-out infinite alternate;
         }
 
@@ -48,11 +48,11 @@ export const AirplaneAnimation: React.FC = () => {
            비행기 모터 앞쪽이 아니라 뒤쪽에서 뿜어져 나오도록 반대편(오른쪽)으로 위치를 옮김 */
         .wind-stream-container {
           position: absolute;
-          right: -9px; /* 비행기 꼬리/모터 뒤편 위치 */
+          right: -10px; /* 비행기 꼬리/모터 뒤편 위치 */
           top: 50%;
           transform: translateY(-50%);
-          width: 75px;
-          height: 46px;
+          width: 85px;
+          height: 52px;
           z-index: 1;
           pointer-events: none;
         }
