@@ -42,6 +42,25 @@ public class RuleJudgeProperties {
     );
 
     /**
+     * <b>배치에서 빼고 Claim마다 개별 호출할 규칙 코드.</b> 규칙 축 배치는 규칙 하나당 호출 1회로
+     * 끝나 무료 티어 안에서 완주하게 해주지만, 같은 프롬프트 안의 다른 Claim이 판단에 영향을 줘서
+     * 개별 호출과 다른 판정이 나오는 규칙이 있다. 여기 적힌 규칙만 예전처럼 Claim마다 부른다 —
+     * 호출이 1회에서 Claim 수만큼 늘어나는 대신 개별 호출의 정확도를 되찾는 절충이다.
+     *
+     * <p>목록은 추측이 아니라 실측으로 정했다. AI 규칙 20개 전체를 배치로 돌려 검증 데이터셋
+     * 라벨과 대조하고(합계 51/60), 어긋난 규칙은 2회 더 돌려 "배치라서 틀린 것"과 "원래 흔들리는
+     * 것"을 갈랐다. 여기 있는 넷은 <b>반복해도 같은 방향으로</b> 틀렸다. 반면 E01_VESSEL은 회차마다
+     * 결과가 달라(flaky) 개별 호출로 바꿔도 소용이 없으므로 넣지 않았다.
+     *
+     * <p>C22_SUPERLATIVE도 3회 내내 틀렸지만 <b>일부러 뺐다</b> — COMMON이라 모든 페이지·모든
+     * Claim에 적용돼서, 제외하면 어느 페이지를 분석하든 Claim 수만큼 호출이 늘어난다(텍스트만
+     * 있는 가벼운 페이지도 6회 → 11회). 같은 방향으로 재현되는 오류라 고칠 수 있는 문제로 보고
+     * 프롬프트 수정으로 가기로 팀에서 정했다.
+     */
+    private List<String> batchExcludedRuleCodes = List.of(
+            "B02_VIRUS", "R02_MENOPAUSE", "O02_ENERGY_EXPANSION", "L01_VISION");
+
+    /**
      * 규칙 판정을 동시에 몇 개까지 진행할지. 규칙 하나당 호출 1회(모든 Claim 배치)이므로 이 값이
      * 곧 동시 Gemini 호출 수다 — 무료 티어 분당 한도(15회)를 한꺼번에 소진하지 않도록 보수적으로
      * 잡는다. 429가 나도 {@code GeminiClient}가 재시도하므로 치명적이진 않지만, 재시도 대기가
@@ -55,6 +74,14 @@ public class RuleJudgeProperties {
 
     public void setEnabledRuleCodes(List<String> enabledRuleCodes) {
         this.enabledRuleCodes = enabledRuleCodes;
+    }
+
+    public List<String> getBatchExcludedRuleCodes() {
+        return batchExcludedRuleCodes;
+    }
+
+    public void setBatchExcludedRuleCodes(List<String> batchExcludedRuleCodes) {
+        this.batchExcludedRuleCodes = batchExcludedRuleCodes;
     }
 
     public int getConcurrency() {
