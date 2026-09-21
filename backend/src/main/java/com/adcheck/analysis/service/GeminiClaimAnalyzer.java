@@ -42,8 +42,12 @@ public class GeminiClaimAnalyzer implements ClaimAnalyzer {
 
     @Override
     public ClaimAnalysisResult analyze(List<PageTextEvidence> texts, List<PageImageEvidence> images) {
-        String rawText = texts.stream().map(PageTextEvidence::content).reduce("", (a, b) -> a + "\n" + b);
-        String cleanedText = textCleaner.clean(rawText);
+        // 블록 단위로 정제한다(합친 뒤 한 번에 정제하지 않는다) — 각 블록의 selector를
+        // 끝까지 들고 가야 나중에 Finding.selector를 채울 수 있다(합쳐버리면 유실된다).
+        List<PageTextEvidence> cleanedBlocks = texts.stream()
+                .map(text -> new PageTextEvidence(textCleaner.clean(text.content()), text.selector()))
+                .filter(text -> text.content() != null && !text.content().isBlank())
+                .toList();
 
         List<String> imageUrls = images.stream().map(PageImageEvidence::url).toList();
         Map<String, String> ocrResults = new LinkedHashMap<>();
@@ -54,7 +58,7 @@ public class GeminiClaimAnalyzer implements ClaimAnalyzer {
         });
 
         ProductContentExtractionService.ExtractionResult extracted =
-                extractionService.extract(cleanedText, ocrResults);
+                extractionService.extract(cleanedBlocks, ocrResults);
 
         return new ClaimAnalysisResult(
                 extracted.claims(),

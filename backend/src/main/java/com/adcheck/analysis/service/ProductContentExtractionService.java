@@ -1,5 +1,6 @@
 package com.adcheck.analysis.service;
 
+import com.adcheck.analysis.dto.PageTextEvidence;
 import com.adcheck.rule.service.RuleAnalysisRequest;
 import com.fasterxml.jackson.annotation.JsonIgnoreProperties;
 import org.slf4j.Logger;
@@ -12,6 +13,7 @@ import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
 import java.util.TreeSet;
+import java.util.stream.Collectors;
 
 /**
  * 2단계(Claim 추출) + 3단계 원료표시 추출을 Gemini 호출 1회로 합친 서비스.
@@ -107,20 +109,22 @@ public class ProductContentExtractionService {
     }
 
     /**
-     * @param cleanedText DetailTextCleaner로 정제된 본문 텍스트
-     * @param ocrResults  이미지 URL -> OCR 텍스트 (빈 텍스트는 호출 전에 걸러서 넘길 것)
+     * @param textBlocks DetailTextCleaner로 블록 단위로 정제된 본문 텍스트 — 각 블록이
+     *                    원래 selector를 들고 있어야 claims[].sourceLineIndex로 역참조할 수 있다.
+     * @param ocrResults 이미지 URL -> OCR 텍스트 (빈 텍스트는 호출 전에 걸러서 넘길 것)
      */
-    public ExtractionResult extract(String cleanedText, Map<String, String> ocrResults) {
+    public ExtractionResult extract(List<PageTextEvidence> textBlocks, Map<String, String> ocrResults) {
         List<String> allLines = new ArrayList<>();
         List<Source> lineSources = new ArrayList<>();
-        buildIndexedLines(cleanedText, ocrResults, allLines, lineSources);
+        buildIndexedLines(textBlocks, ocrResults, allLines, lineSources);
 
+        String cleanedText = textBlocks.stream().map(PageTextEvidence::content).collect(Collectors.joining("\n"));
         String prompt = buildPrompt(cleanedText, ocrResults, allLines);
         String rawResponse = geminiClient.generate(prompt, true);
         CombinedResponse response = parseResponse(rawResponse);
 
         List<RawClaim> rawClaims = response.claims() != null ? response.claims() : List.of();
-        List<ExtractedClaim> claims = toExtractedClaims(rawClaims, ocrResults);
+        List<ExtractedClaim> claims = toExtractedClaims(rawClaims, ocrResults, lineSources);
 
         List<RawProductCandidate> rawProductCandidates =
                 response.productCandidates() != null ? response.productCandidates() : List.of();
@@ -141,21 +145,34 @@ public class ProductContentExtractionService {
     }
 
     /**
-     * source가 OCR 결과의 이미지 URL과 일치하면 OCR_IMAGE, 아니면 DOM_TEXT로 분류한다.
-     * DOM_TEXT의 selector는 프롬프트가 "본문"이라는 마커만 반환하고 어느 텍스트 블록인지는
-     * 구분해주지 않아 현재는 항상 null이다.
+     * sourceLineIndex가 [번호가 매겨진 줄 목록](lineSources) 범위 안이면 그 줄의 실제 Source
+     * (selector 또는 이미지 URL 포함)를 그대로 쓴다 — DOM_TEXT 블록의 selector가 여기서
+     * 채워진다. AI가 인덱스를 안 주거나 범위를 벗어나면(구버전 응답 호환 포함) source
+     * 문자열이 OCR 이미지 URL과 일치하는지만 보고 구분하던 기존 방식으로 안전하게 폴백한다
+     * (이 경우 DOM_TEXT는 selector 없이 null).
      */
-    private static Source toSource(String rawSource, Map<String, String> ocrResults) {
+    private static Source toSource(
+            String rawSource, Integer sourceLineIndex, Map<String, String> ocrResults, List<Source> lineSources) {
+        if (sourceLineIndex != null && sourceLineIndex >= 0 && sourceLineIndex < lineSources.size()) {
+            return lineSources.get(sourceLineIndex);
+        }
         return ocrResults.containsKey(rawSource) ? Source.ocrImage(rawSource) : Source.domText(null);
     }
 
+    /** productCandidates는 줄 인덱스 개념이 없어(범위 밖) 기존 문자열 기반 판정만 쓴다. */
+    private static Source toSource(String rawSource, Map<String, String> ocrResults) {
+        return toSource(rawSource, null, ocrResults, List.of());
+    }
+
     /** claimId는 이 분석 1건 안에서만 유일하면 되는 로컬 식별자라 순서대로 채번한다. */
-    private static List<ExtractedClaim> toExtractedClaims(List<RawClaim> rawClaims, Map<String, String> ocrResults) {
+    private static List<ExtractedClaim> toExtractedClaims(
+            List<RawClaim> rawClaims, Map<String, String> ocrResults, List<Source> lineSources) {
         List<ExtractedClaim> claims = new ArrayList<>();
         int index = 1;
         for (RawClaim raw : rawClaims) {
             claims.add(new ExtractedClaim(
-                    "claim-" + index, raw.claimText(), toSource(raw.source(), ocrResults),
+                    "claim-" + index, raw.claimText(),
+                    toSource(raw.source(), raw.sourceLineIndex(), ocrResults, lineSources),
                     parseContext(raw.context()), raw.contextEvidence()));
             index++;
         }
@@ -206,11 +223,15 @@ public class ProductContentExtractionService {
     }
 
     private static void buildIndexedLines(
-            String cleanedText, Map<String, String> ocrResults, List<String> lines, List<Source> lineSources) {
-        if (!cleanedText.isBlank()) {
-            for (String line : cleanedText.split("\n")) {
+            List<PageTextEvidence> textBlocks, Map<String, String> ocrResults, List<String> lines,
+            List<Source> lineSources) {
+        for (PageTextEvidence block : textBlocks) {
+            if (block.content().isBlank()) {
+                continue;
+            }
+            for (String line : block.content().split("\n")) {
                 lines.add(line);
-                lineSources.add(Source.domText(null));
+                lineSources.add(Source.domText(block.selector()));
             }
         }
         for (Map.Entry<String, String> entry : ocrResults.entrySet()) {
@@ -280,7 +301,10 @@ public class ProductContentExtractionService {
         sb.append("  · NON_PRODUCT_INFORMATION: 구매자 리뷰, 전문가 발언 인용, 제품과 무관한 배경지식, 효과를 부정하는 문장 등 제품 효과에 귀속되지 않는 독립 정보\n");
         sb.append("  · UNKNOWN: 위 어느 것도 확신할 수 없음(모르면 이 값을 쓰세요, 추측 금지)\n");
         sb.append("- contextEvidence에는 그렇게 판단한 근거를 한 문장으로 남기세요(예: \"바로 앞 문장이 '수면의 질 개선에 도움'이라는 제품 효과를 설명 중\"). ");
-        sb.append("UNKNOWN이면 null로 두세요.\n\n");
+        sb.append("UNKNOWN이면 null로 두세요.\n");
+        sb.append("- 각 claim이 아래 [번호가 매겨진 줄 목록]의 몇 번 줄에서 나왔는지 sourceLineIndex로 표시하세요(0부터 시작). ");
+        sb.append("본문이든 이미지 OCR 결과든 상관없이 그 줄 번호를 그대로 쓰면 됩니다. ");
+        sb.append("여러 줄에 걸쳐 있으면 시작하는 줄 번호를, 정확히 어느 줄인지 확신할 수 없으면 null을 쓰세요(추측 금지).\n\n");
 
         sb.append("[항목 2] 제품 후보 (productCandidates)\n");
         sb.append("- 찾을 대상: 품목보고번호/신고번호(보통 숫자로만 이루어지거나 숫자+하이픈 조합), 제품명, 제조원/판매원 같은 업체명.\n");
@@ -310,7 +334,7 @@ public class ProductContentExtractionService {
         sb.append("반드시 아래 JSON 형식으로만 응답하세요. 다른 설명은 붙이지 마세요.\n");
         sb.append("{\"claims\": [{\"claimText\": \"주장/표현 문장 원문 그대로\", \"source\": \"본문\" 또는 해당 이미지 URL, ");
         sb.append("\"context\": \"PRODUCT_HEALTH_EFFECT_COPY\" 또는 \"PRODUCT_COPY\" 또는 \"NON_PRODUCT_INFORMATION\" 또는 \"UNKNOWN\", ");
-        sb.append("\"contextEvidence\": \"판단 근거 한 문장\" 또는 null}], ");
+        sb.append("\"contextEvidence\": \"판단 근거 한 문장\" 또는 null, \"sourceLineIndex\": 3 또는 null}], ");
         sb.append("\"productCandidates\": [{\"productReportNo\": \"...\" 또는 null, \"productName\": \"...\" 또는 null, ");
         sb.append("\"companyName\": \"...\" 또는 null, \"confidence\": 0.9, \"source\": \"본문\" 또는 해당 이미지 URL}], ");
         sb.append("\"labelReview\": \"원료표 검토 메모\", \"labelLineGroups\": [[3,4,5], [12,13]], \"labelGroupConfidences\": [0.95, 0.8], ");
@@ -324,7 +348,7 @@ public class ProductContentExtractionService {
         } else {
             ocrResults.forEach((url, text) -> sb.append("- ").append(url).append(": ").append(text).append("\n"));
         }
-        sb.append("\n[번호가 매겨진 줄 목록] (labelLineGroups 선택 전용 — 본문+OCR 텍스트를 줄 단위로 이어붙여 번호를 매긴 것)\n");
+        sb.append("\n[번호가 매겨진 줄 목록] (labelLineGroups 및 claims[].sourceLineIndex 선택 전용 — 본문+OCR 텍스트를 줄 단위로 이어붙여 번호를 매긴 것)\n");
         for (int i = 0; i < allLines.size(); i++) {
             sb.append(i).append(": ").append(allLines.get(i)).append("\n");
         }
@@ -354,10 +378,13 @@ public class ProductContentExtractionService {
     /**
      * Gemini 응답 JSON 그대로의 claim 모양 — source는 "본문" 마커 또는 이미지 URL 문자열.
      * context는 {@link RuleAnalysisRequest.Context} 이름 문자열(모르면 null/빈 문자열 허용,
-     * {@link #parseContext(String)}가 안전하게 UNKNOWN으로 폴백).
+     * {@link #parseContext(String)}가 안전하게 UNKNOWN으로 폴백). sourceLineIndex는 이
+     * claim이 [번호가 매겨진 줄 목록]의 몇 번 줄에서 나왔는지(0-based) — null이거나 범위를
+     * 벗어나면 {@link #toSource}가 기존 문자열 기반 판정으로 안전하게 폴백한다.
      */
     @JsonIgnoreProperties(ignoreUnknown = true)
-    private record RawClaim(String claimText, String source, String context, String contextEvidence) {
+    private record RawClaim(
+            String claimText, String source, String context, String contextEvidence, Integer sourceLineIndex) {
     }
 
     /** Gemini 응답 JSON 그대로의 제품 후보 모양 — source는 "본문" 마커 또는 이미지 URL 문자열. */
