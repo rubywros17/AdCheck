@@ -140,6 +140,15 @@ export function useAdCheck(status: ViewStatus, setStatus: Dispatch<SetStateActio
     setStatus("DETAIL_LIST");
   }
 
+  // 필터 칩 클릭 핸들러: 다른 필터로 전환할 때만 펼침 상태를 초기화하고,
+  // 이미 선택된 필터를 다시 눌렀을 때는 펼쳐둔 항목을 그대로 유지합니다.
+  function changeFilter(filter: FilterCategory) {
+    if (filter !== activeFilter) {
+      setExpandedFindings(new Set());
+    }
+    setActiveFilter(filter);
+  }
+
   function toggleFinding(idx: number) {
     setExpandedFindings((previous) => {
       const next = new Set(previous);
@@ -185,7 +194,7 @@ export function useAdCheck(status: ViewStatus, setStatus: Dispatch<SetStateActio
     showHistory: !["ANALYZING", "SUMMARY_HERO", "EMPTY"].includes(status),
     goHome, analyze, changeTestTarget, selectHistory, selectBubble, showAllFindings,
     toggleFinding, completeScroll, shareResults, locateFinding, toggleFavorite,
-    setActiveFilter,
+    setActiveFilter: changeFilter,
     openHistory: () => setIsHistoryOpen(true),
     closeHistory: () => setIsHistoryOpen(false),
   };
