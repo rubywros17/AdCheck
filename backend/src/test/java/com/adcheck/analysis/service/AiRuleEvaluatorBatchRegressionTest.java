@@ -127,14 +127,29 @@ class AiRuleEvaluatorBatchRegressionTest {
         System.out.println("결과 저장: " + out.toAbsolutePath());
     }
 
+    /**
+     * INGREDIENT_SPECIFIC 규칙 중 "인정 기능성 범위를 벗어나는지"를 판단하려면 실제
+     * officialFunctionText가 있어야 하는데, 예전엔 이 메서드가 항상 빈 리스트를 넘겨서
+     * B03_OTHER_ORAL 같은 규칙은 반복검증 자체가 불가능했다(officialFunctions 채워서
+     * 재검증하면 정답이 나온다는 걸 확인했었음 — 로드맵 참고). 규칙별로 실제 원료의
+     * 공식 기능성 문구(notified_ingredients_v0.2.csv 원문)를 채운다.
+     */
+    private static final Map<String, RuleOfficialFunctionContext> OFFICIAL_FUNCTIONS_BY_RULE = Map.of(
+            "B03_OTHER_ORAL", new RuleOfficialFunctionContext(550L, "프로폴리스추출물",
+                    "항산화 · 구강에서의 항균작용에 도움을 줄 수 있음 / ※구강에서의 항균작용은 구강에 "
+                            + "직접 접촉할 수 있는 형태에 한하며, 섭취량을 적용하지 않음",
+                    "고시형", null)
+    );
+
     private static List<RuleAnalysisRequest> toRequests(String ruleCode, List<Map<String, String>> cases) {
+        RuleOfficialFunctionContext context = OFFICIAL_FUNCTIONS_BY_RULE.get(ruleCode);
+        List<RuleOfficialFunctionContext> officialFunctions = context == null ? List.of() : List.of(context);
         return cases.stream()
                 .map(row -> new RuleAnalysisRequest(
                         new Claim("v-" + ruleCode, row.get("claimText"),
                                 PRODUCT_HEALTH_EFFECT_COPY, "검증 데이터셋 케이스"),
                         List.of(), Set.of(),
-                        new RuleAnalysisRequest.OfficialFunctions(
-                                List.<RuleOfficialFunctionContext>of(), false, false)))
+                        new RuleAnalysisRequest.OfficialFunctions(officialFunctions, false, false)))
                 .toList();
     }
 

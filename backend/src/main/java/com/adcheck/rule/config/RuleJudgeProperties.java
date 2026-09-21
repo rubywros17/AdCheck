@@ -19,8 +19,10 @@ import java.util.List;
  * 3개(2026-09-21): 개별 targeted 프롬프트 수정으로 3회 반복 8~9/9, 7차 1개(2026-09-21):
  * 검증 데이터셋 라벨 오류로 확인돼 팀 승인 후 정정, 재측정 3회 반복 9/9, 8차 6개(2026-09-21):
  * 미조사 백로그를 규칙별 few-shot·실제 심의사례 인용으로 수정 — 1차 수정 후 같은 규칙 안
- * 트레이드오프가 발견돼 2차 보정까지 거쳐 3회 반복 9/9) = 44개. allowlist에
- * 없는 코드는 evaluator가 있어도 무시되고 {@code UNSUPPORTED_RULE}로 남는다.
+ * 트레이드오프가 발견돼 2차 보정까지 거쳐 3회 반복 9/9, 9차 2개(2026-09-21): B03은 테스트
+ * 하네스가 officialFunctions를 항상 비워 보내던 버그 수정 + 라벨 오류 정정, C03은 라벨
+ * 오류 정정 + 심의기준 용어 수정표 인용 프롬프트 수정 — 각각 3회 반복 9/9) = 46개.
+ * allowlist에 없는 코드는 evaluator가 있어도 무시되고 {@code UNSUPPORTED_RULE}로 남는다.
  */
 @Component
 @ConfigurationProperties(prefix = "adcheck.rule-judge")
@@ -64,7 +66,15 @@ public class RuleJudgeProperties {
             // C28·L02·M01에서 같은 규칙 안 다른 케이스가 새로 틀리는 트레이드오프가 발견돼 2차
             // 보정까지 거침, 최종 6개 전체 3회 반복 9/9) — 6개
             "C11_SUB_INGREDIENT_FUNCTION", "C28_TARGET_SPECIALIZATION", "C30_NATURAL_FREE",
-            "G01_EASY_DIET", "L02_UV", "M01_FATIGUE"
+            "G01_EASY_DIET", "L02_UV", "M01_FATIGUE",
+            // AiRuleEvaluator 9차 확장(2026-09-21) — B03_OTHER_ORAL: 테스트 하네스가
+            // officialFunctions를 항상 빈 값으로 넘겨 반복검증 자체가 안 됐던 문제를 실제
+            // 원료(프로폴리스) 공식 기능성 문구로 고침 + REVIEW_REQUIRED 라벨이 REVIEW-03
+            // "미세먼지"·"목관리/기관지" 일괄 금지 조항과 맞지 않아 팀 승인 후 MATCHED로
+            // 정정. C03_MEDICINE_CONFUSION: REVIEW_REQUIRED 라벨이 REVIEW-01 용어
+            // 수정표("약국용"→"약국 내 건강기능식품코너")와 맞지 않아 팀 승인 후 MATCHED로
+            // 정정 + 그 용어 수정표를 인용하는 프롬프트 수정 추가 — 각각 3회 반복 9/9 — 2개
+            "B03_OTHER_ORAL", "C03_MEDICINE_CONFUSION"
     );
 
     /**
