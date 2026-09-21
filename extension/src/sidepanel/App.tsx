@@ -32,7 +32,7 @@ export function App() {
         <div className="tab-panel">
           {status === "IDLE" && <IdleView onAnalyze={adCheck.analyze} onReset={adCheck.goHome} />}
 
-          {status === "ANALYZING" && <AnalyzingView onComplete={() => {}} />}
+          {status === "ANALYZING" && <AnalyzingView />}
 
           {(status === "SUMMARY_HERO" || status === "EMPTY") && (
             <SummaryHeroView
@@ -59,14 +59,13 @@ export function App() {
               pendingScrollIdx={adCheck.pendingScrollIdx}
               currentPageTitle={adCheck.currentPageTitle}
               pageUrl={adCheck.pageUrl}
-              onBack={() => setStatus("BUBBLE_PREVIEW")}
-              onShare={adCheck.shareResults}
+              isFavorite={adCheck.isCurrentFavorite}
               onFilterChange={adCheck.setActiveFilter}
               onToggleFinding={adCheck.toggleFinding}
               onScrollComplete={adCheck.completeScroll}
               onLocateFinding={adCheck.locateFinding}
-              onAnalyze={adCheck.analyze}
               onReset={adCheck.goHome}
+              onToggleFavorite={() => adCheck.currentHistoryId && adCheck.toggleFavorite(adCheck.currentHistoryId)}
             />
           )}
 
@@ -77,10 +76,21 @@ export function App() {
       </main>
 
       {adCheck.isHistoryOpen && (
-        <HistoryModal histories={adCheck.scanHistories} onClose={adCheck.closeHistory} onSelect={adCheck.selectHistory} />
+        <HistoryModal
+          histories={adCheck.scanHistories}
+          onClose={adCheck.closeHistory}
+          onSelect={adCheck.selectHistory}
+          onToggleFavorite={adCheck.toggleFavorite}
+        />
       )}
 
-      <SidepanelFooter testTarget={adCheck.testTarget} onTestTargetChange={adCheck.changeTestTarget} />
+      {/* 고지 문구는 결과 화면("위험 감지 문구가 발견되었어요")에서만 노출하고 다른 화면에서는 숨김.
+          테스트 스위처는 화면과 무관하게 항상 유지 */}
+      <SidepanelFooter
+        testTarget={adCheck.testTarget}
+        onTestTargetChange={adCheck.changeTestTarget}
+        hideDisclaimer={!(status === "SUMMARY_HERO" || status === "EMPTY")}
+      />
     </div>
   );
 }

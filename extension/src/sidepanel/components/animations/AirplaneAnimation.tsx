@@ -11,8 +11,8 @@ export const AirplaneAnimation: React.FC = () => {
       <style>{`
         .airplane-anim-stage {
           position: relative;
-          width: 140px;
-          height: 90px;
+          width: 178px;
+          height: 114px;
           display: flex;
           align-items: center;
           justify-content: center;
@@ -23,8 +23,8 @@ export const AirplaneAnimation: React.FC = () => {
         .airplane-body-wrap {
           position: relative;
           z-index: 2;
-          width: 78px;
-          height: 78px;
+          width: 102px;
+          height: 102px;
           animation: airplaneFloat 2.6s ease-in-out infinite alternate;
         }
 
@@ -44,14 +44,15 @@ export const AirplaneAnimation: React.FC = () => {
           }
         }
 
-        /* ★ 가로 수평 제트 기류(Wind Stream) 컨테이너 ★ */
+        /* ★ 가로 수평 제트 기류(Wind Stream) 컨테이너 ★
+           비행기 모터 앞쪽이 아니라 뒤쪽에서 뿜어져 나오도록 반대편(오른쪽)으로 위치를 옮김 */
         .wind-stream-container {
           position: absolute;
-          left: -8px; /* 비행기 꼬리 뒤편 위치 */
+          right: -10px; /* 비행기 꼬리/모터 뒤편 위치 */
           top: 50%;
           transform: translateY(-50%);
-          width: 65px;
-          height: 40px;
+          width: 85px;
+          height: 52px;
           z-index: 1;
           pointer-events: none;
         }
@@ -62,31 +63,31 @@ export const AirplaneAnimation: React.FC = () => {
           height: 3px; /* 얇은 가로선 두께 */
           border-radius: 9999px;
           background: linear-gradient(
-            270deg,
+            90deg,
             rgba(93, 217, 193, 0.8) 0%,
             rgba(93, 217, 193, 0.3) 60%,
             rgba(93, 217, 193, 0) 100%
           );
-          transform-origin: right center;
+          transform-origin: left center;
           animation: windFlowHorizontal 1.1s cubic-bezier(0.4, 0, 0.2, 1) infinite;
         }
 
         /* 위쪽 기류선 (가로) */
         .wind-1 {
-          top: 8px;
-          right: 0;
-          width: 48px;
+          top: 9px;
+          left: 0;
+          width: 55px;
           animation-delay: 0s;
         }
 
         /* 중앙 메인 기류선 (가장 긴 가로선) */
         .wind-2 {
-          top: 18px;
-          right: 4px;
-          width: 58px;
-          height: 3.5px;
+          top: 21px;
+          left: 4px;
+          width: 67px;
+          height: 4px;
           background: linear-gradient(
-            270deg,
+            90deg,
             rgba(45, 212, 191, 0.95) 0%,
             rgba(45, 212, 191, 0.4) 65%,
             rgba(45, 212, 191, 0) 100%
@@ -96,27 +97,27 @@ export const AirplaneAnimation: React.FC = () => {
 
         /* 아래쪽 기류선 (가로) */
         .wind-3 {
-          top: 28px;
-          right: 2px;
-          width: 38px;
+          top: 32px;
+          left: 2px;
+          width: 44px;
           animation-delay: 0.45s;
         }
 
         /* 비행기 뒤로 수평 방출되며 사라지는 가로 애니메이션 */
         @keyframes windFlowHorizontal {
           0% {
-            transform: translateX(10px) scaleX(0.2);
+            transform: translateX(-10px) scaleX(0.2);
             opacity: 0;
           }
           30% {
             opacity: 0.9;
           }
           70% {
-            transform: translateX(-22px) scaleX(1);
+            transform: translateX(22px) scaleX(1);
             opacity: 0.7;
           }
           100% {
-            transform: translateX(-40px) scaleX(0.7);
+            transform: translateX(40px) scaleX(0.7);
             opacity: 0;
           }
         }

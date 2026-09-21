@@ -1,5 +1,5 @@
 /* ========================================================
-   [views/IdleView.tsx] 대기/에러/미지원 화면
+   [views/IdleView.tsx] 대기/미지원 화면
    ======================================================== */
 .hero-icon-circle {
   width: 64px;
@@ -8,12 +8,15 @@
   display: flex;
   align-items: center;
   justify-content: center;
-  margin-bottom: 14px;
+  margin-bottom: 22px;
 }
-.icon-circle-red { background: rgba(239, 68, 68, 0.1); }
 .icon-circle-gray { background: rgba(100, 116, 139, 0.1); }
+.icon-circle-red { background: rgba(239, 68, 68, 0.1); }
 
 .text-dark { color: #0F172A; }
 
 .hero-title-idle { margin-top: 4px; }
+.hero-title.hero-title-unsupported { font-weight: 700; margin-bottom: 14px; }
+.hero-sub.hero-sub-unsupported { margin-bottom: 6px; }
 .btn-idle-margin { margin-top: 22px; }
+.btn-idle-margin.btn-idle-margin-lg { margin-top: 32px; }

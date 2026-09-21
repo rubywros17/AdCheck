@@ -19,13 +19,51 @@
 .history-modal-title { font-size: 16px; font-weight: 800; color: #0F172A; }
 .history-list-stack { display: flex; flex-direction: column; gap: 8px; max-height: 320px; overflow-y: auto; margin-top: 4px; }
 .history-item-card {
-  text-align: left;
   width: 100%;
   background: #F8FAFC; border: 1px solid #E2E8F0; border-radius: 12px;
-  padding: 12px; display: flex; align-items: center; justify-content: space-between;
-  cursor: pointer; transition: background 0.15s ease;
+  padding: 12px; display: flex; align-items: center; justify-content: space-between; gap: 6px;
+  transition: background 0.15s ease;
 }
 .history-item-card:hover { background: #F1F5F9; }
+
+/* 카드 안의 실제 선택 영역: 버튼이지만 카드에 녹아드는 무장식 스타일 */
+.history-item-select {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  background: transparent;
+  border: none;
+  padding: 0;
+  text-align: left;
+  cursor: pointer;
+  font: inherit;
+  color: inherit;
+}
+
+/* 즐겨찾기 별표 버튼: 카드 클릭과 분리된 독립 버튼 */
+.history-star-btn {
+  flex-shrink: 0;
+  width: 28px;
+  height: 28px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: transparent;
+  border: none;
+  border-radius: 50%;
+  font-size: 16px;
+  line-height: 1;
+  color: #CBD5E1;
+  cursor: pointer;
+  transition: color 0.15s ease, transform 0.15s ease, background 0.15s ease;
+}
+.history-star-btn:hover { background: rgba(148, 163, 184, 0.14); }
+.history-star-btn:active { transform: scale(0.9); }
+.history-star-btn.active { color: #F59E0B; }
+
 .history-item-info { display: flex; flex-direction: column; gap: 2px; overflow: hidden; padding-right: 8px; }
 .history-date { font-size: 10.5px; font-weight: 600; color: #94A3B8; }
 .history-prod-name { font-size: 12.5px; font-weight: 700; color: #0F172A; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }

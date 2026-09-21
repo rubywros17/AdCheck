@@ -66,11 +66,11 @@ export const SplashView: React.FC<SplashViewProps> = ({ onFinish }) => {
           opacity: 1;
         }
 
-        /* 2. 눈을 축으로 고정한 채 A(좌측) -> k(우측)로 회전하며 훑는 스포트라이트 광선.
-           (translateX 대신 눈 좌표를 축으로 회전만 시켜서, 빔의 꼭짓점이 계속 눈 위치에 고정됩니다.) */
+        /* 2. 두 눈을 각각의 축으로 고정한 채 A(좌측) -> k(우측)로 회전하며 훑는 스포트라이트 광선 2개.
+           (translateX 대신 각 눈 좌표를 축으로 회전만 시켜서, 빔의 꼭짓점이 계속 각 눈 위치에 고정됩니다.
+           transform-origin은 두 눈이 서로 달라 인라인 스타일로 개별 지정하고, 애니메이션 자체는 공유합니다.) */
         .laser-light-cone {
           opacity: 0;
-          transform-origin: 160px 64px;
         }
         .anim-active .laser-light-cone {
           animation: sweepLeftToRight 1.6s cubic-bezier(0.3, 0, 0.25, 1) forwards;
@@ -141,10 +141,12 @@ export const SplashView: React.FC<SplashViewProps> = ({ onFinish }) => {
             <stop offset="100%" stopColor="#0D9488" stopOpacity="0" />
           </linearGradient>
 
-          {/* 청록색 Check 글자 그라데이션 */}
+          {/* 'Check' 글자 그라데이션: 상단바 로고(.glass-brand-check)와 동일한 색상 구성 */}
           <linearGradient id="checkTealGrad" x1="0%" y1="0%" x2="100%" y2="100%">
-            <stop offset="0%" stopColor="#2DD4BF" />
-            <stop offset="100%" stopColor="#0D9488" />
+            <stop offset="0%" stopColor="#0D9488" />
+            <stop offset="40%" stopColor="#14B8A6" />
+            <stop offset="70%" stopColor="#5EEAD4" />
+            <stop offset="100%" stopColor="#0F766E" />
           </linearGradient>
 
           {/* 블러 필터 */}
@@ -168,23 +170,36 @@ export const SplashView: React.FC<SplashViewProps> = ({ onFinish }) => {
           height="74"
         />
 
-        {/* 곰돌이 눈동자 발광 점 */}
+        {/* 곰돌이 눈동자 발광 점 (하이라이트 흰 점은 삭제하여 눈을 깔끔하게 정리) */}
         <circle className="bear-eye-glow" cx="149" cy="64" r="3" fill="#5EEAD4" filter="url(#lightBlur)" />
-        <circle className="bear-eye-glow" cx="149" cy="64" r="1.5" fill="#FFFFFF" />
         <circle className="bear-eye-glow" cx="171" cy="64" r="3" fill="#5EEAD4" filter="url(#lightBlur)" />
-        <circle className="bear-eye-glow" cx="171" cy="64" r="1.5" fill="#FFFFFF" />
 
-        {/* ─── 2. 스캔 광선 레이어: 곰돌이보다 나중에 그려서 곰돌이 위로 겹치게 함 (눈 좌표: X=160, Y=64) ─── */}
-        <g className="laser-light-cone">
+        {/* ─── 2. 스캔 광선 레이어: 곰돌이보다 나중에 그려서 곰돌이 위로 겹치게 함
+             (왼쪽 눈 X=149, 오른쪽 눈 X=171, 둘 다 Y=64에서 각각 출발) ─── */}
+        <g className="laser-light-cone" style={{ transformOrigin: '149px 64px' }}>
           {/* 부드럽게 퍼지는 메인 스포트라이트 삼각 빔 */}
           <polygon
-            points="160,64 125,200 195,200"
+            points="149,64 129,200 169,200"
             fill="url(#spotlightGrad)"
             filter="url(#lightBlur)"
           />
           {/* 중심 코어 빛줄기 */}
           <polygon
-            points="160,64 140,200 180,200"
+            points="149,64 138,200 160,200"
+            fill="url(#spotlightGrad)"
+            opacity="0.5"
+          />
+        </g>
+        <g className="laser-light-cone" style={{ transformOrigin: '171px 64px' }}>
+          {/* 부드럽게 퍼지는 메인 스포트라이트 삼각 빔 */}
+          <polygon
+            points="171,64 151,200 191,200"
+            fill="url(#spotlightGrad)"
+            filter="url(#lightBlur)"
+          />
+          {/* 중심 코어 빛줄기 */}
+          <polygon
+            points="171,64 160,200 182,200"
             fill="url(#spotlightGrad)"
             opacity="0.5"
           />

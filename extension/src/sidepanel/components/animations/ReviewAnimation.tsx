@@ -11,8 +11,8 @@ export function ReviewAnimation() {
       <img
         src="/icons/3d_review.png"
         alt="별점 리뷰 말풍선과 주의 표시"
-        width={52}
-        height={78}
+        width={90}
+        height={85}
         className="review-3d-img"
       />
     </div>

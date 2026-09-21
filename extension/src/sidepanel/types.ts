@@ -26,4 +26,5 @@ export interface ScanHistoryItem {
   productName: string;
   count: number;
   level: ReviewLevel;
+  favorite?: boolean;
 }

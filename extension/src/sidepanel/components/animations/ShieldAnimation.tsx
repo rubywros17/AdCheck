@@ -11,8 +11,8 @@ export function ShieldAnimation() {
       <img
         src="/icons/3d_shield.png"
         alt="체크 표시가 있는 방패"
-        width={73}
-        height={96}
+        width={84}
+        height={110}
         className="shield-3d-img"
       />
     </div>

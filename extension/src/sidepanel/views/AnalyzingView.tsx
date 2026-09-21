@@ -6,10 +6,6 @@ import { PillAnimation } from "../components/animations/PillAnimation";
 import { ReviewAnimation } from "../components/animations/ReviewAnimation";
 import { AirplaneAnimation } from "../components/animations/AirplaneAnimation";
 
-interface Props {
-  onComplete: () => void;
-}
-
 type TipTheme = "shield" | "warning" | "pill" | "review" | "airplane";
 
 interface TipItem {
@@ -33,59 +29,62 @@ function getGraphicForTip(tip: TipItem): React.ComponentType {
   return GRAPHIC_BY_THEME[tip.theme];
 }
 
-// 1단계: 분석 요청이 접수되는 짧은 PENDING 구간 (아직 팁을 보여줄 만한 실제 분석 진행 전)
-const PENDING_MS = 700;
-// 카드 1장이 화면에 머무는 최소 시간
-const CARD_DISPLAY_MS = 3000;
+// 카드 1장이 화면에 머무는 시간
+const CARD_DISPLAY_MS = 6000;
 // 카드가 옆으로 밀려나며 전환되는 데 걸리는 시간
 const SLIDE_MS = 500;
-// 전체 로딩 최소 노출 시간 (PENDING 0.7초 + 카드1 3초 + 전환 0.5초 + 카드2 3초 = 7.2초)
-const TOTAL_LOADING_MS = PENDING_MS + CARD_DISPLAY_MS + SLIDE_MS + CARD_DISPLAY_MS;
 
 // 17가지 식약처 공인 부당광고 상식 문장
 const ADCHECK_TIPS: TipItem[] = [
   // 1. 방패 / 인증마크 테마 (shield)
-  { theme: "shield", text: "건강기능식품은 패키지 인증마크로 확인할 수 있어요.", certMark: true },
-  { theme: "shield", text: "인정받은 제품인지 '식품안전나라'에서 검색해보세요." },
-  { theme: "shield", text: "'기능성 표시식품'은 건강기능식품과 달라요." },
+  { theme: "shield", text: "건강기능식품은\n패키지 인증마크로 확인할 수 있어요.", certMark: true },
+  { theme: "shield", text: "인정받은 제품인지\n'식품안전나라'에서 검색해보세요." },
+  { theme: "shield", text: "'기능성 표시식품'은\n건강기능식품과 달라요." },
 
   // 2. 해외직구 비행기 테마 (airplane)
   { theme: "airplane", text: "해외직구 영양제는\n식약처 인증 건강기능식품이 아니에요." },
   { theme: "airplane", text: "해외직구 식품과 일반식품은\n건강기능식품이 아니에요." },
 
   // 3. 경고 도장 테마 (warning)
-  { theme: "warning", text: "일반식품은 '피로회복', '혈당조절' 문구를 쓸 수 없어요." },
+  { theme: "warning", text: "일반식품은 '피로회복' 문구를 쓸 수 없어요." },
+  { theme: "warning", text: "일반식품에 '혈당조절' 문구를 쓸 수 없어요." },
   { theme: "warning", text: "일반식품에 '항산화' 등의 문구를 쓰면\n건강기능식품 오인 광고예요." },
-  { theme: "warning", text: "'혈관을 탄력 있고 부드럽게'는 허위 광고예요." },
   { theme: "warning", text: "원재료 효능 논문을\n제품 효능처럼 광고할 수 없어요." },
-  { theme: "warning", text: "'부작용 0%', '100% 천연' 같은 절대적 표현은 금지돼요." },
+  { theme: "warning", text: "'부작용 없음', '100% 천연' 같은\n절대적 표현은 금지돼요." },
   { theme: "warning", text: "호박즙, 효소 등 일반식품은\n붓기 제거 광고를 할 수 없어요." },
 
   // 4. 알약 / 의약품 오인 테마 (pill)
-  { theme: "pill", text: "건강기능식품은 질병을 치료하는 의약품이 아니에요." },
-  { theme: "pill", text: "건강기능식품은 질병을 예방하는 의약품처럼 광고할 수 없어요." },
-  { theme: "pill", text: "멜라토닌 함유 식품은 불면증 치료 효과가 없어요." },
+  { theme: "pill", text: "건강기능식품은\n질병을 치료하는 의약품이 아니에요." },
+  { theme: "pill", text: "건강기능식품은 질병을 예방하는 의약품처럼\n광고할 수 없어요." },
+  { theme: "pill", text: "멜라토닌 함유 식품은\n불면증 치료 효과가 없어요." },
   { theme: "pill", text: "국내에 탈모 치료 효과를 인정받은 건강기능식품은 없어요." },
-  { theme: "pill", text: "'키 크는 영양제', '수험생 총명환'은 인정된 기능성이 아니에요." },
+  { theme: "pill", text: "'키 크는 영양제', '수험생 총명환'은\n인정된 기능성이 아니에요." },
 
   // 5. 구매후기 / 체험기 테마 (review)
-  { theme: "review", text: "'먹고 완치됐다'는 체험기·구매후기 광고는 불법이에요." },
+  { theme: "review", text: "'먹고 완치됐다'는\n체험기·구매후기 광고는 불법이에요." },
 ];
 
-// PENDING 단계: 분석 요청이 막 접수된 순간 — 아직 보여줄 팁이 없어 단순한 점 3개 로딩만 표시
-function PendingContent() {
-  return (
-    <>
-      <div className="analyzing-graphic-wrap">
-        <div className="analyzing-pending-dots">
-          <span />
-          <span />
-          <span />
-        </div>
-      </div>
-      <h2 className="analyzing-main-headline">분석을 요청하고 있어요</h2>
-    </>
-  );
+// 같은 테마를 가진 팁이 서로 이웃하는지 검사
+function hasAdjacentSameTheme(tips: TipItem[]): boolean {
+  return tips.some((tip, i) => i > 0 && tip.theme === tips[i - 1].theme);
+}
+
+// 피셔-예이츠 셔플: 매 바퀴마다 새로 섞어서 같은 순서가 반복되지 않게 함.
+// 바로 옆 카드끼리 같은 테마가 연속되지 않을 때까지 다시 섞고(가능하면 이전 바퀴 마지막 카드와도 겹치지 않게),
+// 최대 200번 시도해도 못 찾으면 마지막으로 나온 결과를 그대로 사용.
+function shuffleTips(avoidLeadingTheme?: TipTheme): TipItem[] {
+  let candidate: TipItem[] = ADCHECK_TIPS;
+  for (let attempt = 0; attempt < 200; attempt++) {
+    candidate = [...ADCHECK_TIPS];
+    for (let i = candidate.length - 1; i > 0; i--) {
+      const j = Math.floor(Math.random() * (i + 1));
+      [candidate[i], candidate[j]] = [candidate[j], candidate[i]];
+    }
+    if (hasAdjacentSameTheme(candidate)) continue;
+    if (avoidLeadingTheme !== undefined && candidate[0].theme === avoidLeadingTheme) continue;
+    break;
+  }
+  return candidate;
 }
 
 function CardContent({ tip }: { tip: TipItem }) {
@@ -102,83 +101,63 @@ function CardContent({ tip }: { tip: TipItem }) {
   );
 }
 
-// 진입 시 서로 다른 테마의 팁 2개를 무조건 보장하는 선택 함수
-function pickTwoDistinctTips(): [TipItem, TipItem] {
-  // 1. 첫 번째 팁 랜덤 선택
-  const firstIdx = Math.floor(Math.random() * ADCHECK_TIPS.length);
-  const firstTip = ADCHECK_TIPS[firstIdx];
-
-  // 2. 첫 번째 팁과 테마(theme)가 다른 팁들만 필터링
-  const differentThemeTips = ADCHECK_TIPS.filter(
-    (tip) => tip.theme !== firstTip.theme,
+export function AnalyzingView() {
+  // 셔플된 17개 팁 전체를 순환. 한 바퀴 다 돌면 다시 셔플해서 이어감 —
+  // 실제 광고 검수가 끝날 때까지(부모가 이 컴포넌트를 내릴 때까지) 계속 순환할 수 있도록,
+  // "몇 장 보여주고 끝" 같은 고정 총 노출 시간을 이 컴포넌트가 스스로 정하지 않음.
+  const [shuffledTips, setShuffledTips] = useState<TipItem[]>(shuffleTips);
+  // 현재 바퀴가 끝나는 순간(마지막 카드 -> 첫 카드) 슬라이드 미리보기가 실제로 이어질 카드와
+  // 어긋나지 않도록, 다음 바퀴 분량을 미리 한 바퀴 앞서 셔플해둠(이전 바퀴 마지막 테마와도 안 겹치게).
+  const [nextLapTips, setNextLapTips] = useState<TipItem[]>(() =>
+    shuffleTips(shuffledTips[shuffledTips.length - 1].theme)
   );
 
-  // 3. 필터링된 목록에서 두 번째 팁 선택 (무조건 다른 테마 보장)
-  const secondIdx = Math.floor(Math.random() * differentThemeTips.length);
-  const secondTip = differentThemeTips[secondIdx];
-
-  return [firstTip, secondTip];
-}
-
-export function AnalyzingView({ onComplete }: Props) {
-  // 마운트 시 서로 다른 테마의 팁 2개를 미리 확정 (1번째 <-> 2번째 이미지 테마 겹침 방지)
-  const [tips] = useState<[TipItem, TipItem]>(pickTwoDistinctTips);
-
-  // PENDING(분석 요청 접수, 팁 없이 점 3개만) -> PROCESSING(실제 분석 중, 팁 카드 노출) 2단계
-  const [phase, setPhase] = useState<'PENDING' | 'PROCESSING'>('PENDING');
-  // 현재 화면에 정착해 있는 카드 (0 = 첫 번째, 1 = 두 번째)
-  const [activeCard, setActiveCard] = useState<0 | 1>(0);
+  // 현재 화면에 정착해 있는 카드의 shuffledTips 기준 인덱스
+  const [activeIndex, setActiveIndex] = useState(0);
   // 슬라이드 전환이 진행 중인 0.5초 구간에만 true
   const [isSliding, setIsSliding] = useState(false);
 
-  // PENDING -> PROCESSING 전환
+  // 카드 1장 → (5초 후) 슬라이드 시작 → (0.5초 후) 다음 카드로 정착.
+  // 끝에 도달하면 미리 준비해둔 다음 바퀴로 넘어가고, 그다음 바퀴를 새로 셔플해둠 — 무한 순환.
   useEffect(() => {
-    const timer = window.setTimeout(() => setPhase('PROCESSING'), PENDING_MS);
-    return () => window.clearTimeout(timer);
-  }, []);
-
-  // PROCESSING에 들어선 뒤에만 카드1 → (3초 후) 슬라이드 시작 → (0.5초 후) 카드2로 정착
-  useEffect(() => {
-    if (phase !== 'PROCESSING') return;
-
     const startSlide = window.setTimeout(() => setIsSliding(true), CARD_DISPLAY_MS);
-    const settleOnCard2 = window.setTimeout(() => {
-      setActiveCard(1);
+    const settleNext = window.setTimeout(() => {
+      setActiveIndex((prev) => {
+        const next = prev + 1;
+        if (next >= shuffledTips.length) {
+          setShuffledTips(nextLapTips);
+          setNextLapTips(shuffleTips(nextLapTips[nextLapTips.length - 1].theme));
+          return 0;
+        }
+        return next;
+      });
       setIsSliding(false);
     }, CARD_DISPLAY_MS + SLIDE_MS);
 
     return () => {
       window.clearTimeout(startSlide);
-      window.clearTimeout(settleOnCard2);
+      window.clearTimeout(settleNext);
     };
-  }, [phase]);
+  }, [activeIndex, shuffledTips, nextLapTips]);
 
-  // 최소 7.2초(PENDING 0.7초 + 카드1 3초 + 전환 0.5초 + 카드2 3초) 노출을 보장한 뒤 완료 처리
-  useEffect(() => {
-    const timer = window.setTimeout(onComplete, TOTAL_LOADING_MS);
-    return () => window.clearTimeout(timer);
-  }, [onComplete]);
+  const nextTip = activeIndex + 1 < shuffledTips.length ? shuffledTips[activeIndex + 1] : nextLapTips[0];
 
   return (
     <div className="analyzing-tip-card">
-      {phase === 'PENDING' ? (
-        <div className="analyzing-card-slot">
-          <PendingContent />
-        </div>
-      ) : isSliding ? (
+      {isSliding ? (
         <>
           {/* 현재 카드: 왼쪽으로 스르륵 퇴장 */}
           <div className="analyzing-card-slot card-slide-exit">
-            <CardContent tip={tips[activeCard]} />
+            <CardContent tip={shuffledTips[activeIndex]} />
           </div>
           {/* 다음 카드: 오른쪽에서 부드럽게 등장 */}
           <div className="analyzing-card-slot card-slide-enter">
-            <CardContent tip={tips[activeCard === 0 ? 1 : 0]} />
+            <CardContent tip={nextTip} />
           </div>
         </>
       ) : (
         <div className="analyzing-card-slot">
-          <CardContent tip={tips[activeCard]} />
+          <CardContent tip={shuffledTips[activeIndex]} />
         </div>
       )}
     </div>
