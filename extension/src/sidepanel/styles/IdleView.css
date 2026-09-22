@@ -20,3 +20,17 @@
 .hero-sub.hero-sub-unsupported { margin-bottom: 6px; }
 .btn-idle-margin { margin-top: 22px; }
 .btn-idle-margin.btn-idle-margin-lg { margin-top: 32px; }
+
+/* "다시 시도" 아래 보조 액션: 처음 화면(IDLE)으로 돌아가는 텍스트 버튼 */
+.btn-idle-secondary {
+  width: 100%;
+  margin-top: 10px;
+  padding: 10px 0;
+  background: transparent;
+  border: none;
+  color: #64748B;
+  font-size: 13.5px;
+  font-weight: 600;
+  cursor: pointer;
+}
+.btn-idle-secondary:hover { color: #334155; }

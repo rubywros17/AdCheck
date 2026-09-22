@@ -194,7 +194,7 @@ export function useAdCheck(status: ViewStatus, setStatus: Dispatch<SetStateActio
     pendingScrollIdx, targetCount, currentPageTitle, findings, level,
     currentHistoryId, isCurrentFavorite,
     pageUrl: currentPageUrl,
-    showHistory: !["ANALYZING", "SUMMARY_HERO", "EMPTY"].includes(status),
+    showHistory: status !== "ANALYZING",
     goHome, analyze, changeTestTarget, selectHistory, selectBubble, showAllFindings,
     toggleFinding, completeScroll, shareResults, locateFinding, toggleFavorite,
     setActiveFilter: changeFilter,

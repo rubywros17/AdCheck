@@ -242,28 +242,9 @@ export const SummaryHeroView: React.FC<SummaryHeroViewProps> = ({ count, onConti
           100% { transform: rotate(var(--target-angle)); }
         }
 
-        /* 하단 CTA 버튼 */
+        /* 하단 CTA 버튼: 크기/색은 IDLE 화면 "현재 페이지 광고 점검하기"와 동일한 btn-brand-primary를 그대로 씀 */
         .mood-cta-btn {
-          width: 100%;
-          height: 50px;
-          background: #0F172A;
-          color: #FFFFFF;
-          border: none;
-          border-radius: 14px;
-          font-size: 15px;
-          font-weight: 600;
-          cursor: pointer;
-          transition: transform 0.1s ease, background 0.2s ease, box-shadow 0.2s ease;
-          display: flex;
-          align-items: center;
-          justify-content: center;
-          box-shadow: 0 6px 16px -4px rgba(15, 23, 42, 0.16);
           margin-top: 12px;
-        }
-
-        .mood-cta-btn:active {
-          transform: scale(0.98);
-          background: #1E293B;
         }
       `}</style>
 
@@ -397,7 +378,7 @@ export const SummaryHeroView: React.FC<SummaryHeroViewProps> = ({ count, onConti
       </div>
 
       {/* 4. 하단 CTA 버튼 */}
-      <button className="mood-cta-btn" onClick={onContinue}>
+      <button className="btn-brand-primary mood-cta-btn" type="button" onClick={onContinue}>
         {isSafe ? '다른 광고 검사하기' : '어떤 문구인지 확인하기'}
       </button>
     </div>

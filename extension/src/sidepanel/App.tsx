@@ -75,7 +75,7 @@ export function App() {
           )}
 
           {(status === "ERROR" || status === "UNSUPPORTED") && (
-            <IdleView variant={status} onAnalyze={adCheck.analyze} />
+            <IdleView variant={status} onAnalyze={adCheck.analyze} onGoHome={adCheck.goHome} />
           )}
         </div>
       </main>

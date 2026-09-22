@@ -3,9 +3,10 @@
 interface Props {
   variant?: "IDLE" | "ERROR" | "UNSUPPORTED";
   onAnalyze: () => void;
+  onGoHome?: () => void;
 }
 
-export function IdleView({ variant = "IDLE", onAnalyze }: Props) {
+export function IdleView({ variant = "IDLE", onAnalyze, onGoHome }: Props) {
   if (variant === "ERROR") {
     return (
       <div className="toss-hero-box">
@@ -34,6 +35,11 @@ export function IdleView({ variant = "IDLE", onAnalyze }: Props) {
         <button className="btn-brand-primary btn-idle-margin" type="button" onClick={onAnalyze}>
           다시 시도
         </button>
+        {onGoHome && (
+          <button className="btn-idle-secondary" type="button" onClick={onGoHome}>
+            처음으로 돌아가기
+          </button>
+        )}
       </div>
     );
   }
@@ -62,10 +68,14 @@ export function IdleView({ variant = "IDLE", onAnalyze }: Props) {
           분석할 수 없어요
         </h2>
         <p className="hero-sub hero-sub-spacious hero-sub-unsupported">상품 상세페이지에서 다시 실행해 주세요.</p>
-        {/* 홈으로 돌아가는 대신, 현재 탭을 바로 재분석 */}
         <button className="btn-brand-primary btn-idle-margin btn-idle-margin-lg" type="button" onClick={onAnalyze}>
           다시 분석하기
         </button>
+        {onGoHome && (
+          <button className="btn-idle-secondary" type="button" onClick={onGoHome}>
+            처음으로 돌아가기
+          </button>
+        )}
       </div>
     );
   }

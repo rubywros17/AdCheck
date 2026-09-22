@@ -2,7 +2,7 @@
 // ==========================================
 // 상세 리포트 아코디언 목록 화면
 // ==========================================
-import React, { useEffect, useRef } from 'react';
+import React, { useEffect, useRef, useState } from 'react';
 import type { FilterCategory, FindingWithKeyword } from '../types';
 import { getCategoryTheme } from '../../constants/judgmentCategories';
 
@@ -42,6 +42,24 @@ const FINDING_BUCKET_LABEL: Record<'DISEASE' | 'GUARANTEE', string> = {
   GUARANTEE: '광고심의',
 };
 
+// 심각도(2단계) 범례 & 정보 토글창에 쓰는 문구·색상.
+// 앱 전체 등급 라벨(안심/검토/주의)과 혼동되지 않도록 높음/보통이라는 별도 단어를 씀. NORMAL(초록)은 위반이 아니라 범례에서 제외.
+const SEVERITY_LEGEND_ITEMS: { key: 'HIGH' | 'CAUTION'; color: string; dotLabel: string; description: string }[] = [
+  {
+    key: 'HIGH',
+    color: '#FA4224',
+    dotLabel: '높음',
+    description:
+      '제품에 없는 효과를 기대하게 하거나, 치료·효과 보장으로 받아들이게 해 제품에 대한 판단을 크게 왜곡할 수 있는 표현',
+  },
+  {
+    key: 'CAUTION',
+    color: '#FDDC5C',
+    dotLabel: '보통',
+    description: '강조 방식이나 설명 부족으로 제품의 특성·근거·효과 범위를 오해하게 할 수 있는 표현',
+  },
+];
+
 export const DetailListView: React.FC<DetailListViewProps> = ({
   findings,
   activeFilter,
@@ -67,6 +85,9 @@ export const DetailListView: React.FC<DetailListViewProps> = ({
 
   const diseaseCount = findings.filter((finding) => getFindingBucket(finding) === 'DISEASE').length;
   const guaranteeCount = findings.length - diseaseCount;
+
+  // 심각도 기준 안내 토글창 열림 상태
+  const [isInfoOpen, setIsInfoOpen] = useState(false);
 
   // 말풍선 화면에서 특정 문구를 선택해 넘어온 경우, 그 항목으로 자동 스크롤
   const itemRefs = useRef<Map<number, HTMLDivElement>>(new Map());
@@ -212,6 +233,89 @@ export const DetailListView: React.FC<DetailListViewProps> = ({
         </button>
       </div>
 
+      {/* 2-1. 심각도(2단계) 범례 + ⓘ 정보 토글: 빨간/노란 점이 각각 무슨 뜻인지 안내. 전체 우측 정렬, ⓘ가 "심각도" 라벨 왼쪽에 옴
+          info 박스는 position:relative 기준점만 제공 — 아래 팝오버가 이 기준으로 절대 위치를 잡음 */}
+      <div style={{ position: 'relative' }}>
+        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'flex-end', padding: '6px 2px', marginBottom: '6px' }}>
+          <button
+            type="button"
+            onClick={() => setIsInfoOpen((prev) => !prev)}
+            aria-expanded={isInfoOpen}
+            aria-label={isInfoOpen ? '심각도 기준 정보 닫기' : '심각도 기준 정보 보기'}
+            style={{
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+              width: '22px',
+              height: '22px',
+              background: 'transparent',
+              border: 'none',
+              borderRadius: '50%',
+              cursor: 'pointer',
+              color: isInfoOpen ? '#0F172A' : '#94A3B8',
+              transition: 'color 0.15s ease',
+            }}
+          >
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.4" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+              <circle cx="12" cy="12" r="10" />
+              <line x1="12" y1="16" x2="12" y2="12" />
+              <line x1="12" y1="8" x2="12.01" y2="8" />
+            </svg>
+          </button>
+          <span style={{ fontSize: '11.5px', fontWeight: 700, color: '#64748B', marginLeft: '2px', marginRight: '8px' }}>심각도</span>
+          <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+            {SEVERITY_LEGEND_ITEMS.map((item) => (
+              <span key={item.key} style={{ display: 'inline-flex', alignItems: 'center', gap: '4px' }}>
+                <span
+                  aria-hidden="true"
+                  style={{ display: 'inline-block', width: '8px', height: '8px', borderRadius: '50%', flexShrink: 0, background: item.color }}
+                />
+                <span style={{ fontSize: '11px', color: '#475569', fontWeight: 500 }}>{item.dotLabel}</span>
+              </span>
+            ))}
+          </div>
+        </div>
+
+        {/* 심각도 기준 메모: 아래 상세 리포트 목록을 밀어내지 않도록, 목록 위에 뜨는 절대 위치 팝오버(메모) 카드로 표시 */}
+        <div
+          style={{
+            position: 'absolute',
+            top: '100%',
+            left: 0,
+            right: 0,
+            zIndex: 20,
+            background: '#F8FAFC',
+            border: '1px solid #E2E8F0',
+            borderRadius: '10px',
+            padding: '10px 12px',
+            boxShadow: '0 10px 24px rgba(15, 23, 42, 0.16)',
+            opacity: isInfoOpen ? 1 : 0,
+            transform: isInfoOpen ? 'translateY(0) scale(1)' : 'translateY(-6px) scale(0.97)',
+            pointerEvents: isInfoOpen ? 'auto' : 'none',
+            transition: 'opacity 0.25s cubic-bezier(0.34, 1.56, 0.64, 1), transform 0.3s cubic-bezier(0.34, 1.56, 0.64, 1)',
+          }}
+        >
+          <div style={{ fontSize: '12px', fontWeight: 700, color: '#0F172A', marginBottom: '8px' }}>
+            💡 문구별 심각도 기준
+          </div>
+          {SEVERITY_LEGEND_ITEMS.map((item, itemIdx) => (
+            <div
+              key={item.key}
+              style={{ display: 'flex', alignItems: 'flex-start', gap: '6px', marginTop: itemIdx === 0 ? 0 : '16px' }}
+            >
+              <span
+                aria-hidden="true"
+                style={{ display: 'inline-block', width: '8px', height: '8px', borderRadius: '50%', flexShrink: 0, marginTop: '4px', background: item.color }}
+              />
+              <div style={{ fontSize: '11px', color: '#64748B', lineHeight: 1.5 }}>
+                <span style={{ fontWeight: 700, color: '#0F172A' }}>{item.dotLabel}: </span>
+                {item.description}
+              </div>
+            </div>
+          ))}
+        </div>
+      </div>
+
       {/* 3. 슬림 아코디언 목록: 항목마다 따로 떠 있던 박스를 하나로 이어붙인 리스트로 통일 */}
       <div
         className="accordion-list-wrapper"
@@ -331,26 +435,29 @@ export const DetailListView: React.FC<DetailListViewProps> = ({
                         overflow: 'hidden',
                       }}
                     >
-                      {/* 상단 헤더: 위반 유형 뱃지(2대 구분 버킷) + "감지된 문구" 라벨 + 실제 광고 문구 전체 */}
+                      {/* 상단 헤더: "감지된 문구" 라벨 + 위반 유형 뱃지(2대 구분 버킷)를 한 줄(flex space-between)에 배치해
+                          줄바꿈으로 생기던 상단 여백을 없애고, 바로 아래에 실제 광고 문구 전체를 바짝 붙임 */}
                       <div style={{ padding: '12px 14px 11px' }}>
-                        <span
-                          className="category-badge"
-                          style={{
-                            display: 'inline-block',
-                            background: '#F1F5F9',
-                            color: '#475569',
-                            fontSize: '11px',
-                            fontWeight: 700,
-                            padding: '3px 7px',
-                            borderRadius: '4px',
-                          }}
-                        >
-                          {FINDING_BUCKET_LABEL[getFindingBucket(finding)]}
-                        </span>
-                        <div style={{ fontSize: '11.5px', fontWeight: 700, color: '#0F172A', letterSpacing: '-0.2px', marginTop: '8px' }}>
-                          감지된 문구
+                        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '6px' }}>
+                          <span style={{ fontSize: '13.5px', fontWeight: 700, color: '#0F172A', letterSpacing: '-0.2px' }}>
+                            감지된 문구
+                          </span>
+                          <span
+                            className="category-badge"
+                            style={{
+                              display: 'inline-block',
+                              background: '#F1F5F9',
+                              color: '#475569',
+                              fontSize: '11px',
+                              fontWeight: 700,
+                              padding: '2px 6px',
+                              borderRadius: '4px',
+                            }}
+                          >
+                            {FINDING_BUCKET_LABEL[getFindingBucket(finding)]}
+                          </span>
                         </div>
-                        <div style={{ fontSize: '13px', color: '#0F172A', lineHeight: 1.5, marginTop: '4px' }}>
+                        <div style={{ fontSize: '13px', color: '#0F172A', lineHeight: 1.5 }}>
                           "{finding.sourceText}"
                         </div>
                       </div>
@@ -358,7 +465,7 @@ export const DetailListView: React.FC<DetailListViewProps> = ({
                       {/* 주의가 필요한 이유: AI 요약 한 문장 설명(finding.message)을 옅은 에드체크 민트 톤 박스로 */}
                       {finding.message && (
                         <div style={{ padding: '11px 14px', borderTop: '1px solid #F1F5F9' }}>
-                          <div style={{ fontSize: '12px', fontWeight: 700, color: '#0F172A', letterSpacing: '-0.2px' }}>
+                          <div style={{ fontSize: '13.5px', fontWeight: 700, color: '#0F172A', letterSpacing: '-0.2px' }}>
                             주의가 필요한 이유
                           </div>
                           <div
@@ -391,7 +498,7 @@ export const DetailListView: React.FC<DetailListViewProps> = ({
                           실제 이동할 법령 원문 URL을 아직 확정하지 못해 <a href>는 붙이지 않고,
                           링크처럼 보이는 스타일(밑줄+호버)만 우선 적용 */}
                       <div style={{ padding: '11px 14px 12px', borderTop: '1px solid #F1F5F9' }}>
-                        <div style={{ fontSize: '11.5px', fontWeight: 700, color: '#0F172A', letterSpacing: '-0.2px' }}>
+                        <div style={{ fontSize: '13.5px', fontWeight: 700, color: '#0F172A', letterSpacing: '-0.2px' }}>
                           공식 인정 문구
                         </div>
                         <div style={{ fontSize: '12.5px', color: '#334155', lineHeight: 1.5, marginTop: '4px' }}>
@@ -412,22 +519,7 @@ export const DetailListView: React.FC<DetailListViewProps> = ({
 
       {/* 4. 하단 액션 버튼: 다른 광고 검사하기 -> "이 상품 광고 믿고 사도 될까요?" IDLE 화면부터 다시 시작 */}
       <div style={{ marginTop: '20px', paddingTop: '2px' }}>
-        <button
-          type="button"
-          onClick={onReset}
-          style={{
-            width: '100%',
-            height: '47px',
-            borderRadius: '16px',
-            background: '#190933',
-            border: 'none',
-            color: '#FFFFFF',
-            fontSize: '15px',
-            fontWeight: 500,
-            letterSpacing: '-0.2px',
-            cursor: 'pointer',
-          }}
-        >
+        <button className="btn-brand-primary" type="button" onClick={onReset}>
           다른 광고 검사하기
         </button>
       </div>
