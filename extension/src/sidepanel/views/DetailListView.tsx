@@ -38,8 +38,8 @@ function getFindingBucket(finding: FindingWithKeyword): 'DISEASE' | 'GUARANTEE' 
 
 // 토글 내부 뱃지에 쓰는 2대 구분 버킷 표시 문구 (71종 세부 카테고리 대신 큰 갈래만 보여줌)
 const FINDING_BUCKET_LABEL: Record<'DISEASE' | 'GUARANTEE', string> = {
-  DISEASE: '기능성표시',
-  GUARANTEE: '광고심의',
+  DISEASE: '기능성 표시',
+  GUARANTEE: '광고 심의',
 };
 
 // 심각도(2단계) 범례 & 정보 토글창에 쓰는 문구·색상.

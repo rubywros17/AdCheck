@@ -1,5 +1,11 @@
 //"이 상품 광고 믿고 사도 될까요?" 버튼 있는 첫 화면
 
+// CTA 버튼 바로 위 물음표 곰돌이 아이콘. DetailListView.tsx와 동일한 방식으로 확장 아이콘 경로를 구함
+const BEAR_QUESTION_ICON_URL =
+  typeof chrome !== "undefined" && chrome.runtime?.getURL
+    ? chrome.runtime.getURL("icons/bear-question.png")
+    : "/icons/bear-question.png";
+
 interface Props {
   variant?: "IDLE" | "ERROR" | "UNSUPPORTED";
   onAnalyze: () => void;
@@ -90,7 +96,14 @@ export function IdleView({ variant = "IDLE", onAnalyze, onGoHome }: Props) {
         식약처 공식 기능성 인정 기준과<br />
         상세페이지 광고 표현을 실시간 비교해드려요.
       </p>
-      <button className="btn-brand-primary btn-idle-margin" type="button" onClick={onAnalyze}>
+      <img
+        src={BEAR_QUESTION_ICON_URL}
+        alt=""
+        aria-hidden="true"
+        className="btn-idle-margin"
+        style={{ width: "120px", height: "120px", objectFit: "contain" }}
+      />
+      <button className="btn-brand-primary" type="button" onClick={onAnalyze}>
         현재 페이지 광고 점검하기
       </button>
     </div>
