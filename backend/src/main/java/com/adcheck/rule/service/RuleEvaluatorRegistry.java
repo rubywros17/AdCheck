@@ -7,6 +7,8 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Component;
 import static com.adcheck.rule.service.RuleEvaluation.Status.REVIEW_REQUIRED;
@@ -14,7 +16,10 @@ import static com.adcheck.rule.service.RuleEvaluation.ReasonCode.UNSUPPORTED_RUL
 
 @Component
 public class RuleEvaluatorRegistry {
+    private static final Logger log = LoggerFactory.getLogger(RuleEvaluatorRegistry.class);
+
     private final Map<String, RuleEvaluator> evaluators;
+    private final Set<String> batchExcludedRuleCodes;
 
     /** 테스트 편의용 — allowlist 없이 전달된 evaluator들의 규칙을 필터링 없이 전부 등록한다. */
     public RuleEvaluatorRegistry(List<RuleEvaluator> evaluators) {
@@ -41,6 +46,12 @@ public class RuleEvaluatorRegistry {
             }
         }
         this.evaluators = Map.copyOf(registrations);
+        this.batchExcludedRuleCodes = properties == null
+                ? Set.of() : Set.copyOf(properties.getBatchExcludedRuleCodes());
+        if (!this.batchExcludedRuleCodes.isEmpty()) {
+            log.info("배치 제외 규칙 {}개 — Claim마다 개별 호출합니다: {}",
+                    this.batchExcludedRuleCodes.size(), this.batchExcludedRuleCodes);
+        }
     }
 
     public RuleEvaluation evaluate(Rule rule, RuleAnalysisRequest request) {
@@ -56,9 +67,16 @@ public class RuleEvaluatorRegistry {
      */
     public List<RuleEvaluation> evaluateAcrossClaims(Rule rule, List<RuleAnalysisRequest> requests) {
         RuleEvaluator evaluator = evaluators.get(rule.getRuleCode());
-        return evaluator == null
-                ? Collections.nCopies(requests.size(), unsupported())
-                : evaluator.evaluateAcrossClaims(rule, requests);
+        if (evaluator == null) {
+            return Collections.nCopies(requests.size(), unsupported());
+        }
+        if (batchExcludedRuleCodes.contains(rule.getRuleCode())) {
+            // 실측에서 배치와 개별 호출의 판정이 반복해서 갈린 규칙들이다
+            // ({@code RuleJudgeProperties.batchExcludedRuleCodes} 참고). 호출이 1회에서 Claim
+            // 수만큼 늘지만, 배치로 인한 오판정보다는 호출 비용을 택한다.
+            return requests.stream().map(request -> evaluator.evaluate(rule, request)).toList();
+        }
+        return evaluator.evaluateAcrossClaims(rule, requests);
     }
 
     private static RuleEvaluation unsupported() {

@@ -156,30 +156,7 @@ public class AiRuleEvaluator implements RuleEvaluator {
         StringBuilder sb = new StringBuilder();
         sb.append("당신은 건강기능식품 광고 문구가 특정 규칙에 해당하는지 판정하는 검수 도구입니다.\n\n");
 
-        sb.append("[판단 기준]\n");
-        sb.append("분류: ").append(rule.getJudgmentCategory()).append('\n');
-        sb.append("적용 조건: ").append(rule.getApplicationConditions()).append('\n');
-        sb.append("(주의: 위 조건에 나온 핵심 단어가 문장에 있다는 사실만으로 자동 충족되는 게 아닙니다 — ");
-        sb.append("문장이 실제로 구체적인 효능 확장·결합 주장을 담고 있는지 애매하면, 아래 needsOutsideContext를 ");
-        sb.append("반드시 true로 답하세요. 막연한 상황 묘사·부드러운 동기부여 문구·단순 증상 언급은 핵심 단어가 ");
-        sb.append("있어도 대부분 애매하거나 위반이 아닙니다.)\n");
-        if (isNotBlank(rule.getExceptions())) {
-            sb.append("예외 사항: ").append(rule.getExceptions()).append('\n');
-            if (rule.getExceptions().contains("별도")) {
-                sb.append("(주의: 위 예외 사항에 있는 \"별도\"라는 표현은 사람이 직접 재검토해야 한다는 뜻으로 ");
-                sb.append("적어둔 메모입니다 — 완전한 판단 기준이 아닙니다. 이 Claim이 그 키워드·상황과 관련 ");
-                sb.append("있어 보이면, 스스로 위반/정상 여부를 판단하지 말고 아래 needsOutsideContext를 ");
-                sb.append("반드시 true로 답해 REVIEW_REQUIRED로 넘기세요.)\n");
-            }
-        }
-        if (isNotBlank(rule.getCandidateExamples())) {
-            sb.append("참고 예시(전체 목록 아님, 이런 것도 해당할 수 있다는 힌트일 뿐): ")
-                    .append(rule.getCandidateExamples()).append('\n');
-        }
-        if (isNotBlank(rule.getRequiredEvidence())) {
-            sb.append("필요 근거(참고용 — 지금 판단엔 이 근거 자료가 없을 수 있음): ")
-                    .append(rule.getRequiredEvidence()).append('\n');
-        }
+        appendJudgmentCriteria(sb, rule);
         sb.append('\n');
 
         sb.append("[판단 대상 Claim]\n");
@@ -260,12 +237,274 @@ public class AiRuleEvaluator implements RuleEvaluator {
         return sb.toString();
     }
 
+    /**
+     * [판단 기준] 섹션(분류·적용 조건·예외 사항·candidateExamples·규칙별 targeted 가드레일
+     * 13건·requiredEvidence 경고)을 만든다. buildPrompt()(단건)와 buildBatchPromptForRule()
+     * (배치) 양쪽에서 완전히 동일한 내용이 필요해서 예전엔 그대로 복붙돼 있었다 — 오늘 하루에만
+     * 13개 규칙에 각각 가드레일을 추가하면서 매번 두 곳을 똑같이 고쳐야 했고, 한쪽만 고치면
+     * 단건/배치 결과가 조용히 어긋나는 위험이 있었다. 공통 메서드로 묶어 그 위험을 없앤다
+     * (2026-09-22 리팩토링, 동작 변화 없음).
+     */
+    private void appendJudgmentCriteria(StringBuilder sb, Rule rule) {
+        sb.append("[판단 기준]\n");
+        sb.append("분류: ").append(rule.getJudgmentCategory()).append('\n');
+        sb.append("적용 조건: ").append(rule.getApplicationConditions()).append('\n');
+        if (rule.getApplicationConditions() != null && rule.getApplicationConditions().contains("구분")) {
+            // C04_DISEASE_INFO_LINK 실측에서, 문장에 이미 "---" 같은 구분 기호나 "출처: OOO" 같은
+            // 명시적 인용이 있는데도 모델이 이걸 "구분됐다"는 신호로 안 쓰고 그냥 MATCHED로 확정하는
+            // 것이 반복 관찰됐다(3회 중 2회). 적용 조건 자체가 "구분됐는지"를 묻고 있으니, 그 구분을
+            // 알아볼 수 있는 텍스트 신호를 명시해준다.
+            sb.append("(주의: 문장 안에 구분 기호(예: \"---\", 줄바꿈, 괄호)나 \"출처: OOO\" 같은 명시적 ");
+            sb.append("인용이 있으면, 그것 자체가 \"명확히 구분됐다\"는 강한 신호입니다 — 구분 기호가 ");
+            sb.append("있는데도 질병 정보와 제품 광고가 섞여 있다고 보려면, 그 구분을 무효화할 만한 다른 ");
+            sb.append("근거(예: 구분 직후 곧바로 질병명과 제품을 같은 문장에서 연결)가 있어야 합니다.)\n");
+        }
+        sb.append("(주의: 위 조건에 나온 핵심 단어가 문장에 있다는 사실만으로 자동 충족되는 게 아닙니다 — ");
+        sb.append("문장이 실제로 구체적인 효능 확장·결합 주장을 담고 있는지 애매하면, 아래 needsOutsideContext를 ");
+        sb.append("반드시 true로 답하세요. 막연한 상황 묘사·부드러운 동기부여 문구·단순 증상 언급은 핵심 단어가 ");
+        sb.append("있어도 대부분 애매하거나 위반이 아닙니다.)\n");
+        if (isNotBlank(rule.getExceptions())) {
+            sb.append("예외 사항: ").append(rule.getExceptions()).append('\n');
+            if (rule.getExceptions().contains("별도")) {
+                sb.append("(주의: 위 예외 사항에 있는 \"별도\"라는 표현은 사람이 직접 재검토해야 한다는 뜻으로 ");
+                sb.append("적어둔 메모입니다 — 완전한 판단 기준이 아닙니다. 이 Claim이 그 키워드·상황과 관련 ");
+                sb.append("있어 보이면, 스스로 위반/정상 여부를 판단하지 말고 아래 needsOutsideContext를 ");
+                sb.append("반드시 true로 답해 REVIEW_REQUIRED로 넘기세요.)\n");
+            }
+        }
+        if (isNotBlank(rule.getCandidateExamples())) {
+            sb.append("참고 예시(전체 목록 아님, 이런 것도 해당할 수 있다는 힌트일 뿐): ")
+                    .append(rule.getCandidateExamples()).append('\n');
+        }
+        if ("C21_UNFAIR_COMPARISON".equals(rule.getRuleCode())) {
+            // 실제 심의 사례(ad_cases BAD-02)를 그대로 예시로 넣는다 — 일반 지침("핵심 단어만으로
+            // 판단하지 마세요" 등)은 C14/C21 등 여러 규칙에서 두 번 시도해도 전혀 안 먹혔다(문서
+            // 참고). C21의 candidateExamples가 "함량 n배이므로 효과 n배" 같은 명시적 수치 비교만
+            // 담고 있어서, 모델이 "명시적 비교 문구가 없으면 해당 없음"으로 좁게 해석하는 것으로
+            // 보인다 — 실제로는 인증·안전성 표시를 나열하는 것만으로도 암묵적 우월 주장이 될 수
+            // 있는데, 그 유형이 candidateExamples에 아예 없다. 지침 대신 실제 사례를 보여준다.
+            sb.append("(실제 사례: \"two safe 인증 / 임산부 안전평가 인증 완료\"라는 문구는 ");
+            sb.append("\"~보다\", \"n배\" 같은 명시적 비교 표현이 전혀 없지만, 실제 심의에서 ");
+            sb.append("위반(MATCHED)으로 판정됐습니다 — 사유: \"자사 제품만 더 안전하고 우수한 ");
+            sb.append("것으로 오인할 우려\". 인증·안전성 표시를 여러 개 나열하는 것 자체가, ");
+            sb.append("비교 대상을 직접 언급하지 않고도 \"우리 제품만 특별히 안전·우수하다\"는 ");
+            sb.append("암묵적 비교·우월 주장이 될 수 있습니다. 명시적 비교 문구가 없다고 해서 ");
+            sb.append("이 규칙이 적용되지 않는다고 단정하지 마세요.\n");
+            // 반복 측정(배치 18/24, 개별 6/9)에서 "다른 제품보다 흡수가 잘 되는 이유가 있습니다"
+            // (REVIEW_REQUIRED 기대)가 매번 MATCHED로 틀렸다 — BAD-02 예시는 "비교 대상 없이
+            // 단정"하는 유형이라 이 케이스(비교 우위를 주장하되 근거 유무가 불명확한 유형)를
+            // 못 덮는다. REVIEW-02 p.57~58 "하. 흡수율 및 생체이용률에 대한 표현" 원문을
+            // 실제 근거로 추가한다 — 지어낸 예시가 아니라 C21의 참조 출처(REVIEW-02)에 이미
+            // 있는 조항.
+            sb.append("(심의기준 원문(REVIEW-02, \"하. 흡수율 및 생체이용률에 대한 표현\"): ");
+            sb.append("\"과학적 근거 없이 흡수율 또는 생체이용률이 높은 제품으로 광고하는 것은 ");
+            sb.append("소비자로 하여금 기능성이 우수한 제품으로 오인할 우려가 있으므로, 과학적으로 ");
+            sb.append("입증된 객관적 사실인 경우에만 표현할 수 있다 — SCIE 등재 학술지 또는 이와 ");
+            sb.append("동등한 인체시험 자료여야 하며 제품에 함유된 원료와 동일한 원료일 때만 가능\". ");
+            sb.append("즉 흡수율·생체이용률 우위 주장은 그 자체로 자동 위반(MATCHED)이 아니라, ");
+            sb.append("SCIE급 근거가 있으면 허용되고 없으면 위반인 조건부 규칙입니다. Claim 문구만으로는 ");
+            sb.append("그 근거가 실제로 있는지 알 수 없다면(문구가 근거를 제시하지도, 명백히 안 ");
+            sb.append("된다고 단정할 근거도 없다면) MATCHED로 단정하지 말고 needsOutsideContext를 ");
+            sb.append("true로 답해 REVIEW_REQUIRED로 넘기세요.)\n");
+        }
+        if ("C11_SUB_INGREDIENT_FUNCTION".equals(rule.getRuleCode())) {
+            // 실측(3회 반복)에서 "비타민C, 아연, 마그네슘, 폴리페놀 함유"(REVIEW_REQUIRED 기대,
+            // 실제 사례 DISC-17)를 매번 NOT_MATCHED로 틀렸다 — 단순 나열로 보고 안전하다고
+            // 단정한 것. DISC-17은 "논의가 필요한 예시"로 등록된 케이스로, 판단하려면 매체
+            // 종류(패키지 표시 vs 인터넷 광고)·함량 표기 방식·주원료와의 상대적 글자크기까지
+            // 확인해야 한다는 뜻이다 — 이 정보는 Claim 문구만으로는 알 수 없다.
+            sb.append("(실제 사례(DISC-17): \"비타민C, 아연, 마그네슘, 폴리페놀 함유\"처럼 여러 ");
+            sb.append("부원료를 나열한 문구는 그 자체만으로 안전하다고 단정할 수 없습니다 — 일부만 ");
+            sb.append("%나 함량을 강조 표시했는지, 표시(패키지) 매체인지 광고(인터넷 등) 매체인지, ");
+            sb.append("주원료와 부원료가 상대적 글자크기로 명확히 구분됐는지에 따라 결론이 달라지는데 ");
+            sb.append("이 정보는 Claim 문구만으로는 확인할 수 없습니다. 단순 나열처럼 보인다고 곧바로 ");
+            sb.append("NOT_MATCHED로 단정하지 말고, 위 정보가 없다면 needsOutsideContext를 true로 ");
+            sb.append("답해 REVIEW_REQUIRED로 넘기세요.)\n");
+        }
+        if ("C28_TARGET_SPECIALIZATION".equals(rule.getRuleCode())) {
+            // 실측(3회 반복)에서 "밤샘 작업이 많은 분들께 추천합니다"(REVIEW_REQUIRED 기대)를
+            // 매번 NOT_MATCHED로 틀렸다 — "바쁜 현대인" 수준의 넓은 타깃으로 보고 안전하다고
+            // 단정한 것. REVIEW-01(p.44)의 금지 예시(당뇨환자, 영업과장, 수험생)만큼 노골적인
+            // 신분·직위 명칭은 아니지만, "바쁜 현대인"처럼 누구에게나 해당하는 표현도 아니라서
+            // 애매하다는 점을 명시한다.
+            sb.append("(주의: REVIEW-01의 금지 예시(당뇨환자, 영업과장, 수험생)처럼 명확한 신분·직위 ");
+            sb.append("명칭이 아니라도, \"인구 중 몇 퍼센트나 이 상황에 해당하는가\"로 판단하세요. ");
+            sb.append("피곤함, 바쁨처럼 사실상 모든 사람이 겪는 극히 보편적인 상태 묘사라면 특정 ");
+            sb.append("계층을 겨냥한 게 아니므로 NOT_MATCHED로 확정하세요. 반대로 특정 근무 형태나 ");
+            sb.append("생활 패턴(예: 야간에 활동이 많음, 특정 시간대에 깨어 있음 등)처럼 그 상황에 ");
+            sb.append("해당하는 사람이 뚜렷이 좁혀지는 표현이라면, 그 집단에만 특별한 효과가 있다는 ");
+            sb.append("인상을 줄 수 있으므로 needsOutsideContext를 true로 답해 REVIEW_REQUIRED로 ");
+            sb.append("넘기세요.)\n");
+        }
+        if ("C30_NATURAL_FREE".equals(rule.getRuleCode())) {
+            // 실측(3회 반복)에서 "무첨가, 무검출입니다."(MATCHED 기대)를 3회 중 2회
+            // REVIEW_REQUIRED로 틀렸다 — 대상 성분이 명시되지 않았다는 이유로 "확인 필요"로
+            // 넘긴 것. 하지만 LAW-04(부당한 표시·광고 세부유형 고시)에 따르면, 대상을 밝히지
+            // 않고 근거(시험성적서)도 제시하지 않은 채 "무첨가/무검출"을 단정적으로 광고하는
+            // 것 자체가 이미 금지되는 막연한 절대적 표현이다 — "확인이 더 필요한 것"이 아니라
+            // "그 자체로 이미 위반"이다.
+            sb.append("(주의: \"무첨가\", \"무검출\" 같은 표현이 무엇에 대한 것인지 밝히지 않고, ");
+            sb.append("시험성적서 등 근거도 함께 제시하지 않은 채 단정적으로만 쓰였다면, 그 ");
+            sb.append("자체가 이미 금지되는 막연한 절대적 표현입니다(대상·근거가 없다는 사실을 ");
+            sb.append("\"확인이 더 필요하다\"는 신호로 여겨 REVIEW_REQUIRED로 넘기지 마세요 — ");
+            sb.append("MATCHED가 맞습니다). 반대로 대상 성분과 시험성적서 제시가 함께 명시돼 ");
+            sb.append("있다면 그건 예외적으로 허용되는 패턴입니다.)\n");
+        }
+        if ("G01_EASY_DIET".equals(rule.getRuleCode())) {
+            // 실측(3회 반복)에서 "간편하게 챙기는 다이어트 습관"(REVIEW_REQUIRED 기대)을 매번
+            // NOT_MATCHED로 틀렸다 — 규칙 자체가 "섭취 간편한"(허용)과 "간편한 다이어트"(금지)를
+            // 구분하도록 설계돼 있는데(applicationConditions), "간편하게"가 "섭취"가 아니라
+            // "다이어트 습관"이라는 행위 자체를 수식하는 것처럼 읽힐 수 있어 애매한 경계
+            // 케이스다. 모델이 이걸 안전한 쪽으로만 단정하고 있다.
+            sb.append("(주의: \"간편한\"이 \"섭취 간편한\"(섭취 편의성, 허용)을 뜻하는지 \"간편한 ");
+            sb.append("다이어트\"(운동·식이조절 없이도 쉽다는 뜻, 금지)를 뜻하는지 문장 구조상 ");
+            sb.append("애매한 경우(\"간편하게\"가 섭취가 아니라 다이어트라는 행위 자체를 수식하는 ");
+            sb.append("것처럼도 읽히는 경우) 안전한 쪽으로 단정해 NOT_MATCHED로 답하지 말고 ");
+            sb.append("needsOutsideContext를 true로 답해 REVIEW_REQUIRED로 넘기세요.)\n");
+        }
+        if ("L02_UV".equals(rule.getRuleCode())) {
+            // 실측(3회 반복)에서 "실외활동이 많은 분들께 추천합니다"(NOT_MATCHED 기대)를 매번
+            // REVIEW_REQUIRED로 틀렸다 — "야외활동"이라는 단어만 보고 자외선 관련 규칙일 수
+            // 있다고 과민 반응한 것. 정작 이 문구엔 눈·시력·자외선·선글라스 등 규칙과 관련된
+            // 단어가 전혀 없다.
+            sb.append("(주의: \"야외활동\", \"실외활동\" 같은 단어만 있고 눈, 시력, 자외선, 선글라스 등 ");
+            sb.append("이 규칙의 핵심 개념과 연결되는 단어가 문장에 전혀 없다면, needsOutsideContext ");
+            sb.append("없이 NOT_MATCHED로 확정하세요. 반대로 \"눈 건강\"처럼 눈·시력 관련 단어는 ");
+            sb.append("있지만 \"자외선\", \"UV\", \"차단\" 같은 명시적 단어가 없는 문장은 이 규칙이 ");
+            sb.append("적용되는지 아닌지 확신할 수 없는 애매한 경계 사례입니다 — MATCHED나 ");
+            sb.append("NOT_MATCHED로 단정하지 말고 반드시 needsOutsideContext를 true로 답해 ");
+            sb.append("REVIEW_REQUIRED로 넘기세요.)\n");
+        }
+        if ("M01_FATIGUE".equals(rule.getRuleCode())) {
+            // 실측(3회 반복)에서 "수험생 입소문 에너지 비타민, 수험생 학업 스트레스 피로
+            // 개선"(MATCHED 기대, 실제 사례 BAD-05)을 매번 NOT_MATCHED로 틀렸다 — "수험생
+            // 학업 스트레스"라는 맥락이 있으니 "피로 개선"이 정당화된다고 본 것. 하지만 BAD-05는
+            // C28(타깃 특화)과 M01(피로 확장)을 동시에 위반한 사례로, 타깃팅 맥락이 있다고 해서
+            // 피로 확장 주장 자체가 면제되지 않는다.
+            sb.append("(실제 사례(BAD-05): \"수험생 입소문 에너지 비타민, 수험생 학업 스트레스 피로 ");
+            sb.append("개선\"이라는 문구는 실제 심의에서 위반(MATCHED)으로 판정됐습니다 — 수험생 ");
+            sb.append("타깃팅(C28)과 별개로, 간 건강 기능성 원료에서 \"피로 개선\"을 \"간 피로\"로 ");
+            sb.append("한정하지 않고 그대로 쓴 것 자체가 전신 피로개선으로의 부당한 확장입니다. ");
+            sb.append("타깃(수험생)이나 맥락(학업 스트레스)이 그럴듯하다고 해서 \"피로/피곤\" 단독 ");
+            sb.append("사용이 정당화되지 않습니다 — \"간 피로\", \"피곤한 간\"처럼 간으로 한정하지 ");
+            sb.append("않은 \"피로/피곤\" 표현이 있다면 다른 맥락과 무관하게 MATCHED로 답하세요. ");
+            sb.append("\"피로\", \"피곤\"이라는 정확한 단어가 없어도 \"무기력\"처럼 사실상 같은 뜻의 ");
+            sb.append("단어를 간 건강과 연결한 경우도 똑같이 적용됩니다 — 단어가 정확히 일치하는지로 ");
+            sb.append("판단하지 말고 의미가 같은지로 판단하세요.)\n");
+        }
+        if ("C03_MEDICINE_CONFUSION".equals(rule.getRuleCode())) {
+            // 실측(3회 반복)에서 "약국용으로 만든 건강기능식품, 약국 매대에서 확인하세요"(MATCHED
+            // 기대)를 매번 NOT_MATCHED로 틀렸다 — "약국에서 판매된다는 단순 판매처 안내"로만 읽은
+            // 것. 하지만 REVIEW-01 p.45 용어 수정표에 "약국용, 병원용"이 올바르지 못한 용어로,
+            // "약국 내 건강기능식품코너"가 올바른 대체 표현으로 명시돼 있다 — "약국에서 판매한다"는
+            // 사실 자체가 아니라 "약국용"이라는 표현 자체가 의약품 오인 소지가 있어 금지되는
+            // 용어라는 뜻이다.
+            sb.append("(심의기준 용어 수정표(REVIEW-01, \"건강기능식품에 맞는 용어 선택할 것\"): ");
+            sb.append("\"약국용, 병원용\"은 올바르지 못한 용어이고, \"약국 내 건강기능식품코너\", ");
+            sb.append("\"병원 내 건강기능식품코너\"가 올바른 대체 표현입니다. 즉 \"약국에서 판매한다\"는 ");
+            sb.append("사실 전달 자체가 문제가 아니라, \"약국용\"이라는 표현 자체가 의약품으로 오인시킬 ");
+            sb.append("수 있어 금지되는 용어입니다. Claim에 \"약국용\", \"병원용\"이라는 표현이 그대로 ");
+            sb.append("있고(\"약국 내 ~코너\" 같은 대체 표현으로 바뀌어 있지 않다면), 판매처를 안내하는 ");
+            sb.append("맥락처럼 보인다는 이유로 NOT_MATCHED로 넘기지 말고 MATCHED로 답하세요.)\n");
+        }
+        if ("S02_BODY_AREA".equals(rule.getRuleCode())) {
+            // 실측(3회 반복)에서 "하루종일 앉아있는 당신의 허리를 위해"(MATCHED 기대)를 매번
+            // 틀렸다(REVIEW_REQUIRED 2회, NOT_MATCHED 1회) — "완곡한 표현"이라 판단을 미루거나
+            // 아예 효과 주장이 없다고 본 것. REVIEW-03 p.75(MSM 항목)에 손목·무릎·어깨와
+            // 허리·목·척추·고관절을 명확히 구분해 "허리/목/척추/고관절 부위는 해당 관절에
+            // 도움이 되는지 과학적으로 충분히 확인되지 않아 기능성 범위로 보기 어려워 사용할 수
+            // 없다"고 돼 있다 — 표현이 부드러운지 강한지와 무관한 일괄 금지다.
+            sb.append("(심의기준 원문(REVIEW-03, MSM 항목): \"손목/무릎/어깨 등의 관절과 달리, ");
+            sb.append("허리/목/척추/고관절 부위의 경우 해당 관절에 도움을 줄 수 있는지 과학적으로 ");
+            sb.append("충분히 확인되지 않아 기능성 범위로 보기 어려워 사용할 수 없다\". 즉 허리·목· ");
+            sb.append("척추·고관절·골반을 관절 제품의 효과와 연결하는 것 자체가, 표현이 단정적인지 ");
+            sb.append("완곡한지와 무관하게 금지됩니다. \"~를 위해\", \"~챙기세요\" 같은 부드러운 ");
+            sb.append("권유형 문구라고 해서 애매하다고 보지 마세요 — 위 부위 중 하나가 제품의 관절 ");
+            sb.append("기능과 연결돼 있다면 표현 강도와 무관하게 MATCHED로 답하세요.)\n");
+        }
+        if ("E04_ALIAS".equals(rule.getRuleCode())) {
+            // 실측(3회 반복)에서 "오메가3 500mg"(MATCHED 기대)를 매번 NOT_MATCHED로 틀렸다 —
+            // "단순 성분명·함량 기재"로만 보고 안전하다고 판단한 것. 하지만 NOTICE-01(2025-20차
+            // 심의위원회 공지) 원문에 따르면 "오메가3"라는 통칭은 광고물 어딘가에 식약처 고시
+            // 원료명칭("EPA 및 DHA 함유 유지")이 함께 명확히 인지되지 않으면 그 자체로 위반이다
+            // — "성분명을 사실대로 적었다"는 것이 안전하다는 뜻이 아니라, 그 성분명 자체가
+            // 허용되지 않은 통칭일 수 있다는 뜻이다.
+            sb.append("(심의기준 원문(NOTICE-01, 2025-20차 심의위원회 공지): \"'오메가3' 문구를 ");
+            sb.append("광고하고자 하는 경우 식약처가 고시한 원료명칭인 'EPA 및 DHA 함유 유지'로 ");
+            sb.append("광고하거나, 광고물 내에서 올바른 기능성원료명칭이 명확히 인지되도록 병기할 ");
+            sb.append("경우에만 나머지 위치에 '오메가3' 문구 사용이 가능하다\". 즉 \"오메가3\"라는 ");
+            sb.append("통칭이 Claim에 등장했는데 'EPA 및 DHA 함유 유지'라는 정식 명칭이 문구 안에 ");
+            sb.append("전혀 없다면(다른 위치에서 병기됐을 가능성을 확인할 수 없는 경우), 성분명과 ");
+            sb.append("함량을 사실대로 적은 것처럼 보인다는 이유로 NOT_MATCHED로 넘기지 말고 ");
+            sb.append("MATCHED로 답하세요 — 정식 명칭이 없다는 사실 자체가 위반 신호입니다.)\n");
+        }
+        if ("C13_TESTIMONIAL".equals(rule.getRuleCode())) {
+            // 실측(5회 반복)에서 "건강한 장이 주는 편안함을 모델이 설명"(NOT_MATCHED 기대)이
+            // 2/5만 정답 — 나머지 3회는 REVIEW_REQUIRED로 판단을 미뤘다(문구 자체가 짧아서
+            // "체험담인지 아닌지 문장만으로는 불분명하다"고 본 것). 하지만 이 문구는 실제 사례
+            // GOOD-01(유산균 제품 광고 요약)과 정확히 같은 표현이고, 그 사례는 심의에서
+            // 적합(SUITABLE=NOT_MATCHED)으로 판정됐다 — 인정 기능성(유산균 증식·유해균 억제·
+            // 배변활동 원활) 범위 내에서 모델(광고 출연자)이 일반적으로 설명하는 방식이라
+            // 체험담(1인칭 "제가 먹었더니" 등)이 아니기 때문이다.
+            sb.append("(실제 사례(GOOD-01): \"건강한 장이 주는 편안함을 모델이 설명\"이라는 문구는 ");
+            sb.append("실제 심의에서 적합(NOT_MATCHED)으로 판정됐습니다 — 사유: 유산균 증식·유해균 ");
+            sb.append("억제·배변활동 원활이라는 인정 기능성 범위 내에서 광고 모델(출연자)이 일반적으로 ");
+            sb.append("설명하는 방식이라 1인칭 체험담(\"제가 먹었더니\" 등)이나 구체적 수치·효과 ");
+            sb.append("보장이 아니기 때문입니다. Claim이 짧고 구체적 정보가 적다는 이유만으로 ");
+            sb.append("\"체험담인지 판단하기 불분명하다\"며 needsOutsideContext를 true로 답하지 ");
+            sb.append("마세요 — 1인칭 개인 경험 서술, 구체적 수치, \"먹었더니\" 같은 결과 보장 표현이 ");
+            sb.append("전혀 없고 인정 기능성 범위 내의 일반적 설명이라면 확신을 갖고 NOT_MATCHED로 ");
+            sb.append("답하세요.)\n");
+        }
+        if ("B01_IMMUNE_INFLAMMATION".equals(rule.getRuleCode())) {
+            // 실측(5회 반복)에서 "외래진료 1위 치주질환 / 피가 난다 / 고름 / 붓는 잇몸"(MATCHED
+            // 기대, 실제 사례 BAD-09)이 5회 중 2회 REVIEW_REQUIRED로 흔들렸다 — "질환 치료
+            // 효과로 확장한 것인지 전체 맥락을 확인해야 한다"며 판단을 미룬 것. 하지만 이건
+            // 실제 심의사례에서 위반으로 확정된 문구다.
+            sb.append("(실제 사례(BAD-09): \"외래진료 1위 치주질환 / 피가 난다 / 고름 / 붓는 잇몸\"은 ");
+            sb.append("실제 심의에서 위반(MATCHED)으로 확정됐습니다 — 치주질환·출혈·고름·잇몸 부음 ");
+            sb.append("등 구체적인 질환·증상 명칭을 나열한 것 자체가 항산화·구강 항균 기능성 범위를 ");
+            sb.append("벗어난 질병 치료 오인 표현입니다. 이렇게 구체적인 질환·증상 명칭이 나열돼 ");
+            sb.append("있다면 \"전체 맥락을 확인해야 한다\"며 needsOutsideContext로 미루지 말고 ");
+            sb.append("확신을 갖고 MATCHED로 답하세요.)\n");
+        }
+        if ("M02_LIVER_MARKER".equals(rule.getRuleCode())) {
+            // 실측에서 "이 제품을 드신 분들의 내장지방 수치가 개선된 사례가 있습니다"(NOT_MATCHED
+            // 기대, 라벨 정정 후에도)가 계속 불안정했다(MATCHED, REVIEW_REQUIRED 등으로 흔들림) —
+            // "지표 개선을 언급하니 위반 아닌가"로 판단한 것. 하지만 M02는 간 지표(간 수치·AST·
+            // ALT) 전용 규칙이고, "내장지방"은 체지방 지표라 이 규칙의 candidateExamples에
+            // 아예 없다. 실제 사례 DISC-09가 이미 이 둘을 M02(간 지표)/G03(체지방) 서로 다른
+            // 규칙으로 명확히 구분해 등록해뒀다.
+            sb.append("(주의: 이 규칙(M02_LIVER_MARKER)은 간 지표(간 수치, AST, ALT)에만 적용됩니다. ");
+            sb.append("\"내장지방\", \"체지방\" 같은 다른 종류의 지표가 언급됐다면, 그건 이 규칙이 ");
+            sb.append("다루는 지표가 아니므로 \"지표 개선을 주장했으니 위반\"이라고 단정하지 마세요 — ");
+            sb.append("실제 심의사례(DISC-09)도 간 지표(밀크씨슬)와 체지방 지표(가르시니아)를 서로 ");
+            sb.append("다른 규칙으로 명확히 구분합니다. 간 수치·AST·ALT가 아닌 다른 지표만 언급된 ");
+            sb.append("경우, 애매하다고 보지 말고 확신을 갖고 NOT_MATCHED로 답하세요.)\n");
+        }
+        if (isNotBlank(rule.getRequiredEvidence())) {
+            sb.append("필요 근거(참고용 — 지금 판단엔 이 근거 자료가 없을 수 있음): ")
+                    .append(rule.getRequiredEvidence()).append('\n');
+            // 여기 "실증자료"처럼 증빙을 요구하는 단어가 들어 있으면, 모델이 그 자료를 지금
+            // 볼 수 없다는 이유로 needsOutsideContext=true를 골라 전부 REVIEW_REQUIRED로
+            // 흘려보내는 일이 관찰됐다(C22 3회 내내). 아래 지침에 일반 경고가 있지만 규칙
+            // 텍스트가 더 가깝고 구체적이라 밀린다 — 같은 자리에서 한 번 더 막는다.
+            sb.append("(주의: 여기 적힌 자료를 지금 볼 수 없다는 사실 자체는 needsOutsideContext를 ");
+            sb.append("true로 만들 근거가 아닙니다. 광고 문구가 그 근거를 제시하지 않은 채 단정한다면 ");
+            sb.append("오히려 위반 신호이고, 반대로 문구 안에 비교 기준·시점·범위가 이미 명시돼 ");
+            sb.append("있다면 그 내용의 진위를 외부에서 확인할 수 없다는 이유만으로 판단을 미루지 마세요. ");
+            sb.append("다만 이건 \"자료의 진위\"에만 해당합니다 — 문구 자체의 의미가 여러 갈래로 읽혀서 ");
+            sb.append("무엇을 주장하는지 확정할 수 없는 경우는 별개이고, 그때는 true가 맞습니다.)\n");
+        }
+    }
+
+
     private RuleEvaluation parseResponse(String rawJson) {
         try {
             RawJudgment judgment = objectMapper.readValue(rawJson, RawJudgment.class);
             return toEvaluation(judgment, rawJson);
         } catch (JacksonException e) {
-            log.warn("Rule Judge 응답 JSON 파싱 실패: {}", e.getMessage());
+            log.warn("Rule Judge 응답 JSON 파싱 실패: {} — {}", e.getMessage(), rawJson);
             return new RuleEvaluation(REVIEW_REQUIRED, SEMANTIC_COMPARISON_REQUIRED,
                     "AI 응답 파싱에 실패해 확인이 필요합니다.");
         }
@@ -357,30 +596,7 @@ public class AiRuleEvaluator implements RuleEvaluator {
         sb.append("아래 [판단 기준]은 이어지는 모든 Claim에 공통으로 적용됩니다 — Claim마다 서로 ");
         sb.append("독립적으로 판단하되(다른 Claim의 판단이 이 Claim에 영향을 주면 안 됨), 판단 기준은 하나입니다.\n\n");
 
-        sb.append("[판단 기준]\n");
-        sb.append("분류: ").append(rule.getJudgmentCategory()).append('\n');
-        sb.append("적용 조건: ").append(rule.getApplicationConditions()).append('\n');
-        sb.append("(주의: 위 조건에 나온 핵심 단어가 문장에 있다는 사실만으로 자동 충족되는 게 아닙니다 — ");
-        sb.append("문장이 실제로 구체적인 효능 확장·결합 주장을 담고 있는지 애매하면, 아래 needsOutsideContext를 ");
-        sb.append("반드시 true로 답하세요. 막연한 상황 묘사·부드러운 동기부여 문구·단순 증상 언급은 핵심 단어가 ");
-        sb.append("있어도 대부분 애매하거나 위반이 아닙니다.)\n");
-        if (isNotBlank(rule.getExceptions())) {
-            sb.append("예외 사항: ").append(rule.getExceptions()).append('\n');
-            if (rule.getExceptions().contains("별도")) {
-                sb.append("(주의: 위 예외 사항에 있는 \"별도\"라는 표현은 사람이 직접 재검토해야 한다는 뜻으로 ");
-                sb.append("적어둔 메모입니다 — 완전한 판단 기준이 아닙니다. 이 Claim이 그 키워드·상황과 관련 ");
-                sb.append("있어 보이면, 스스로 위반/정상 여부를 판단하지 말고 아래 needsOutsideContext를 ");
-                sb.append("반드시 true로 답해 REVIEW_REQUIRED로 넘기세요.)\n");
-            }
-        }
-        if (isNotBlank(rule.getCandidateExamples())) {
-            sb.append("참고 예시(전체 목록 아님, 이런 것도 해당할 수 있다는 힌트일 뿐): ")
-                    .append(rule.getCandidateExamples()).append('\n');
-        }
-        if (isNotBlank(rule.getRequiredEvidence())) {
-            sb.append("필요 근거(참고용 — 지금 판단엔 이 근거 자료가 없을 수 있음): ")
-                    .append(rule.getRequiredEvidence()).append('\n');
-        }
+        appendJudgmentCriteria(sb, rule);
         sb.append('\n');
 
         List<RuleOfficialFunctionContext> officialFunctions = requests.get(0).officialFunctions().values();
@@ -464,7 +680,10 @@ public class AiRuleEvaluator implements RuleEvaluator {
             }
             return alignByClaimNo(judgments, expectedSize, rawJson);
         } catch (JacksonException e) {
-            log.warn("Rule Judge 배치 응답 JSON 파싱 실패: {}", e.getMessage());
+            // 이전엔 e.getMessage()만 남겨서 실패 원인(모델이 JSON을 어떻게 깨뜨렸는지)을 재현할
+            // 방법이 없었다 — 원본 응답을 함께 남겨야 다음에 같은 실패가 나왔을 때 실제로 무엇이
+            // 잘못됐는지(잘림, 여분의 텍스트, 잘못된 이스케이프 등) 확인할 수 있다.
+            log.warn("Rule Judge 배치 응답 JSON 파싱 실패: {} — {}", e.getMessage(), rawJson);
             return fallbackList(expectedSize, "AI 배치 응답 파싱에 실패해 확인이 필요합니다.");
         }
     }

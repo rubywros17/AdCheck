@@ -76,6 +76,16 @@ public class AnalysisBackgroundJob {
      * "이 분석이 몇 회를 썼는지"는 로그를 세어야 알 수 있었다. 무료 티어는 분당 15회라 이 값이
      * 한도에 얼마나 붙어 있는지가 곧 규칙을 더 켤 수 있는지의 판단 근거가 된다.
      *
+     * <p><b>입력 구성</b> — 확장이 실제로 무엇을 보내는지 서버에 기록이 없어서, Claim이 적게
+     * 나올 때 "페이지에 효능 문구가 원래 없다"와 "확장이 본문을 못 걷어온다"를 구분할 수 없었다.
+     * 텍스트 개수·총 글자 수와 이미지 장수를 남기면 다음 실행부터 바로 갈린다(OCR로 뽑힌 글자
+     * 수는 {@code GeminiOcrService}가 별도 줄로 남긴다).
+     *
+     * <p><b>원료 확정</b> — 원료가 확정되지 않으면 원료별 규칙이 통째로 건너뛰어지고
+     * {@code officialFunction}이 null이 되어 "식약처 고시 기준" 칸이 비는데, 그 원인이
+     * "AI#1이 원료를 못 뽑았다"인지 "뽑았지만 DB와 매칭이 안 됐다"인지 구분할 방법이 없었다.
+     * 후보 수와 확정 수를 같이 남기면 바로 갈린다.
+     *
      * <p><b>AI#1 위험 신호</b> — 지금은 이 신호가 규칙 선택에 쓰이지 않고 프롬프트 힌트로만
      * 들어간다. 신호로 평가할 규칙을 좁히는 "깔때기"를 도입할지 판단하려면 페이지당 신호가 몇
      * 건·어떤 종류로 뜨는지를 알아야 하는데, 지금까지 어디에도 기록되지 않아 효과를 추정조차 할
@@ -84,12 +94,16 @@ public class AnalysisBackgroundJob {
     private void logBudget(Long analysisId, AnalysisJobInput input, ClaimAnalysisResult claimResult,
                            FindingAssembler.Result assembled, long startedAt,
                            int callsBefore, int rateLimitedBefore) {
-        log.info("[TIMING] 분석 {} 완료 — {}ms, Gemini {}회(429 {}건), 이미지 {}장, Claim {}건, "
-                        + "Finding {}건, AI#1 신호 {}건({})",
+        int textChars = input.texts().stream().mapToInt(text -> text.content() == null ? 0 : text.content().length()).sum();
+        log.info("[TIMING] 분석 {} 완료 — {}ms, Gemini {}회(429 {}건), 입력 텍스트 {}개·{}자/이미지 {}장, "
+                        + "Claim {}건, Finding {}건, 원료 후보 {}건→확정 {}건, 공식 기능성 {}건, AI#1 신호 {}건({})",
                 analysisId, System.currentTimeMillis() - startedAt,
                 GeminiClient.totalCalls() - callsBefore,
                 GeminiClient.totalRateLimited() - rateLimitedBefore,
+                input.texts().size(), textChars,
                 input.images().size(), claimResult.claims().size(), assembled.findings().size(),
+                claimResult.ingredientCandidates().size(), assembled.confirmedIngredientCount(),
+                assembled.officialFunctionMatchedCount(),
                 claimResult.riskSignalCandidates().size(), signalSummary(claimResult.riskSignalCandidates()));
     }
 

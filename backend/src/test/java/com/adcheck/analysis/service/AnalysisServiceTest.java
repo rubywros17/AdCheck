@@ -289,7 +289,8 @@ class AnalysisServiceTest {
                         RiskLevel.CAUTION,
                         "FUNCTION_CLAIM",
                         "확인이 필요합니다.",
-                        "눈 건강에 도움을 줄 수 있음"
+                        "눈 건강에 도움을 줄 수 있음",
+                        List.of()
                 ))
         );
     }

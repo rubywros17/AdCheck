@@ -67,11 +67,11 @@ class AnalysisBackgroundJobTest {
         Product product = mock(Product.class);
         Finding finding = new Finding(
                 "시력을 회복합니다.", "#claim", RiskLevel.CAUTION, "FUNCTION_EXCEED",
-                "확인이 필요합니다.", "눈 건강에 도움을 줄 수 있음"
+                "확인이 필요합니다.", "눈 건강에 도움을 줄 수 있음", List.of()
         );
         when(claimAnalyzer.analyze(input.texts(), input.images())).thenReturn(claimResult);
         when(findingAssembler.assemble(claimResult))
-                .thenReturn(new FindingAssembler.Result(product, List.of(finding), 1));
+                .thenReturn(new FindingAssembler.Result(product, List.of(finding), 1, 1));
 
         backgroundJob.process(7L, input);
 
@@ -100,7 +100,7 @@ class AnalysisBackgroundJobTest {
         ClaimAnalysisResult claimResult = claimResult();
         when(claimAnalyzer.analyze(input.texts(), input.images())).thenReturn(claimResult);
         when(findingAssembler.assemble(claimResult))
-                .thenReturn(new FindingAssembler.Result(null, List.of(), 0));
+                .thenReturn(new FindingAssembler.Result(null, List.of(), 0, 0));
 
         backgroundJob.process(12L, input);
 

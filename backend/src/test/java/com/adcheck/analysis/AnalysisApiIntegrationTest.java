@@ -102,10 +102,11 @@ class AnalysisApiIntegrationTest {
                             RiskLevel.CAUTION,
                             "FUNCTION_CLAIM",
                             "공식 인정 기능성보다 강한 표현일 가능성이 있습니다.",
-                            null
+                            null,
+                            List.of()
                     ))
                     .toList();
-            return new FindingAssembler.Result(null, findings, 0);
+            return new FindingAssembler.Result(null, findings, 0, 0);
         });
     }
 

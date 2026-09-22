@@ -3,16 +3,23 @@ import type { PageEvidence } from "./evidence";
 export type CreateAnalysisRequest = PageEvidence;
 
 export type AnalysisStatus = "PENDING" | "PROCESSING" | "COMPLETED" | "FAILED";
-// Rule Engine severity tier. Drives categoryTheme.ts's badge color mapping.
+// Rule Engine severity tier. Drives judgmentCategories.ts's badge color mapping.
 export type RiskLevel = "HIGH" | "CAUTION" | "NORMAL";
-// Open string type: Rule Engine ships 71+ categories and grows independently of the client.
-// categoryTheme.ts's CATEGORY_MAP names the ones the client currently has copy/colors for;
-// anything else safely falls back through getCategoryTheme().
+// Backend의 judgmentCategory는 71종 문자열을 그대로 통과시키는 열린 값이라(Finding.java 참고)
+// 여기서 특정 값으로 좁히지 않는다 — 좁히면 신규/미리스트업 카테고리가 올 때마다 깨진다.
+// judgmentCategories.ts의 CATEGORY_MAP이 현재 라벨/색상을 아는 것들만 이름 붙이고,
+// 나머지는 getCategoryTheme()의 fallback이 안전하게 처리한다.
 export type FindingCategory = string;
 
 export interface AnalysisSummary {
   findingCount: number;
   officialFunctionMatchedCount: number;
+}
+
+export interface FindingSource {
+  title: string;
+  section: string | null;
+  sourceUrl: string | null;
 }
 
 export interface FindingResponse {
@@ -22,6 +29,7 @@ export interface FindingResponse {
   category: FindingCategory;
   message: string;
   officialFunction: string | null;
+  sources: FindingSource[];
 }
 
 export interface AnalysisResponse {

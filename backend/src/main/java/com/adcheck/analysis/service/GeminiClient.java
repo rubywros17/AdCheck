@@ -132,9 +132,19 @@ class GeminiClient {
                         .retrieve()
                         .body(GenerateContentResponse.class);
             } catch (HttpClientErrorException.TooManyRequests e) {
-                last = e;
                 RATE_LIMITED_COUNTER.incrementAndGet();
-                long waitMs = retryDelayMillis(e.getResponseBodyAsString(), attempt);
+                String body = e.getResponseBodyAsString();
+                if (isDailyQuotaExceeded(body)) {
+                    // 일일 한도는 응답의 retryDelay(분당 한도용 안내)가 찍혀 있어도 그 시간을
+                    // 기다린 뒤 재시도해도 똑같이 막힌다 — 하루가 지나야 풀린다. 재시도로 시간만
+                    // 낭비하지 말고 바로 실패시켜서, 원인이 분당 한도인지 일일 한도인지 호출부가
+                    // 구분할 수 있게 한다(실측: 25개 규칙 회귀 도중 이 둘을 못 구분해 3회 재시도
+                    // 대기 후에야 실패, 에러 메시지도 "429"로만 남아 원인 파악에 시간이 걸렸다).
+                    log.error("Gemini 호출 #{} 일일 한도 초과 — 재시도하지 않고 즉시 실패 처리", callNo);
+                    throw new GeminiDailyQuotaExceededException(model, e);
+                }
+                last = e;
+                long waitMs = retryDelayMillis(body, attempt);
                 log.warn("Gemini 호출 #{} 429(분당 한도 초과) — {}ms 후 재시도 ({}/{})",
                         callNo, waitMs, attempt, MAX_ATTEMPTS);
                 sleep(waitMs);
@@ -147,6 +157,16 @@ class GeminiClient {
             }
         }
         throw last;
+    }
+
+    /**
+     * 429 응답 본문의 {@code quotaId}가 일일 한도인지 확인한다. Gemini 무료 티어 quotaId는
+     * {@code GenerateRequestsPerMinutePerProjectPerModel-FreeTier}(분당)와
+     * {@code GenerateRequestsPerDayPerProjectPerModel-FreeTier}(일일)처럼 "PerMinute"/"PerDay"로
+     * 구분되므로, "PerDay" 포함 여부만 봐도 안전하게 갈린다.
+     */
+    /* package-private for unit test */ static boolean isDailyQuotaExceeded(String responseBody) {
+        return responseBody != null && responseBody.contains("PerDay");
     }
 
     /** 응답 본문의 {@code "retryDelay": "6s"}를 우선 쓰고, 파싱 실패 시 지수 백오프로 물러난다. */

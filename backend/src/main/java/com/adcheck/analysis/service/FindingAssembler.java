@@ -1,6 +1,7 @@
 package com.adcheck.analysis.service;
 
 import com.adcheck.finding.domain.Finding;
+import com.adcheck.finding.domain.FindingSource;
 import com.adcheck.finding.domain.RiskLevel;
 import com.adcheck.product.domain.MatchMethod;
 import com.adcheck.product.domain.MatchStatus;
@@ -161,7 +162,8 @@ public class FindingAssembler {
         log.info("[TIMING] ⑥ AI#2 비교+Finding 조립 완료 — {}ms (AI#2 호출 대상 {}건, 최종 Finding {}건)",
                 System.currentTimeMillis() - ai2StartedAt, needsAi2.size(), findings.size());
 
-        return new Result(product, List.copyOf(findings), assembled.officialFunctions().size());
+        return new Result(product, List.copyOf(findings), assembled.officialFunctions().size(),
+                assembled.confirmedIngredients().size());
     }
 
     private Product identifyProduct(List<ProductCandidate> candidates) {
@@ -352,20 +354,16 @@ public class FindingAssembler {
     }
 
     private Finding toFinding(ClaimRuleOutcome outcome, ClaimComparison comparison) {
-        RiskLevel riskLevel = mostSevere(outcome.matched())
-                .map(m -> RiskLevel.fromSeverity(m.severity()))
-                .orElse(RiskLevel.CAUTION);
-        String category = mostSevere(outcome.matched())
-                .map(RuleAnalysisResult.RuleMatch::judgmentCategory)
-                .orElse("UNKNOWN");
+        Optional<RuleAnalysisResult.RuleMatch> representative = mostSevere(outcome.matched());
         return new Finding(
                 outcome.claim().claimText(),
                 outcome.claim().source() != null ? outcome.claim().source().selector() : null,
-                riskLevel,
-                category,
+                representative.map(m -> RiskLevel.fromSeverity(m.severity())).orElse(RiskLevel.CAUTION),
+                representative.map(RuleAnalysisResult.RuleMatch::judgmentCategory).orElse("UNKNOWN"),
                 (comparison.explanation() != null && !comparison.explanation().isBlank())
                         ? comparison.explanation() : comparison.reason(),
-                comparison.officialFunction()
+                comparison.officialFunction(),
+                toFindingSources(representative)
         );
     }
 
@@ -387,12 +385,10 @@ public class FindingAssembler {
         );
         ClaimComparisonResult result = geminiClaimComparisonService.compare(request);
 
-        RiskLevel riskLevel = mostSevere(outcome.matched())
-                .map(m -> RiskLevel.fromSeverity(m.severity()))
-                .orElse(RiskLevel.CAUTION);
-        String category = mostSevere(outcome.matched())
-                .map(RuleAnalysisResult.RuleMatch::judgmentCategory)
-                .orElse("UNKNOWN");
+        Optional<RuleAnalysisResult.RuleMatch> representative = mostSevere(outcome.matched());
+        RiskLevel riskLevel = representative.map(m -> RiskLevel.fromSeverity(m.severity())).orElse(RiskLevel.CAUTION);
+        String category = representative.map(RuleAnalysisResult.RuleMatch::judgmentCategory).orElse("UNKNOWN");
+        List<FindingSource> sources = toFindingSources(representative);
 
         return result.claimComparisons().stream()
                 .map(comparison -> new Finding(
@@ -402,7 +398,8 @@ public class FindingAssembler {
                         category,
                         (comparison.explanation() != null && !comparison.explanation().isBlank())
                                 ? comparison.explanation() : comparison.reason(),
-                        comparison.officialFunction()
+                        comparison.officialFunction(),
+                        sources
                 ))
                 .toList();
     }
@@ -429,8 +426,26 @@ public class FindingAssembler {
                 RiskLevel.fromSeverity(match.severity()),
                 match.judgmentCategory(),
                 "확인이 필요한 표현입니다.",
-                null
+                null,
+                toFindingSources(mostSevere(genuine))
         ));
+    }
+
+    /**
+     * 대표 RuleMatch의 sources()를 근거 인용에 필요한 필드만 담은 {@link FindingSource}로
+     * 옮긴다. RAG의 Evidence(판정 후 근거 문단 검색)와 달리 규칙 판정 시점에 이미 확정되는
+     * 값이라 AI 호출이 늘지 않는다 — 같은 sourceId가 여러 번 나오면(드물지만 이론상 가능)
+     * 하나로 합친다.
+     *
+     * <p>package-private for direct unit test coverage ({@code FindingAssemblerMostSevereTest}),
+     * DB/Spring 컨텍스트 없이 확인하기 위함 — {@code mostSevere}와 동일한 이유.
+     */
+    static List<FindingSource> toFindingSources(Optional<RuleAnalysisResult.RuleMatch> representative) {
+        return representative.stream()
+                .flatMap(m -> m.sources().stream())
+                .map(s -> new FindingSource(s.title(), s.section(), s.sourceUrl()))
+                .distinct()
+                .toList();
     }
 
     private RuleMatch toSlimRuleMatch(RuleAnalysisResult.RuleMatch match) {
@@ -461,6 +476,7 @@ public class FindingAssembler {
     ) {
     }
 
-    public record Result(Product product, List<Finding> findings, int officialFunctionMatchedCount) {
+    public record Result(Product product, List<Finding> findings, int officialFunctionMatchedCount,
+                         int confirmedIngredientCount) {
     }
 }

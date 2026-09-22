@@ -129,18 +129,31 @@ function isAnalysisResponse(value: unknown): value is AnalysisResponse {
   }
 }
 
-// riskLevel/category는 DB가 관리하는 Rule Engine 값이라 계속 늘어날 수 있으므로,
-// 여기서 특정 값으로 고정 검증하지 않고 타입만 확인합니다. 클라이언트의 실제 화면
-// 처리(색상/라벨)는 getCategoryTheme()의 fallback이 모르는 값도 안전하게 담당합니다.
+// riskLevel은 닫힌 3값 유니온이라 정확히 검증하고, category는 DB가 관리하는 Rule Engine
+// 값이라 계속 늘어날 수 있으므로 특정 값으로 고정하지 않고 타입만 확인합니다. 클라이언트의
+// 실제 화면 처리(색상/라벨)는 getCategoryTheme()의 fallback이 모르는 category도 안전하게
+// 담당합니다.
+const RISK_LEVELS = new Set(["HIGH", "CAUTION", "NORMAL"]);
+
 function isFinding(value: unknown): boolean {
   return (
     isRecord(value) &&
     typeof value.sourceText === "string" &&
     (typeof value.selector === "string" || value.selector === null) &&
     typeof value.riskLevel === "string" &&
+    RISK_LEVELS.has(value.riskLevel) &&
+    // category는 Rule Engine의 judgmentCategory 문자열(71종)을 그대로 통과시키는 열린 값이라
+    // 특정 값으로 좁히지 않는다 — 예전엔 "FUNCTION_CLAIM" 하나만 통과시켜서, Finding 하나라도
+    // 다른 카테고리(또는 HIGH/NORMAL 위험도)면 isAnalysisResponse 전체가 실패해 정상적인 분석
+    // 결과까지 "분석할 수 없어요" 에러로 통째로 버려지고 있었다.
     typeof value.category === "string" &&
+    value.category.length > 0 &&
     typeof value.message === "string" &&
-    (typeof value.officialFunction === "string" || value.officialFunction === null)
+    (typeof value.officialFunction === "string" || value.officialFunction === null) &&
+    // 항목별 title/section/sourceUrl까지 전부 좁혀서 검증하지 않는다 — 바로 위 category/riskLevel
+    // 사례처럼, 근거 인용 스키마가 앞으로 넓어질 때마다 여기서 또 전체 응답을 통째로 거부하는
+    // 일을 반복하지 않기 위함. 배열인지만 확인한다.
+    Array.isArray(value.sources)
   );
 }
 

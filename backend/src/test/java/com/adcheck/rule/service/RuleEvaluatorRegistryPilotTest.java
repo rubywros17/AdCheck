@@ -49,14 +49,27 @@ class RuleEvaluatorRegistryPilotTest {
     }
 
     @Test
-    void 기본_RuleJudgeProperties는_Common3_Literal9_AI파일럿20_총32개를_포함한다() {
+    void 기본_RuleJudgeProperties는_Common3_Literal9_AI파일럿38_총50개를_포함한다() {
         RuleJudgeProperties defaults = new RuleJudgeProperties();
-        assertThat(defaults.getEnabledRuleCodes()).hasSize(32)
+        assertThat(defaults.getEnabledRuleCodes()).hasSize(50)
                 .contains("C05_FUNCTION_EXCEED", "C07_ABSOLUTE_EFFECT", "C24_OVERCONSUMPTION")
                 .contains("C08_RESULT_TIME_AMOUNT", "M03_ALCOHOL", "S01_PAIN")
                 .contains("B02_VIRUS", "R02_MENOPAUSE", "T04_ANTIAGING")
                 .contains("C01_DISEASE_PREVENTION", "E03_GENERATION", "P03_DISEASE_GUT")
                 .contains("E01_VESSEL", "L03_EYE_DISEASE", "C22_SUPERLATIVE")
-                .contains("L01_VISION");
+                .contains("L01_VISION")
+                // 5차 확장(라벨 정정 후 재검증) — 2개
+                .contains("G05_GLUCOSE_DIET", "M04_REGEN_CANCER")
+                // 6차 확장(개별 targeted 프롬프트 수정) — 3개
+                .contains("C04_DISEASE_INFO_LINK", "C14_EXPERT_ENDORSEMENT", "C21_UNFAIR_COMPARISON")
+                // 7차 확장(라벨 정정 후 재검증) — 1개
+                .contains("S04_SEASON")
+                // 8차 확장(미조사 백로그 targeted 프롬프트 수정) — 6개
+                .contains("C11_SUB_INGREDIENT_FUNCTION", "C28_TARGET_SPECIALIZATION", "C30_NATURAL_FREE")
+                .contains("G01_EASY_DIET", "L02_UV", "M01_FATIGUE")
+                // 9차 확장(하네스 버그 + 라벨 오류 정정) — 2개
+                .contains("B03_OTHER_ORAL", "C03_MEDICINE_CONFUSION")
+                // 10차 확장(라벨 오류 정정 + 실제 사례/원문 인용 프롬프트 수정) — 4개
+                .contains("S02_BODY_AREA", "E04_ALIAS", "B01_IMMUNE_INFLAMMATION", "M02_LIVER_MARKER");
     }
 }

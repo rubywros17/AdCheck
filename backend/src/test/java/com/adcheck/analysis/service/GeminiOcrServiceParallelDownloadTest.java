@@ -53,6 +53,13 @@ class GeminiOcrServiceParallelDownloadTest {
                 body.write(huge);
             }
         });
+        server.createContext("/tiny", exchange -> {
+            byte[] tiny = PNG_BYTES; // OCR 제외 하한(10KB) 미만 — 로고·아이콘 크기
+            exchange.sendResponseHeaders(200, tiny.length);
+            try (OutputStream body = exchange.getResponseBody()) {
+                body.write(tiny);
+            }
+        });
         // 요청마다 스레드를 새로 쓰도록 — 기본(null) executor는 단일 스레드라 병렬성이 안 드러난다.
         server.setExecutor(java.util.concurrent.Executors.newFixedThreadPool(8));
         server.start();
@@ -119,6 +126,23 @@ class GeminiOcrServiceParallelDownloadTest {
     }
 
     @Test
+    void 이_크기_미만인_이미지는_OCR에서_제외된다() {
+        List<String> urls = List.of(
+                baseUrl + "/ok/1.png", baseUrl + "/tiny/2.png", baseUrl + "/ok/3.png");
+        CountingGeminiClient geminiClient = new CountingGeminiClient();
+        GeminiOcrService service = new GeminiOcrService(geminiClient);
+
+        Map<String, String> result = service.extractTexts(urls);
+
+        // 10KB 미만인 2번 이미지는 로고·아이콘으로 보고 Gemini로 보내지 않는다 — 실제
+        // 상품페이지에서 이런 이미지 13장의 OCR 결과 합계가 42자(10장은 0자)였던 것에 대한 방어.
+        assertThat(geminiClient.imageCounts).containsExactly(2);
+        assertThat(result.get(urls.get(1))).isEmpty();
+        assertThat(result.get(urls.get(0))).isEqualTo("text-1");
+        assertThat(result.get(urls.get(2))).isEqualTo("text-3");
+    }
+
+    @Test
     void 다운로드에_실패한_이미지는_빈_문자열로_남고_나머지는_정상_처리된다() {
         List<String> urls = List.of(
                 baseUrl + "/ok/1.png", baseUrl + "/missing/2.png", baseUrl + "/ok/3.png");
@@ -146,10 +170,14 @@ class GeminiOcrServiceParallelDownloadTest {
         return fileName.substring(0, fileName.indexOf('.'));
     }
 
-    /** PNG 시그니처 뒤에 구분자를 붙여 이미지마다 내용을 다르게 만든다. */
+    /**
+     * PNG 시그니처 뒤에 구분자를 붙여 이미지마다 내용을 다르게 만들고, OCR 제외 하한(10KB)을
+     * 넘도록 패딩한다 — 안 그러면 이 헬퍼로 만든 모든 테스트 이미지가 하한 필터에 걸린다.
+     */
     private static byte[] imageBytesFor(String marker) {
         byte[] markerBytes = marker.getBytes(java.nio.charset.StandardCharsets.US_ASCII);
-        byte[] body = new byte[PNG_BYTES.length + markerBytes.length];
+        int padded = Math.max(PNG_BYTES.length + markerBytes.length, 10 * 1024 + 1);
+        byte[] body = new byte[padded];
         System.arraycopy(PNG_BYTES, 0, body, 0, PNG_BYTES.length);
         System.arraycopy(markerBytes, 0, body, PNG_BYTES.length, markerBytes.length);
         return body;
@@ -158,7 +186,13 @@ class GeminiOcrServiceParallelDownloadTest {
     /** 대역이 받은 이미지에서 구분자를 되읽어 "text-<구분자>"를 만든다. */
     private static String textFor(GeminiClient.ImageInput image) {
         byte[] decoded = java.util.Base64.getDecoder().decode(image.base64Data());
-        String marker = new String(decoded, PNG_BYTES.length, decoded.length - PNG_BYTES.length,
+        // imageBytesFor()가 마커 뒤를 0으로 패딩하므로(하한 필터 통과용), 첫 0바이트 앞까지만
+        // 마커로 읽는다 — 안 그러면 패딩 전체가 마커에 섞여 들어간다.
+        int end = PNG_BYTES.length;
+        while (end < decoded.length && decoded[end] != 0) {
+            end++;
+        }
+        String marker = new String(decoded, PNG_BYTES.length, end - PNG_BYTES.length,
                 java.nio.charset.StandardCharsets.US_ASCII);
         return "text-" + marker;
     }

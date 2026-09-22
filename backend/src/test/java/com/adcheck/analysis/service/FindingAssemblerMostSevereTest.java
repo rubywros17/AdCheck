@@ -1,11 +1,13 @@
 package com.adcheck.analysis.service;
 
+import com.adcheck.finding.domain.FindingSource;
 import com.adcheck.finding.domain.RiskLevel;
 import com.adcheck.rule.service.RuleAnalysisResult;
 import com.adcheck.rule.service.RuleEvaluation;
 import org.junit.jupiter.api.Test;
 
 import java.util.List;
+import java.util.Optional;
 
 import static com.adcheck.rule.service.RuleEvaluation.ReasonCode.SEMANTIC_COMPARISON_REQUIRED;
 import static com.adcheck.rule.service.RuleEvaluation.ReasonCode.UNSUPPORTED_RULE;
@@ -46,10 +48,36 @@ class FindingAssemblerMostSevereTest {
         assertThat(RiskLevel.fromSeverity(result.get().severity())).isEqualTo(RiskLevel.HIGH);
     }
 
+    @Test
+    void 대표_RuleMatch의_sources를_인용에_필요한_필드만_추려_옮긴다() {
+        RuleAnalysisResult.SourceMetadata law = new RuleAnalysisResult.SourceMetadata(
+                1L, "LAW-01", "식품 등의 표시·광고에 관한 법률", "LAW", "식약처",
+                "https://www.law.go.kr/example", "2025", "UNVERIFIED",
+                "제8조제1항", null, null);
+        RuleAnalysisResult.RuleMatch match = ruleMatchWithSources(List.of(law));
+
+        List<FindingSource> sources = FindingAssembler.toFindingSources(Optional.of(match));
+
+        assertThat(sources).containsExactly(
+                new FindingSource("식품 등의 표시·광고에 관한 법률", "제8조제1항", "https://www.law.go.kr/example"));
+    }
+
+    @Test
+    void 대표_RuleMatch가_없으면_빈_리스트를_돌려준다() {
+        assertThat(FindingAssembler.toFindingSources(Optional.empty())).isEmpty();
+    }
+
     private static RuleAnalysisResult.RuleMatch ruleMatch(String severity, RuleEvaluation.ReasonCode reasonCode) {
         return new RuleAnalysisResult.RuleMatch(
                 "claim-1", 1L, "SOME_RULE", "0.1", "COMMON", "CATEGORY", severity, "APPROVED",
                 true, new RuleEvaluation(REVIEW_REQUIRED, reasonCode, "테스트용 사유"),
                 List.of(), List.of());
+    }
+
+    private static RuleAnalysisResult.RuleMatch ruleMatchWithSources(List<RuleAnalysisResult.SourceMetadata> sources) {
+        return new RuleAnalysisResult.RuleMatch(
+                "claim-1", 1L, "SOME_RULE", "0.1", "COMMON", "CATEGORY", "HIGH", "APPROVED",
+                true, new RuleEvaluation(REVIEW_REQUIRED, SEMANTIC_COMPARISON_REQUIRED, "테스트용 사유"),
+                sources, List.of());
     }
 }
