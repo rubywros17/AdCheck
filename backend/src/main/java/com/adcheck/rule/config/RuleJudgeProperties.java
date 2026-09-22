@@ -21,8 +21,12 @@ import java.util.List;
  * 미조사 백로그를 규칙별 few-shot·실제 심의사례 인용으로 수정 — 1차 수정 후 같은 규칙 안
  * 트레이드오프가 발견돼 2차 보정까지 거쳐 3회 반복 9/9, 9차 2개(2026-09-21): B03은 테스트
  * 하네스가 officialFunctions를 항상 비워 보내던 버그 수정 + 라벨 오류 정정, C03은 라벨
- * 오류 정정 + 심의기준 용어 수정표 인용 프롬프트 수정 — 각각 3회 반복 9/9) = 46개.
- * allowlist에 없는 코드는 evaluator가 있어도 무시되고 {@code UNSUPPORTED_RULE}로 남는다.
+ * 오류 정정 + 심의기준 용어 수정표 인용 프롬프트 수정 — 각각 3회 반복 9/9, 10차 4개
+ * (2026-09-22): S02·E04·B01·M02 — 각각 라벨 오류 정정 및/또는 실제 심의사례·심의기준
+ * 원문 인용 프롬프트 수정으로 3회 반복 9/9. C13_TESTIMONIAL은 같이 조사했지만 남은
+ * 케이스("5kg 감량")가 원출처(DISC-15)부터 "논의 필요"로 남겨진 진짜 애매 사례라 팀
+ * 승인 하에 라벨은 그대로 두고 이번 확장에서 제외) = 50개. allowlist에 없는 코드는
+ * evaluator가 있어도 무시되고 {@code UNSUPPORTED_RULE}로 남는다.
  */
 @Component
 @ConfigurationProperties(prefix = "adcheck.rule-judge")
@@ -74,7 +78,16 @@ public class RuleJudgeProperties {
             // 정정. C03_MEDICINE_CONFUSION: REVIEW_REQUIRED 라벨이 REVIEW-01 용어
             // 수정표("약국용"→"약국 내 건강기능식품코너")와 맞지 않아 팀 승인 후 MATCHED로
             // 정정 + 그 용어 수정표를 인용하는 프롬프트 수정 추가 — 각각 3회 반복 9/9 — 2개
-            "B03_OTHER_ORAL", "C03_MEDICINE_CONFUSION"
+            "B03_OTHER_ORAL", "C03_MEDICINE_CONFUSION",
+            // AiRuleEvaluator 10차 확장(2026-09-22) — S02_BODY_AREA: REVIEW-03 p.75(MSM)
+            // "허리/목/척추/고관절 사용 불가" 일괄 금지 조항 인용. E04_ALIAS: 라벨 오류
+            // 정정(팀 승인, NOTICE-01·DISC-18 대조 — "지방산 복합체"는 정식 명칭 아님) +
+            // NOTICE-01 원문 인용. B01_IMMUNE_INFLAMMATION: BAD-09 few-shot(질환 증상
+            // 나열 케이스) + 라벨 오류 정정(팀 승인, REVIEW-03 p.79 "감염, 염증" 일괄 금지).
+            // M02_LIVER_MARKER: 테스트 하네스 개선 + 라벨 오류 정정(팀 승인, DISC-09 —
+            // "내장지방"은 M02가 아니라 G03 영역) + "간 지표 전용" 명시 프롬프트 수정.
+            // 4개 전부 3회 반복 9/9 — 4개
+            "S02_BODY_AREA", "E04_ALIAS", "B01_IMMUNE_INFLAMMATION", "M02_LIVER_MARKER"
     );
 
     /**

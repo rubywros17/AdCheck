@@ -49,9 +49,9 @@ class RuleEvaluatorRegistryPilotTest {
     }
 
     @Test
-    void 기본_RuleJudgeProperties는_Common3_Literal9_AI파일럿34_총46개를_포함한다() {
+    void 기본_RuleJudgeProperties는_Common3_Literal9_AI파일럿38_총50개를_포함한다() {
         RuleJudgeProperties defaults = new RuleJudgeProperties();
-        assertThat(defaults.getEnabledRuleCodes()).hasSize(46)
+        assertThat(defaults.getEnabledRuleCodes()).hasSize(50)
                 .contains("C05_FUNCTION_EXCEED", "C07_ABSOLUTE_EFFECT", "C24_OVERCONSUMPTION")
                 .contains("C08_RESULT_TIME_AMOUNT", "M03_ALCOHOL", "S01_PAIN")
                 .contains("B02_VIRUS", "R02_MENOPAUSE", "T04_ANTIAGING")
@@ -68,6 +68,8 @@ class RuleEvaluatorRegistryPilotTest {
                 .contains("C11_SUB_INGREDIENT_FUNCTION", "C28_TARGET_SPECIALIZATION", "C30_NATURAL_FREE")
                 .contains("G01_EASY_DIET", "L02_UV", "M01_FATIGUE")
                 // 9차 확장(하네스 버그 + 라벨 오류 정정) — 2개
-                .contains("B03_OTHER_ORAL", "C03_MEDICINE_CONFUSION");
+                .contains("B03_OTHER_ORAL", "C03_MEDICINE_CONFUSION")
+                // 10차 확장(라벨 오류 정정 + 실제 사례/원문 인용 프롬프트 수정) — 4개
+                .contains("S02_BODY_AREA", "E04_ALIAS", "B01_IMMUNE_INFLAMMATION", "M02_LIVER_MARKER");
     }
 }
