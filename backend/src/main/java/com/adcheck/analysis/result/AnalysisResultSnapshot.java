@@ -1,5 +1,6 @@
 package com.adcheck.analysis.result;
 
+import com.adcheck.finding.domain.FindingSource;
 import com.adcheck.finding.domain.RiskLevel;
 
 import java.util.List;
@@ -27,7 +28,12 @@ public record AnalysisResultSnapshot(
             RiskLevel riskLevel,
             String category,
             String message,
-            String officialFunction
+            String officialFunction,
+            List<FindingSource> sources
     ) {
+        /** sources 필드가 없던 옛 저장 JSON을 역직렬화하면 null이 들어오므로 빈 리스트로 정규화한다. */
+        public Finding {
+            sources = sources == null ? List.of() : List.copyOf(sources);
+        }
     }
 }

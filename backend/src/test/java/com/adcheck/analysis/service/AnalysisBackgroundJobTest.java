@@ -67,7 +67,7 @@ class AnalysisBackgroundJobTest {
         Product product = mock(Product.class);
         Finding finding = new Finding(
                 "시력을 회복합니다.", "#claim", RiskLevel.CAUTION, "FUNCTION_EXCEED",
-                "확인이 필요합니다.", "눈 건강에 도움을 줄 수 있음"
+                "확인이 필요합니다.", "눈 건강에 도움을 줄 수 있음", List.of()
         );
         when(claimAnalyzer.analyze(input.texts(), input.images())).thenReturn(claimResult);
         when(findingAssembler.assemble(claimResult))

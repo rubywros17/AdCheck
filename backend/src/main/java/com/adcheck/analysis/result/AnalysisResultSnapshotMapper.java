@@ -48,7 +48,8 @@ public class AnalysisResultSnapshotMapper {
                 finding.riskLevel(),
                 finding.category(),
                 finding.message(),
-                finding.officialFunction()
+                finding.officialFunction(),
+                finding.sources()
         );
     }
 
@@ -59,7 +60,8 @@ public class AnalysisResultSnapshotMapper {
                 finding.riskLevel(),
                 finding.category(),
                 finding.message(),
-                finding.officialFunction()
+                finding.officialFunction(),
+                finding.sources()
         );
     }
 }
