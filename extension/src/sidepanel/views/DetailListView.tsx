@@ -31,7 +31,7 @@ export interface DetailListViewProps {
   onBack?: () => void;
 }
 
-// finding.message("의약품" 포함 여부)로 2대 구분 버킷(기능성표시/광고심의)을 매핑
+// finding.message("의약품" 포함 여부)로 2대 구분 버킷(기능성 표시/광고 심의)을 매핑
 function getFindingBucket(finding: FindingWithKeyword): 'DISEASE' | 'GUARANTEE' {
   return finding.message.includes('의약품') ? 'DISEASE' : 'GUARANTEE';
 }
@@ -184,7 +184,7 @@ export const DetailListView: React.FC<DetailListViewProps> = ({
         )}
       </div>
 
-      {/* 2. 카테고리 필터 칩: 전체 / 기능성표시 / 광고심의 2대 구분 */}
+      {/* 2. 카테고리 필터 칩: 전체 / 기능성 표시 / 광고심의 2대 구분 */}
       <div style={{ display: 'flex', gap: '8px', overflowX: 'auto', margin: '12px 0 16px' }}>
         <button
           type="button"
@@ -200,7 +200,7 @@ export const DetailListView: React.FC<DetailListViewProps> = ({
           onClick={() => onFilterChange('DISEASE')}
           style={{ ...filterChipStyle(activeFilter === 'DISEASE'), animationDelay: '0.08s' }}
         >
-          기능성표시 {diseaseCount}
+          기능성 표시 {diseaseCount}
         </button>
         <button
           type="button"
@@ -208,7 +208,7 @@ export const DetailListView: React.FC<DetailListViewProps> = ({
           onClick={() => onFilterChange('GUARANTEE')}
           style={{ ...filterChipStyle(activeFilter === 'GUARANTEE'), animationDelay: '0.16s' }}
         >
-          광고심의 {guaranteeCount}
+          광고 심의 {guaranteeCount}
         </button>
       </div>
 
@@ -369,7 +369,7 @@ export const DetailListView: React.FC<DetailListViewProps> = ({
                               borderRadius: '8px',
                               padding: '10px 12px',
                               display: 'flex',
-                              alignItems: 'flex-start',
+                              alignItems: 'center',
                               gap: '10px',
                             }}
                           >
@@ -377,7 +377,7 @@ export const DetailListView: React.FC<DetailListViewProps> = ({
                               src={BEAR_QUESTION_ICON_URL}
                               alt=""
                               aria-hidden="true"
-                              style={{ width: '32px', height: '32px', flexShrink: 0, objectFit: 'contain', marginTop: '2px' }}
+                              style={{ width: '32px', height: '32px', flexShrink: 0, objectFit: 'contain'}}
                             />
                             <div style={{ fontSize: '12.5px', fontWeight: 500, color: '#1E293B', lineHeight: 1.5 }}>
                               {finding.message}

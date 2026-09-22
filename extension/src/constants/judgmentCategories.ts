@@ -17,13 +17,13 @@ const SEVERITY_COLORS: Record<SeverityType, Omit<CategoryThemeInfo, 'label' | 's
     badgeBg: '#FFF1F2',
     badgeText: '#E11D48',
     badgeBorder: '#FDA4AF',
-    indicatorColor: '#E11D48',
+    indicatorColor: '#FA4224',
   },
   CAUTION: {
     badgeBg: '#FFF7ED',
     badgeText: '#EA580C',
     badgeBorder: '#FED7AA',
-    indicatorColor: '#EA580C',
+    indicatorColor: '#FDDC5C',
   },
   NORMAL: {
     badgeBg: '#F0FDF4',
