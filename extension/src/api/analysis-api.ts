@@ -97,7 +97,11 @@ function isFinding(value: unknown): boolean {
     typeof value.category === "string" &&
     value.category.length > 0 &&
     typeof value.message === "string" &&
-    (typeof value.officialFunction === "string" || value.officialFunction === null)
+    (typeof value.officialFunction === "string" || value.officialFunction === null) &&
+    // 항목별 title/section/sourceUrl까지 전부 좁혀서 검증하지 않는다 — 바로 위 category/riskLevel
+    // 사례처럼, 근거 인용 스키마가 앞으로 넓어질 때마다 여기서 또 전체 응답을 통째로 거부하는
+    // 일을 반복하지 않기 위함. 배열인지만 확인한다.
+    Array.isArray(value.sources)
   );
 }
 

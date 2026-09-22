@@ -13,6 +13,12 @@ export interface AnalysisSummary {
   officialFunctionMatchedCount: number;
 }
 
+export interface FindingSource {
+  title: string;
+  section: string | null;
+  sourceUrl: string | null;
+}
+
 export interface FindingResponse {
   sourceText: string;
   selector: string | null;
@@ -20,6 +26,7 @@ export interface FindingResponse {
   category: FindingCategory;
   message: string;
   officialFunction: string | null;
+  sources: FindingSource[];
 }
 
 export interface AnalysisResponse {
