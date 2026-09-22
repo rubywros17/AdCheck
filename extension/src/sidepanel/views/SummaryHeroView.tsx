@@ -398,7 +398,7 @@ export const SummaryHeroView: React.FC<SummaryHeroViewProps> = ({ count, onConti
 
       {/* 4. 하단 CTA 버튼 */}
       <button className="mood-cta-btn" onClick={onContinue}>
-        {isSafe ? '다시 검사하기' : '어떤 문구인지 확인하기'}
+        {isSafe ? '다른 광고 검사하기' : '어떤 문구인지 확인하기'}
       </button>
     </div>
   );
