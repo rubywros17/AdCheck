@@ -366,6 +366,32 @@ public class AiRuleEvaluator implements RuleEvaluator {
             sb.append("전혀 없고 인정 기능성 범위 내의 일반적 설명이라면 확신을 갖고 NOT_MATCHED로 ");
             sb.append("답하세요.)\n");
         }
+        if ("B01_IMMUNE_INFLAMMATION".equals(rule.getRuleCode())) {
+            // 실측(5회 반복)에서 "외래진료 1위 치주질환 / 피가 난다 / 고름 / 붓는 잇몸"(MATCHED
+            // 기대, 실제 사례 BAD-09)이 5회 중 2회 REVIEW_REQUIRED로 흔들렸다 — "질환 치료
+            // 효과로 확장한 것인지 전체 맥락을 확인해야 한다"며 판단을 미룬 것. 하지만 이건
+            // 실제 심의사례에서 위반으로 확정된 문구다.
+            sb.append("(실제 사례(BAD-09): \"외래진료 1위 치주질환 / 피가 난다 / 고름 / 붓는 잇몸\"은 ");
+            sb.append("실제 심의에서 위반(MATCHED)으로 확정됐습니다 — 치주질환·출혈·고름·잇몸 부음 ");
+            sb.append("등 구체적인 질환·증상 명칭을 나열한 것 자체가 항산화·구강 항균 기능성 범위를 ");
+            sb.append("벗어난 질병 치료 오인 표현입니다. 이렇게 구체적인 질환·증상 명칭이 나열돼 ");
+            sb.append("있다면 \"전체 맥락을 확인해야 한다\"며 needsOutsideContext로 미루지 말고 ");
+            sb.append("확신을 갖고 MATCHED로 답하세요.)\n");
+        }
+        if ("M02_LIVER_MARKER".equals(rule.getRuleCode())) {
+            // 실측에서 "이 제품을 드신 분들의 내장지방 수치가 개선된 사례가 있습니다"(NOT_MATCHED
+            // 기대, 라벨 정정 후에도)가 계속 불안정했다(MATCHED, REVIEW_REQUIRED 등으로 흔들림) —
+            // "지표 개선을 언급하니 위반 아닌가"로 판단한 것. 하지만 M02는 간 지표(간 수치·AST·
+            // ALT) 전용 규칙이고, "내장지방"은 체지방 지표라 이 규칙의 candidateExamples에
+            // 아예 없다. 실제 사례 DISC-09가 이미 이 둘을 M02(간 지표)/G03(체지방) 서로 다른
+            // 규칙으로 명확히 구분해 등록해뒀다.
+            sb.append("(주의: 이 규칙(M02_LIVER_MARKER)은 간 지표(간 수치, AST, ALT)에만 적용됩니다. ");
+            sb.append("\"내장지방\", \"체지방\" 같은 다른 종류의 지표가 언급됐다면, 그건 이 규칙이 ");
+            sb.append("다루는 지표가 아니므로 \"지표 개선을 주장했으니 위반\"이라고 단정하지 마세요 — ");
+            sb.append("실제 심의사례(DISC-09)도 간 지표(밀크씨슬)와 체지방 지표(가르시니아)를 서로 ");
+            sb.append("다른 규칙으로 명확히 구분합니다. 간 수치·AST·ALT가 아닌 다른 지표만 언급된 ");
+            sb.append("경우, 애매하다고 보지 말고 확신을 갖고 NOT_MATCHED로 답하세요.)\n");
+        }
         if (isNotBlank(rule.getRequiredEvidence())) {
             sb.append("필요 근거(참고용 — 지금 판단엔 이 근거 자료가 없을 수 있음): ")
                     .append(rule.getRequiredEvidence()).append('\n');
@@ -766,6 +792,32 @@ public class AiRuleEvaluator implements RuleEvaluator {
             sb.append("마세요 — 1인칭 개인 경험 서술, 구체적 수치, \"먹었더니\" 같은 결과 보장 표현이 ");
             sb.append("전혀 없고 인정 기능성 범위 내의 일반적 설명이라면 확신을 갖고 NOT_MATCHED로 ");
             sb.append("답하세요.)\n");
+        }
+        if ("B01_IMMUNE_INFLAMMATION".equals(rule.getRuleCode())) {
+            // 실측(5회 반복)에서 "외래진료 1위 치주질환 / 피가 난다 / 고름 / 붓는 잇몸"(MATCHED
+            // 기대, 실제 사례 BAD-09)이 5회 중 2회 REVIEW_REQUIRED로 흔들렸다 — "질환 치료
+            // 효과로 확장한 것인지 전체 맥락을 확인해야 한다"며 판단을 미룬 것. 하지만 이건
+            // 실제 심의사례에서 위반으로 확정된 문구다.
+            sb.append("(실제 사례(BAD-09): \"외래진료 1위 치주질환 / 피가 난다 / 고름 / 붓는 잇몸\"은 ");
+            sb.append("실제 심의에서 위반(MATCHED)으로 확정됐습니다 — 치주질환·출혈·고름·잇몸 부음 ");
+            sb.append("등 구체적인 질환·증상 명칭을 나열한 것 자체가 항산화·구강 항균 기능성 범위를 ");
+            sb.append("벗어난 질병 치료 오인 표현입니다. 이렇게 구체적인 질환·증상 명칭이 나열돼 ");
+            sb.append("있다면 \"전체 맥락을 확인해야 한다\"며 needsOutsideContext로 미루지 말고 ");
+            sb.append("확신을 갖고 MATCHED로 답하세요.)\n");
+        }
+        if ("M02_LIVER_MARKER".equals(rule.getRuleCode())) {
+            // 실측에서 "이 제품을 드신 분들의 내장지방 수치가 개선된 사례가 있습니다"(NOT_MATCHED
+            // 기대, 라벨 정정 후에도)가 계속 불안정했다(MATCHED, REVIEW_REQUIRED 등으로 흔들림) —
+            // "지표 개선을 언급하니 위반 아닌가"로 판단한 것. 하지만 M02는 간 지표(간 수치·AST·
+            // ALT) 전용 규칙이고, "내장지방"은 체지방 지표라 이 규칙의 candidateExamples에
+            // 아예 없다. 실제 사례 DISC-09가 이미 이 둘을 M02(간 지표)/G03(체지방) 서로 다른
+            // 규칙으로 명확히 구분해 등록해뒀다.
+            sb.append("(주의: 이 규칙(M02_LIVER_MARKER)은 간 지표(간 수치, AST, ALT)에만 적용됩니다. ");
+            sb.append("\"내장지방\", \"체지방\" 같은 다른 종류의 지표가 언급됐다면, 그건 이 규칙이 ");
+            sb.append("다루는 지표가 아니므로 \"지표 개선을 주장했으니 위반\"이라고 단정하지 마세요 — ");
+            sb.append("실제 심의사례(DISC-09)도 간 지표(밀크씨슬)와 체지방 지표(가르시니아)를 서로 ");
+            sb.append("다른 규칙으로 명확히 구분합니다. 간 수치·AST·ALT가 아닌 다른 지표만 언급된 ");
+            sb.append("경우, 애매하다고 보지 말고 확신을 갖고 NOT_MATCHED로 답하세요.)\n");
         }
         if (isNotBlank(rule.getRequiredEvidence())) {
             sb.append("필요 근거(참고용 — 지금 판단엔 이 근거 자료가 없을 수 있음): ")

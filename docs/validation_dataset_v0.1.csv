@@ -46,7 +46,7 @@ E03_GENERATION,INGREDIENT_SPECIFIC,NOT_MATCHED,리포좀 기술이 적용된 제
 E03_GENERATION,INGREDIENT_SPECIFIC,REVIEW_REQUIRED,차세대 기술로 만든 제품,우월 주장인지 단순 신기술 설명인지 애매,AI_DRAFT
 E04_ALIAS,INGREDIENT_SPECIFIC,MATCHED,오메가3 500mg,정식 원료명(EPA/DHA 등) 없이 통칭만 사용,AI_DRAFT
 E04_ALIAS,INGREDIENT_SPECIFIC,NOT_MATCHED,EPA·DHA 함유 유지(오메가3) 500mg,정식 원료명이 명확히 병기됨,AI_DRAFT
-E04_ALIAS,INGREDIENT_SPECIFIC,REVIEW_REQUIRED,오메가3(지방산 복합체) 500mg,정식 원료명 인지 여부 애매,AI_DRAFT
+E04_ALIAS,INGREDIENT_SPECIFIC,MATCHED,오메가3(지방산 복합체) 500mg,"NOTICE-01: '지방산 복합체'는 정식 원료명(EPA 및 DHA 함유 유지)이 아닌 임의 표현 — exceptions(위치 문제 예외)는 정식 명칭 자체가 없는 경우엔 적용 안 됨(DISC-18 대조)","AI_DRAFT_CORRECTED(NOTICE-01, DISC-18 대조, 팀 승인 2026-09-22)"
 R01_COLD,INGREDIENT_SPECIFIC,MATCHED,"홍삼 먹고 감기 뚝 떨어졌어요, 대상포진도 예방된대요",면역력 기능을 질병 예방·치료로 주장,AI_DRAFT
 R01_COLD,INGREDIENT_SPECIFIC,NOT_MATCHED,홍삼은 면역력 증진에 도움을 줄 수 있습니다,인정기능성 범위 내,AI_DRAFT
 R01_COLD,INGREDIENT_SPECIFIC,REVIEW_REQUIRED,"환절기에 든든한 면역력, 홍삼과 함께",감기 예방 암시인지 일반 면역 표현인지 애매,AI_DRAFT
@@ -85,7 +85,7 @@ O02_ENERGY_EXPANSION,INGREDIENT_SPECIFIC,NOT_MATCHED,지구력 증진에 도움�
 O02_ENERGY_EXPANSION,INGREDIENT_SPECIFIC,MATCHED,힘없던 일상에 활력을 더해줍니다,"REVIEW-03 p.78: '힘없는 중년' 등과 동일 패턴, 기능성 범위 밖 표현으로 시정 대상","AI_DRAFT_CORRECTED(REVIEW-03 p.78, 팀 승인 2026-09-21)"
 B01_IMMUNE_INFLAMMATION,INGREDIENT_SPECIFIC,MATCHED,외래진료 1위 치주질환 / 피가 난다 / 고름 / 붓는 잇몸,항산화·구강항균을 면역·질환 효과로 확장,BAD-09(PROPOLIS)
 B01_IMMUNE_INFLAMMATION,INGREDIENT_SPECIFIC,NOT_MATCHED,항산화 작용에 도움을 줄 수 있습니다,인정기능성 범위 내,AI_DRAFT
-B01_IMMUNE_INFLAMMATION,INGREDIENT_SPECIFIC,REVIEW_REQUIRED,몸속 염증이 걱정된다면,항산화 범위를 넘는 면역·염증 질환 효과 암시인지 애매,AI_DRAFT
+B01_IMMUNE_INFLAMMATION,INGREDIENT_SPECIFIC,MATCHED,몸속 염증이 걱정된다면,"REVIEW-03 p.79: 프로폴리스의 '감염, 염증'은 기능성 범위 벗어난 질병 예방·치료 오인 표현으로 일괄 사용 불가 — candidateExamples에 '염증' 명시, severity HIGH","AI_DRAFT_CORRECTED(REVIEW-03 p.79, 팀 승인 2026-09-22)"
 B02_VIRUS,INGREDIENT_SPECIFIC,MATCHED,프로폴리스가 감기 바이러스까지 막아줘요,인체 바이러스 방어 주장(범위 초과),AI_DRAFT
 B02_VIRUS,INGREDIENT_SPECIFIC,NOT_MATCHED,프로폴리스는 벌이 나무의 수액과 분비물을 모아 만든 물질입니다,벌집 관련 원료 설명일 뿐,AI_DRAFT
 B02_VIRUS,INGREDIENT_SPECIFIC,MATCHED,바이러스 걱정 없는 계절을 보내세요,인체 바이러스 방어 주장에 해당,AI_DRAFT
@@ -103,7 +103,7 @@ P03_DISEASE_GUT,INGREDIENT_SPECIFIC,NOT_MATCHED,유산균 증식 및 유해균 �
 P03_DISEASE_GUT,INGREDIENT_SPECIFIC,MATCHED,"변비 때문에 고생이라면, 유산균이 도움이 될 수 있어요",변비라는 질병명을 직접 언급해 제품 섭취로 치료된다는 효과 암시,DISC-03
 M02_LIVER_MARKER,INGREDIENT_SPECIFIC,MATCHED,"AST, ALT 수치가 이렇게 좋아졌어요! (자체 조사 결과)",제품 카피에서 간 지표 개선을 직접 주장,AI_DRAFT
 M02_LIVER_MARKER,INGREDIENT_SPECIFIC,NOT_MATCHED,간 건강에 도움을 줄 수 있습니다,지표 수치를 직접 언급하지 않음,AI_DRAFT
-M02_LIVER_MARKER,INGREDIENT_SPECIFIC,REVIEW_REQUIRED,이 제품을 드신 분들의 내장지방 수치가 개선된 사례가 있습니다,제품 카피인지 적정 인체시험 구획의 지표인지 애매,DISC-09
+M02_LIVER_MARKER,INGREDIENT_SPECIFIC,NOT_MATCHED,이 제품을 드신 분들의 내장지방 수치가 개선된 사례가 있습니다,"M02는 간 지표(간 수치·AST·ALT) 전용 규칙 — candidateExamples에 '내장지방' 없음. DISC-09가 이미 M02(간 지표)/G03(체지방) 두 규칙으로 구분해 등록해둔 예시가 M02 슬롯에 잘못 배정됨","AI_DRAFT_CORRECTED(DISC-09 재대조, 팀 승인 2026-09-22)"
 S02_BODY_AREA,INGREDIENT_SPECIFIC,MATCHED,"허리, 목, 척추까지 챙기는 관절 영양제",특정 부위 효과를 제품 기능성으로 표현(PDF 제한 부위 강조),AI_DRAFT
 S02_BODY_AREA,INGREDIENT_SPECIFIC,NOT_MATCHED,관절 건강에 도움을 줄 수 있습니다,특정 부위 강조 없음,AI_DRAFT
 S02_BODY_AREA,INGREDIENT_SPECIFIC,MATCHED,하루종일 앉아있는 당신의 허리를 위해,REVIEW-03 p.75: 허리/목/척추/고관절은 표현 강도와 무관하게 기능성 범위 밖으로 제한된 부위,"AI_DRAFT_CORRECTED(REVIEW-03 p.75, 팀 승인 2026-09-21)"

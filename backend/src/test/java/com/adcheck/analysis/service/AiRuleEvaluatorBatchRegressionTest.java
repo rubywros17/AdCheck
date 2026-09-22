@@ -138,6 +138,12 @@ class AiRuleEvaluatorBatchRegressionTest {
             "B03_OTHER_ORAL", new RuleOfficialFunctionContext(550L, "프로폴리스추출물",
                     "항산화 · 구강에서의 항균작용에 도움을 줄 수 있음 / ※구강에서의 항균작용은 구강에 "
                             + "직접 접촉할 수 있는 형태에 한하며, 섭취량을 적용하지 않음",
+                    "고시형", null),
+            // B01_IMMUNE_INFLAMMATION도 같은 원료(프로폴리스)의 같은 "인정 기능성 범위를 벗어나는지"
+            // 판단이라 동일한 하네스 한계가 있을 것으로 보고 함께 채운다.
+            "B01_IMMUNE_INFLAMMATION", new RuleOfficialFunctionContext(550L, "프로폴리스추출물",
+                    "항산화 · 구강에서의 항균작용에 도움을 줄 수 있음 / ※구강에서의 항균작용은 구강에 "
+                            + "직접 접촉할 수 있는 형태에 한하며, 섭취량을 적용하지 않음",
                     "고시형", null)
     );
 
