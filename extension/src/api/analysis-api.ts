@@ -81,13 +81,21 @@ function isAnalysisResponse(value: unknown): value is AnalysisResponse {
   );
 }
 
+const RISK_LEVELS = new Set(["HIGH", "CAUTION", "NORMAL"]);
+
 function isFinding(value: unknown): boolean {
   return (
     isRecord(value) &&
     typeof value.sourceText === "string" &&
     (typeof value.selector === "string" || value.selector === null) &&
-    value.riskLevel === "CAUTION" &&
-    value.category === "FUNCTION_CLAIM" &&
+    typeof value.riskLevel === "string" &&
+    RISK_LEVELS.has(value.riskLevel) &&
+    // category는 Rule Engine의 judgmentCategory 문자열(71종)을 그대로 통과시키는 열린 값이라
+    // 특정 값으로 좁히지 않는다 — 예전엔 "FUNCTION_CLAIM" 하나만 통과시켜서, Finding 하나라도
+    // 다른 카테고리(또는 HIGH/NORMAL 위험도)면 isAnalysisResponse 전체가 실패해 정상적인 분석
+    // 결과까지 "분석할 수 없어요" 에러로 통째로 버려지고 있었다.
+    typeof value.category === "string" &&
+    value.category.length > 0 &&
     typeof value.message === "string" &&
     (typeof value.officialFunction === "string" || value.officialFunction === null)
   );
