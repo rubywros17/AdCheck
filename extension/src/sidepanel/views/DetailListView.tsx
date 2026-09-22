@@ -388,8 +388,8 @@ export const DetailListView: React.FC<DetailListViewProps> = ({
 
                       {/* 공식 인정 문구 + 근거 법령: 서로 다른 섹션으로 분리하지 않고,
                           문구가 끝나는 바로 아래에 근거가 이어지도록 한 블록으로 묶음.
-                          실제 이동할 법령 원문 URL을 아직 확정하지 못해 <a href>는 붙이지 않고,
-                          링크처럼 보이는 스타일(밑줄+호버)만 우선 적용 */}
+                          finding.sources(대표 규칙의 근거 조문)를 그대로 나열하고,
+                          sourceUrl이 있는 것만 새 탭 링크로 연다 — 없으면 화살표 없이 텍스트만. */}
                       <div style={{ padding: '11px 14px 12px', borderTop: '1px solid #F1F5F9' }}>
                         <div style={{ fontSize: '11.5px', fontWeight: 700, color: '#0F172A', letterSpacing: '-0.2px' }}>
                           공식 인정 문구
@@ -397,9 +397,29 @@ export const DetailListView: React.FC<DetailListViewProps> = ({
                         <div style={{ fontSize: '12.5px', color: '#334155', lineHeight: 1.5, marginTop: '4px' }}>
                           {finding.officialFunction ? `"${finding.officialFunction}"` : '해당 표현에 대응하는 공인 기능성 문구가 없어요.'}
                         </div>
-                        <span className="law-ref-link" style={{ display: 'block', marginTop: '6px', fontSize: '11px' }}>
-                          근거: 식품 등의 표시·광고에 관한 법률 ↗
-                        </span>
+                        {finding.sources.length > 0 && (
+                          <div style={{ marginTop: '6px', display: 'flex', flexDirection: 'column', gap: '2px' }}>
+                            {finding.sources.map((source, idx) => {
+                              const label = `근거: ${source.title}${source.section ? ` ${source.section}` : ''}`;
+                              return source.sourceUrl ? (
+                                <a
+                                  key={idx}
+                                  href={source.sourceUrl}
+                                  target="_blank"
+                                  rel="noopener noreferrer"
+                                  className="law-ref-link"
+                                  style={{ display: 'block', fontSize: '11px' }}
+                                >
+                                  {label} ↗
+                                </a>
+                              ) : (
+                                <span key={idx} className="law-ref-link" style={{ display: 'block', fontSize: '11px' }}>
+                                  {label}
+                                </span>
+                              );
+                            })}
+                          </div>
+                        )}
                       </div>
                     </div>
                   </div>
