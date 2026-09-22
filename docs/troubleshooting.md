@@ -903,3 +903,19 @@ C13 few-shot 테스트 중, 같은 회차의 배치 응답에서 두 claim이 �
 **결론**: 근본 원인은 아직 못 잡았다. 강제로 재현하려고 반복 호출을 계속 늘리는 건
 비효율적이라 판단해 중단했다 — 로깅만 보강해두고, 다음에 실제로 재발하면(테스트든
 운영이든) 그때 원본 응답으로 확인한다.
+
+## GeminiClient가 일일 할당량 429를 분당 할당량 429로 오인하던 문제 수정
+
+"AI 파트가 팀원이 pull해서 바로 쓸 만한 상태인지" 점검하다가, 이전에 겪었던 일일 할당량
+소진 사고(위 "일일 무료 할당량(500회/일) 소진" 항목)의 근본 원인이 실은 안 고쳐져 있던
+걸 발견했다. `GeminiClient.postWithRetry()`는 429를 잡으면 전부 같은 방식(백오프 후
+최대 3회 재시도)으로 처리하는데, Gemini의 429엔 **분당 한도**(재시도 몇 초~몇십 초면
+풀림)와 **일일 한도**(하루 지나야 풀림, 응답 `quotaId`가 `GenerateRequestsPerDayPer
+ProjectPerModel-FreeTier`처럼 "PerDay"로 구분됨) 두 종류가 있다. 지금까지는 일일
+한도에 걸려도 분당 한도인 줄 알고 최대 30초씩 3번(최대 약 90초) 헛되이 재시도한 뒤에야
+실패했고, 최종 예외 메시지도 그냥 "429 Too Many Requests"라 원인 파악에 시간이 걸렸다.
+
+`GeminiClient.isDailyQuotaExceeded(responseBody)`를 추가해 응답 본문에 "PerDay"가
+있으면 재시도 없이 즉시 `GeminiDailyQuotaExceededException`(신규, 메시지에 모델명과
+"하루가 지나야 복구됨"을 명시)을 던지도록 고쳤다. `GeminiClientRetryDelayTest`에 실제
+운영에서 봤던 형태의 일일 한도 429 본문으로 단위 테스트 3건 추가.
