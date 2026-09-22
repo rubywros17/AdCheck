@@ -27,12 +27,12 @@ import java.util.Map;
 public class GeminiClaimAnalyzer implements ClaimAnalyzer {
 
     private final DetailTextCleaner textCleaner;
-    private final GeminiOcrService ocrService;
+    private final OcrService ocrService;
     private final ProductContentExtractionService extractionService;
 
     public GeminiClaimAnalyzer(
             DetailTextCleaner textCleaner,
-            GeminiOcrService ocrService,
+            OcrService ocrService,
             ProductContentExtractionService extractionService
     ) {
         this.textCleaner = textCleaner;

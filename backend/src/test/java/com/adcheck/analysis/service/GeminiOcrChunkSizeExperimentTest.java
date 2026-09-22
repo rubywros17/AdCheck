@@ -31,7 +31,7 @@ class GeminiOcrChunkSizeExperimentTest {
         String apiKey = System.getenv("GEMINI_API_KEY");
         Assumptions.assumeTrue(apiKey != null && !apiKey.isBlank(), "GEMINI_API_KEY 미설정 - 스킵");
 
-        GeminiOcrService service = new GeminiOcrService(new GeminiClient(apiKey, "gemini-3.5-flash-lite"));
+        GeminiOcrService service = new GeminiOcrService(new GeminiClient(apiKey, "gemini-3.5-flash-lite"), new OcrImageLoader());
 
         System.out.println("=== 한 장씩 개별 OCR (5회 호출) ===");
         int individualTotal = 0;

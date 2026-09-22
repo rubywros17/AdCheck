@@ -20,6 +20,13 @@ app:
     allowed-origins: ${CORS_ALLOWED_ORIGINS:}
 
 adcheck:
+  ocr:
+    # auto | gemini | google-vision
+    #   auto          : Vision 우선, 키가 없거나 호출이 실패한 이미지만 Gemini로 폴백(기본값)
+    #   gemini        : Vision을 쓰지 않음
+    #   google-vision : Vision만 쓰고 폴백하지 않음(비교 실험용)
+    # Vision을 우선하는 근거는 FallbackOcrService 주석 참고(147장 실측).
+    provider: ${OCR_PROVIDER:auto}
   analysis:
     pipeline-version: v1
     reuse-ttl-clean: 30d
@@ -34,3 +41,8 @@ gemini:
   api-key: ${GEMINI_API_KEY:}
   model: ${GEMINI_MODEL:gemini-3.5-flash-lite}
   embedding-model: ${GEMINI_EMBEDDING_MODEL:gemini-embedding-001}
+
+google:
+  vision:
+    # adcheck.ocr.provider=google-vision 일 때만 쓰인다.
+    api-key: ${GOOGLE_VISION_API_KEY:}
