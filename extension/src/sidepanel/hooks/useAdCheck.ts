@@ -14,6 +14,7 @@ function isScanHistoryItem(value: unknown): value is ScanHistoryItem {
   return typeof item.id === "string"
     && typeof item.dateStr === "string"
     && typeof item.productName === "string"
+    && typeof item.pageUrl === "string"
     && typeof item.count === "number"
     && Number.isInteger(item.count)
     && item.count >= 0
@@ -77,6 +78,7 @@ export function useAdCheck(status: ViewStatus, setStatus: Dispatch<SetStateActio
     : liveFindings ?? MOCK_FINDINGS.slice(0, testTarget === "SAFE" ? 0 : MOCK_FINDINGS.length);
   const targetCount = viewingHistory?.count ?? findings.length;
   const currentPageTitle = viewingHistory?.productName ?? livePageInfo?.title ?? CURRENT_PAGE_TITLE;
+  const currentPageUrl = viewingHistory?.pageUrl ?? livePageInfo?.url ?? CURRENT_PAGE_URL;
   const level = getReviewLevel(targetCount);
   // 점검 기록에서 선택해 보는 중이면 그 기록의 id, 방금 분석을 마친 화면이면 가장 최근에 추가된 기록(맨 앞)의 id
   const currentHistoryId = viewingHistory?.id ?? scanHistories[0]?.id;
@@ -126,11 +128,12 @@ export function useAdCheck(status: ViewStatus, setStatus: Dispatch<SetStateActio
     setStatus("IDLE");
   }, [cancelAnalysis, resetDetails, setStatus]);
 
-  function pushHistory(count: number, productName: string) {
+  function pushHistory(count: number, productName: string, pageUrl: string) {
     const history: ScanHistoryItem = {
       id: crypto.randomUUID(),
       dateStr: "방금 전",
       productName,
+      pageUrl,
       count,
       level: getReviewLevel(count),
     };
@@ -160,7 +163,7 @@ export function useAdCheck(status: ViewStatus, setStatus: Dispatch<SetStateActio
           return;
         }
         setStatus(count === 0 ? "EMPTY" : "SUMMARY_HERO");
-        pushHistory(count, CURRENT_PAGE_TITLE);
+        pushHistory(count, CURRENT_PAGE_TITLE, CURRENT_PAGE_URL);
       }, SCAN_CYCLE_MS);
       return;
     }
@@ -190,10 +193,11 @@ export function useAdCheck(status: ViewStatus, setStatus: Dispatch<SetStateActio
 
       const mapped = response.findings.map(toFindingWithKeyword);
       const pageTitle = tabResult.ok ? tabResult.data.title : CURRENT_PAGE_TITLE;
+      const pageUrl = tabResult.ok ? tabResult.data.url : CURRENT_PAGE_URL;
       setLiveFindings(mapped);
       setLivePageInfo(tabResult.ok ? tabResult.data : null);
       setStatus(mapped.length === 0 ? "EMPTY" : "SUMMARY_HERO");
-      pushHistory(mapped.length, pageTitle);
+      pushHistory(mapped.length, pageTitle, pageUrl);
     } catch {
       if (analysisRequestIdRef.current === requestId) setStatus("ERROR");
     }
@@ -275,7 +279,7 @@ export function useAdCheck(status: ViewStatus, setStatus: Dispatch<SetStateActio
     testTarget, scanHistories, isHistoryOpen, activeFilter, expandedFindings,
     pendingScrollIdx, targetCount, currentPageTitle, findings, level,
     currentHistoryId, isCurrentFavorite,
-    pageUrl: livePageInfo?.url ?? CURRENT_PAGE_URL,
+    pageUrl: currentPageUrl,
     showHistory: !["ANALYZING", "SUMMARY_HERO", "EMPTY"].includes(status),
     goHome, analyze, changeTestTarget, selectHistory, selectBubble, showAllFindings,
     toggleFinding, completeScroll, shareResults, locateFinding, toggleFavorite,

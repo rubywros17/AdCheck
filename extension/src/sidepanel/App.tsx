@@ -38,7 +38,7 @@ export function App() {
             <SummaryHeroView
               count={adCheck.targetCount}
               level={adCheck.level}
-              onContinue={() => (status === "EMPTY" ? adCheck.analyze() : setStatus("BUBBLE_PREVIEW"))}
+              onContinue={() => (status === "EMPTY" ? adCheck.goHome() : setStatus("BUBBLE_PREVIEW"))}
             />
           )}
 

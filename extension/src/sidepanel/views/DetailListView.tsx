@@ -377,7 +377,7 @@ export const DetailListView: React.FC<DetailListViewProps> = ({
                               src={BEAR_QUESTION_ICON_URL}
                               alt=""
                               aria-hidden="true"
-                              style={{ width: '32px', height: '32px', flexShrink: 0, objectFit: 'contain'}}
+                              style={{ width: '32px', height: '32px', flexShrink: 0, objectFit: 'contain' }}
                             />
                             <div style={{ fontSize: '12.5px', fontWeight: 500, color: '#1E293B', lineHeight: 1.5 }}>
                               {finding.message}

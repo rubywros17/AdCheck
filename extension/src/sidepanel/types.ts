@@ -24,6 +24,7 @@ export interface ScanHistoryItem {
   id: string;
   dateStr: string;
   productName: string;
+  pageUrl: string;
   count: number;
   level: ReviewLevel;
   favorite?: boolean;
