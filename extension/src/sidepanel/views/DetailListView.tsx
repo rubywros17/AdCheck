@@ -12,6 +12,26 @@ const BEAR_QUESTION_ICON_URL =
     ? chrome.runtime.getURL('icons/bear-question.png')
     : '/icons/bear-question.png';
 
+// FindingSource.sourceUrl 하나에 URL이 여러 개 "; "로 이어붙어 있을 수 있다(reference_sources
+// 원본 CSV가 "URL (조문 설명)" 형태를 그대로 보존해서 생긴 것 — DB source_url 컬럼에 채워진
+// 8개 소스(LAW-01~05, FUNC-01, FUNC-02, NOTICE-01) 전부 이 패턴이고, LAW-02는 본문/별표
+// 두 URL이 함께 들어있음). 각 조각의 끝에서 "(설명)"만 정규식으로 떼어 라벨로 쓰고, 패턴이
+// 안 맞으면(예상 못한 형식) URL 전체를 label 없이 그대로 둔다 — 링크 자체는 항상 살아있어야
+// 하므로 파싱 실패가 안전하게 처리되도록 한다.
+function parseSourceUrls(raw: string): { url: string; label: string | null }[] {
+  return raw
+    .split(';')
+    .map((entry) => entry.trim())
+    .filter((entry) => entry.length > 0)
+    .map((entry) => {
+      const match = entry.match(/^(.*?)\s*\(([^()]*)\)$/);
+      if (match && match[1].trim().length > 0) {
+        return { url: match[1].trim(), label: match[2].trim() };
+      }
+      return { url: entry, label: null };
+    });
+}
+
 export interface DetailListViewProps {
   findings: FindingWithKeyword[];
   activeFilter: FilterCategory;
@@ -355,9 +375,11 @@ export const DetailListView: React.FC<DetailListViewProps> = ({
                         </div>
                       </div>
 
-                      {/* 주의가 필요한 이유: AI 요약 한 문장 설명(finding.message)을 옅은 에드체크 민트 톤 박스로 */}
+                      {/* 주의가 필요한 이유: AI 요약 한 문장 설명(finding.message)을 옅은 에드체크 민트 톤 박스로.
+                          공식 인정 문구 섹션을 없애면서, 그 안에 있던 근거(finding.sources) 렌더링을
+                          이 섹션 끝으로 그대로 옮김 — parseSourceUrls() 기반 실제 링크 로직은 유지. */}
                       {finding.message && (
-                        <div style={{ padding: '11px 14px', borderTop: '1px solid #F1F5F9' }}>
+                        <div style={{ padding: '11px 14px 12px', borderTop: '1px solid #F1F5F9' }}>
                           <div style={{ fontSize: '12px', fontWeight: 700, color: '#0F172A', letterSpacing: '-0.2px' }}>
                             주의가 필요한 이유
                           </div>
@@ -383,44 +405,37 @@ export const DetailListView: React.FC<DetailListViewProps> = ({
                               {finding.message}
                             </div>
                           </div>
+                          {finding.sources.length > 0 && (
+                            <div style={{ marginTop: '6px', display: 'flex', flexDirection: 'column', gap: '2px' }}>
+                              {finding.sources.flatMap((source, sourceIdx) => {
+                                if (!source.sourceUrl) {
+                                  const label = `근거: ${source.title}${source.section ? ` ${source.section}` : ''}`;
+                                  return [
+                                    <span key={`${sourceIdx}-text`} className="law-ref-link" style={{ display: 'block', fontSize: '11px' }}>
+                                      {label}
+                                    </span>,
+                                  ];
+                                }
+                                return parseSourceUrls(source.sourceUrl).map((entry, urlIdx) => {
+                                  const suffix = entry.label ? ` (${entry.label})` : source.section ? ` ${source.section}` : '';
+                                  return (
+                                    <a
+                                      key={`${sourceIdx}-${urlIdx}`}
+                                      href={entry.url}
+                                      target="_blank"
+                                      rel="noopener noreferrer"
+                                      className="law-ref-link"
+                                      style={{ display: 'block', fontSize: '11px' }}
+                                    >
+                                      근거: {source.title}{suffix} ↗
+                                    </a>
+                                  );
+                                });
+                              })}
+                            </div>
+                          )}
                         </div>
                       )}
-
-                      {/* 공식 인정 문구 + 근거 법령: 서로 다른 섹션으로 분리하지 않고,
-                          문구가 끝나는 바로 아래에 근거가 이어지도록 한 블록으로 묶음.
-                          finding.sources(대표 규칙의 근거 조문)를 그대로 나열하고,
-                          sourceUrl이 있는 것만 새 탭 링크로 연다 — 없으면 화살표 없이 텍스트만. */}
-                      <div style={{ padding: '11px 14px 12px', borderTop: '1px solid #F1F5F9' }}>
-                        <div style={{ fontSize: '11.5px', fontWeight: 700, color: '#0F172A', letterSpacing: '-0.2px' }}>
-                          공식 인정 문구
-                        </div>
-                        <div style={{ fontSize: '12.5px', color: '#334155', lineHeight: 1.5, marginTop: '4px' }}>
-                          {finding.officialFunction ? `"${finding.officialFunction}"` : '해당 표현에 대응하는 공인 기능성 문구가 없어요.'}
-                        </div>
-                        {finding.sources.length > 0 && (
-                          <div style={{ marginTop: '6px', display: 'flex', flexDirection: 'column', gap: '2px' }}>
-                            {finding.sources.map((source, idx) => {
-                              const label = `근거: ${source.title}${source.section ? ` ${source.section}` : ''}`;
-                              return source.sourceUrl ? (
-                                <a
-                                  key={idx}
-                                  href={source.sourceUrl}
-                                  target="_blank"
-                                  rel="noopener noreferrer"
-                                  className="law-ref-link"
-                                  style={{ display: 'block', fontSize: '11px' }}
-                                >
-                                  {label} ↗
-                                </a>
-                              ) : (
-                                <span key={idx} className="law-ref-link" style={{ display: 'block', fontSize: '11px' }}>
-                                  {label}
-                                </span>
-                              );
-                            })}
-                          </div>
-                        )}
-                      </div>
                     </div>
                   </div>
                 </div>
