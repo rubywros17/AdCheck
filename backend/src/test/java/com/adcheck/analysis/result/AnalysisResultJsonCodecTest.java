@@ -24,6 +24,45 @@ class AnalysisResultJsonCodecTest {
         assertThat(restored).isEqualTo(expected);
     }
 
+    /**
+     * 저장된 {@code result_json}은 마이그레이션 대상이 아니라서, 스키마를 바꿀 때마다 <b>이미
+     * 쌓인 행이 새 코드로 읽히는지</b>를 따로 확인해야 한다(CLAUDE.md에도 적혀 있는 주의사항).
+     * 아래 두 방향을 모두 고정해둔다.
+     */
+    @Test
+    void 필드가_없던_옛_JSON도_읽힌다() {
+        // sources를 추가하기 전에 저장된 형태 — 필드 자체가 없다.
+        String oldJson = """
+                {"summary":{"findingCount":1,"officialFunctionMatchedCount":0},
+                 "findings":[{"sourceText":"간 건강에 좋습니다","selector":null,
+                 "riskLevel":"HIGH","category":"FUNCTION_EXCEED","message":"확인이 필요합니다",
+                 "officialFunction":null}]}
+                """;
+
+        AnalysisResultSnapshot restored = codec.deserialize(oldJson);
+
+        assertThat(restored.findings()).hasSize(1);
+        assertThat(restored.findings().get(0).sources()).isEmpty();
+    }
+
+    @Test
+    void 나중에_추가된_모르는_필드가_있어도_읽힌다() {
+        // 새 코드가 저장한 JSON을 옛 코드가 읽는 방향. 모르는 필드는 무시돼야 한다.
+        String newerJson = """
+                {"summary":{"findingCount":1,"officialFunctionMatchedCount":0},
+                 "findings":[{"sourceText":"간 건강에 좋습니다","selector":null,
+                 "riskLevel":"HIGH","category":"FUNCTION_EXCEED","message":"확인이 필요합니다",
+                 "officialFunction":null,"sources":[],
+                 "rules":[{"ruleCode":"C05_FUNCTION_EXCEED","status":"MATCHED"}],
+                 "someFutureField":123}]}
+                """;
+
+        AnalysisResultSnapshot restored = codec.deserialize(newerJson);
+
+        assertThat(restored.findings()).hasSize(1);
+        assertThat(restored.findings().get(0).sourceText()).isEqualTo("간 건강에 좋습니다");
+    }
+
     @Test
     void rejectsNullOrBlankJson() {
         assertThatThrownBy(() -> codec.deserialize(null))
