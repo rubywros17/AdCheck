@@ -21,6 +21,12 @@
 .btn-idle-margin { margin-top: 22px; }
 .btn-idle-margin.btn-idle-margin-lg { margin-top: 32px; }
 
+/* IDLE 화면 카드: 곰돌이+물음표 그래픽이 들어가면서 흰 배경이 좁아 보이지 않도록 위아래 여백을 더 넉넉히 줌 */
+.toss-hero-box-idle { padding-top: 32px; padding-bottom: 34px; }
+
+/* "현재 페이지 광고 점검하기" 버튼을 곰돌이 아래로 더 내려서 여백을 둠 */
+.btn-idle-cta-lower { margin-top: 20px; }
+
 /* "다시 시도" 아래 보조 액션: 처음 화면(IDLE)으로 돌아가는 텍스트 버튼 */
 .btn-idle-secondary {
   width: 100%;
@@ -34,3 +40,19 @@
   cursor: pointer;
 }
 .btn-idle-secondary:hover { color: #334155; }
+
+/* 곰돌이 + 물음표 조합: 물음표가 곰돌이 옆에서 둥둥 떠다니는 느낌을 주는 위치 기준점 */
+.idle-bear-figure {
+  position: relative;
+  display: inline-block;
+}
+
+/* 물음표만 따로 위아래로 살짝 흔들리며 떠다니는 애니메이션 */
+@keyframes idleQuestionMarkFloat {
+  0%, 100% { transform: translateY(0) rotate(-6deg); }
+  50% { transform: translateY(-10px) rotate(6deg); }
+}
+.idle-question-mark-float {
+  animation: idleQuestionMarkFloat 2.8s ease-in-out infinite;
+  filter: drop-shadow(0 4px 6px rgba(15, 23, 42, 0.12));
+}
