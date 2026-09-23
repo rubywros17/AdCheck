@@ -1,6 +1,7 @@
 package com.adcheck.analysis.dto;
 
 import com.adcheck.finding.domain.Finding;
+import com.adcheck.finding.domain.FindingRule;
 import com.adcheck.finding.domain.FindingSource;
 import com.adcheck.finding.domain.RiskLevel;
 
@@ -13,7 +14,8 @@ public record FindingResponse(
         String category,
         String message,
         String officialFunction,
-        List<FindingSource> sources
+        List<FindingSource> sources,
+        List<FindingRule> rules
 ) {
     public static FindingResponse from(Finding finding) {
         return new FindingResponse(
@@ -23,7 +25,8 @@ public record FindingResponse(
                 finding.category(),
                 finding.message(),
                 finding.officialFunction(),
-                finding.sources()
+                finding.sources(),
+                finding.rules()
         );
     }
 }

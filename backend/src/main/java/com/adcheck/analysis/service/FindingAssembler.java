@@ -1,6 +1,7 @@
 package com.adcheck.analysis.service;
 
 import com.adcheck.finding.domain.Finding;
+import com.adcheck.finding.domain.FindingRule;
 import com.adcheck.finding.domain.FindingSource;
 import com.adcheck.finding.domain.RiskLevel;
 import com.adcheck.product.domain.MatchMethod;
@@ -74,6 +75,7 @@ public class FindingAssembler {
     private final RuleAnalysisService ruleAnalysisService;
     private final RagRetrievalService ragRetrievalService;
     private final GeminiClaimComparisonService geminiClaimComparisonService;
+    private final OfficialFunctionQuotationDetector quotationDetector;
 
     public FindingAssembler(
             ProductIdentificationService productIdentificationService,
@@ -84,7 +86,8 @@ public class FindingAssembler {
             ClaimContextClassifier contextClassifier,
             RuleAnalysisService ruleAnalysisService,
             RagRetrievalService ragRetrievalService,
-            GeminiClaimComparisonService geminiClaimComparisonService
+            GeminiClaimComparisonService geminiClaimComparisonService,
+            OfficialFunctionQuotationDetector quotationDetector
     ) {
         this.productIdentificationService = productIdentificationService;
         this.productIngredientQueryService = productIngredientQueryService;
@@ -95,6 +98,7 @@ public class FindingAssembler {
         this.ruleAnalysisService = ruleAnalysisService;
         this.ragRetrievalService = ragRetrievalService;
         this.geminiClaimComparisonService = geminiClaimComparisonService;
+        this.quotationDetector = quotationDetector;
     }
 
     public Result assemble(ClaimAnalysisResult claimResult) {
@@ -128,8 +132,14 @@ public class FindingAssembler {
                 false
         );
 
+        // 공식 인정 문구를 그대로 옮긴 표시란은 검수 대상이 아니라 오히려 규정을 지킨 표기다.
+        // 규칙 판정에 넣어봐야 위반이 아니니 MATCHED가 안 나오고, 그렇다고 NOT_MATCHED로 확정도
+        // 못 해 REVIEW_REQUIRED로만 떨어져 "확인이 필요한 표현입니다." HIGH 카드가 된다.
+        // 그래서 규칙 판정 '앞에서' 걸러낸다 — 판정 프롬프트도 그만큼 짧아진다.
+        // 확정 원료의 공식 문구만 쓰므로, 원료를 확정하지 못한 분석에서는 아무것도 걸러지지 않는다.
         long ruleStartedAt = System.currentTimeMillis();
-        List<ExtractedClaim> claims = claimResult.claims();
+        List<ExtractedClaim> claims = excludeOfficialFunctionQuotations(
+                claimResult.claims(), assembled.officialFunctions());
         List<RuleAnalysisRequest> ruleRequests = claims.stream()
                 .map(claim -> toRuleAnalysisRequest(
                         claim, claimResult.riskSignalCandidates(), confirmedIngredientMasterIds, officialFunctionsContext))
@@ -155,7 +165,7 @@ public class FindingAssembler {
         List<Finding> findings = new ArrayList<>(compareAllWithAi2(needsAi2, confirmedProduct, assembled, evidenceByClaimId));
         for (ClaimRuleOutcome outcome : outcomes) {
             if (outcome.matched().isEmpty() && !outcome.reviewRequired().isEmpty()) {
-                toReviewRequiredFinding(outcome).ifPresent(findings::add);
+                toReviewRequiredFinding(outcome, assembled.officialFunctions()).ifPresent(findings::add);
             }
             // matched/reviewRequired 둘 다 비어있으면(전부 NOT_MATCHED) Finding을 만들지 않는다.
         }
@@ -239,6 +249,36 @@ public class FindingAssembler {
                 model.sourceType() == null ? null : model.sourceType().name(),
                 model.recognitionNo()
         );
+    }
+
+    /**
+     * 확정 원료의 공식 인정 문구를 그대로 옮긴 Claim을 규칙 판정 대상에서 제외한다.
+     *
+     * <p>걸러낸 문장은 로그로 남긴다 — 이 필터는 "위반을 숨길 수 있는" 성격이라, 나중에
+     * 왜 그 문장이 화면에 안 떴는지 되짚을 수 있어야 한다.
+     * 판정 근거와 측정 결과는 {@link OfficialFunctionQuotationDetector} 참고.
+     */
+    private List<ExtractedClaim> excludeOfficialFunctionQuotations(
+            List<ExtractedClaim> claims,
+            List<OfficialFunction> officialFunctions
+    ) {
+        if (officialFunctions.isEmpty()) {
+            return claims;
+        }
+        List<ExtractedClaim> kept = new ArrayList<>();
+        List<String> excluded = new ArrayList<>();
+        for (ExtractedClaim claim : claims) {
+            if (quotationDetector.isQuotation(claim.claimText(), officialFunctions)) {
+                excluded.add(claim.claimText());
+            } else {
+                kept.add(claim);
+            }
+        }
+        if (!excluded.isEmpty()) {
+            log.info("공식 인정 문구를 그대로 옮긴 표시란 {}건을 규칙 판정에서 제외했습니다: {}",
+                    excluded.size(), excluded);
+        }
+        return List.copyOf(kept);
     }
 
     private RuleAnalysisRequest toRuleAnalysisRequest(
@@ -362,12 +402,16 @@ public class FindingAssembler {
                 log.warn("AI#2 응답에 알 수 없는 claimId가 있어 무시합니다: {}", comparison.claimId());
                 continue;
             }
-            findings.add(toFinding(outcome, comparison));
+            findings.add(toFinding(outcome, comparison, assembled.officialFunctions()));
         }
         return findings;
     }
 
-    private Finding toFinding(ClaimRuleOutcome outcome, ClaimComparison comparison) {
+    private Finding toFinding(
+            ClaimRuleOutcome outcome,
+            ClaimComparison comparison,
+            List<OfficialFunction> officialFunctions
+    ) {
         Optional<RuleAnalysisResult.RuleMatch> representative = mostSevere(outcome.matched());
         return new Finding(
                 outcome.claim().claimText(),
@@ -376,8 +420,10 @@ public class FindingAssembler {
                 representative.map(RuleAnalysisResult.RuleMatch::judgmentCategory).orElse("UNKNOWN"),
                 (comparison.explanation() != null && !comparison.explanation().isBlank())
                         ? comparison.explanation() : comparison.reason(),
-                comparison.officialFunction(),
-                toFindingSources(representative)
+                resolveOfficialFunction(
+                        comparison.officialFunction(), outcome.claim().claimText(), officialFunctions),
+                toFindingSources(representative),
+                toFindingRules(outcome)
         );
     }
 
@@ -403,6 +449,7 @@ public class FindingAssembler {
         RiskLevel riskLevel = representative.map(m -> RiskLevel.fromSeverity(m.severity())).orElse(RiskLevel.CAUTION);
         String category = representative.map(RuleAnalysisResult.RuleMatch::judgmentCategory).orElse("UNKNOWN");
         List<FindingSource> sources = toFindingSources(representative);
+        List<FindingRule> rules = toFindingRules(outcome);
 
         return result.claimComparisons().stream()
                 .map(comparison -> new Finding(
@@ -412,8 +459,10 @@ public class FindingAssembler {
                         category,
                         (comparison.explanation() != null && !comparison.explanation().isBlank())
                                 ? comparison.explanation() : comparison.reason(),
-                        comparison.officialFunction(),
-                        sources
+                        resolveOfficialFunction(comparison.officialFunction(),
+                                outcome.claim().claimText(), assembled.officialFunctions()),
+                        sources,
+                        rules
                 ))
                 .toList();
     }
@@ -423,10 +472,13 @@ public class FindingAssembler {
      * 판단을 시도조차 안 하고 자동으로 떨어진 것)을 전부 제외한 뒤, 실제로 평가기가 판단을
      * 시도했지만 애매하다고 결론 낸 "진짜" REVIEW_REQUIRED만 남긴다. 이게 하나도 없으면
      * (전부 UNSUPPORTED_RULE이었던 경우) Finding을 만들지 않고 NOT_MATCHED와 동일하게
-     * 넘어간다. 남은 게 여러 개면 그 중 severity가 가장 높은 것 하나만 대표로 Finding을
-     * 만든다(여러 개를 노출하지 않음).
+     * 넘어간다. 남은 게 여러 개면 그 중 severity가 가장 높은 것을 대표로 삼되, 나머지도
+     * {@code rules}에 함께 담아 화면이 전부 보여줄 수 있게 한다.
      */
-    private Optional<Finding> toReviewRequiredFinding(ClaimRuleOutcome outcome) {
+    private Optional<Finding> toReviewRequiredFinding(
+            ClaimRuleOutcome outcome,
+            List<OfficialFunction> officialFunctions
+    ) {
         List<RuleAnalysisResult.RuleMatch> genuine = outcome.reviewRequired().stream()
                 .filter(m -> m.evaluation().reasonCode() != RuleEvaluation.ReasonCode.UNSUPPORTED_RULE)
                 .toList();
@@ -440,9 +492,100 @@ public class FindingAssembler {
                 RiskLevel.fromSeverity(match.severity()),
                 match.judgmentCategory(),
                 "확인이 필요한 표현입니다.",
-                null,
-                toFindingSources(mostSevere(genuine))
+                resolveOfficialFunction(null, outcome.claim().claimText(), officialFunctions),
+                toFindingSources(mostSevere(genuine)),
+                toFindingRules(outcome)
         ));
+    }
+
+    /**
+     * 이 Claim에 대해 판정된 규칙을 전부 목록으로 옮긴다 — MATCHED가 앞, REVIEW_REQUIRED가 뒤이고
+     * 각 구간은 severity 내림차순이다. 화면은 앞에서부터 N개만 펼치면 된다.
+     *
+     * <p>{@link Finding}의 {@code riskLevel}·{@code category}·{@code sources}는 여전히 대표 규칙
+     * 하나를 기준으로 채워지고, 이 목록은 <b>추가</b>될 뿐이다. 목록을 무시하면 이전과 똑같이
+     * 동작하므로 프론트가 준비되기 전에 백엔드만 배포해도 화면이 깨지지 않는다.
+     *
+     * <p>{@code UNSUPPORTED_RULE}(평가기가 없어 판단을 시도조차 못 한 것)은 제외한다 — 기존
+     * {@code toReviewRequiredFinding}이 이미 걸러내던 기준을 그대로 따른다.
+     */
+    /**
+     * Finding에 붙일 공식 인정 기능성 문구를 정한다 — AI#2가 채운 값을 우선 쓰고, 비어 있으면
+     * 확정 원료 기준으로 결정론적으로 보완한다.
+     *
+     * <p>배경(2026-09-23 실측): 저장된 Finding 143건 중 공식 인정 문구가 붙은 건 <b>3건(2%)</b>
+     * 뿐이었다. 원인이 둘이다.
+     * <ol>
+     *   <li>{@code officialFunction}을 채우는 곳이 AI#2뿐인데, AI#2는 {@code matched}가 있는
+     *       Claim에만 호출된다. REVIEW_REQUIRED만 있는 Claim(143건 중 109건)은
+     *       {@link #toReviewRequiredFinding}이 {@code null}을 하드코딩해서 <b>구조적으로</b>
+     *       절대 나올 수 없었다.</li>
+     *   <li>AI#2를 탄 34건에서도 31건이 비어 있었다 — 호출됐다고 채워지는 것도 아니다.</li>
+     * </ol>
+     *
+     * <p>보완 규칙은 <b>Claim 본문에 확정 원료의 표준명이 실제로 등장할 때만</b> 그 원료의 공식
+     * 문구를 붙이는 것이다. 이 제품에 확정된 원료라는 이유만으로 아무 문구나 붙이면 엉뚱한
+     * 기능성을 근거처럼 보여주게 되므로, 근거가 확실한 경우에만 붙이고 아니면 {@code null}로
+     * 남긴다(기존과 동일). 추가 LLM 호출은 0회다.
+     */
+    // 순수 함수라 FindingAssemblerTest가 직접 호출해 경계 사례(원료명 미등장, 1글자 원료명,
+    // 접두사가 겹치는 원료명)를 검증할 수 있도록 package-private으로 연다.
+    String resolveOfficialFunction(
+            String aiProvided,
+            String claimText,
+            List<OfficialFunction> officialFunctions
+    ) {
+        if (aiProvided != null && !aiProvided.isBlank()) {
+            return aiProvided;
+        }
+        if (claimText == null || claimText.isBlank() || officialFunctions.isEmpty()) {
+            return null;
+        }
+        String normalizedClaim = normalizeForNameMatch(claimText);
+        return officialFunctions.stream()
+                .filter(of -> of.functionText() != null && !of.functionText().isBlank())
+                .filter(of -> of.ingredientCode() != null)
+                .filter(of -> {
+                    // ingredientCode에는 ingredientMasterId가 아니라 확정 원료의 canonicalName이
+                    // 들어 있다(ConfirmedIngredientAssembler.toOfficialFunction 참고).
+                    String name = normalizeForNameMatch(of.ingredientCode());
+                    // 1글자 원료명("철" 등)은 아무 문장에나 걸려 오탐이 되므로 제외한다.
+                    return name.length() >= 2 && normalizedClaim.contains(name);
+                })
+                // "비타민B1"과 "비타민B12"처럼 한쪽이 다른 쪽의 접두사이면 더 긴(=더 구체적인) 쪽을 고른다.
+                .max(Comparator.comparingInt(of -> normalizeForNameMatch(of.ingredientCode()).length()))
+                .map(OfficialFunction::functionText)
+                .orElse(null);
+    }
+
+    /** 원료명은 표기 공백이 제각각이라("밀크씨슬 추출물" vs "밀크씨슬추출물") 공백을 없애고 비교한다. */
+    private String normalizeForNameMatch(String text) {
+        return text.replaceAll("\\s+", "");
+    }
+
+    private List<FindingRule> toFindingRules(ClaimRuleOutcome outcome) {
+        List<FindingRule> rules = new ArrayList<>();
+        appendRules(rules, outcome.matched(), RuleEvaluation.Status.MATCHED);
+        appendRules(rules, outcome.reviewRequired(), RuleEvaluation.Status.REVIEW_REQUIRED);
+        return List.copyOf(rules);
+    }
+
+    private void appendRules(
+            List<FindingRule> target,
+            List<RuleAnalysisResult.RuleMatch> matches,
+            RuleEvaluation.Status status
+    ) {
+        matches.stream()
+                .filter(m -> m.evaluation().reasonCode() != RuleEvaluation.ReasonCode.UNSUPPORTED_RULE)
+                .sorted(Comparator.comparingInt(m -> RiskLevel.fromSeverity(m.severity()).ordinal()))
+                .forEach(match -> target.add(new FindingRule(
+                        match.ruleCode(),
+                        match.judgmentCategory(),
+                        RiskLevel.fromSeverity(match.severity()),
+                        status.name(),
+                        match.evaluation().reason(),
+                        toFindingSources(Optional.of(match))
+                )));
     }
 
     /**

@@ -153,7 +153,10 @@ function isFinding(value: unknown): boolean {
     // 항목별 title/section/sourceUrl까지 전부 좁혀서 검증하지 않는다 — 바로 위 category/riskLevel
     // 사례처럼, 근거 인용 스키마가 앞으로 넓어질 때마다 여기서 또 전체 응답을 통째로 거부하는
     // 일을 반복하지 않기 위함. 배열인지만 확인한다.
-    Array.isArray(value.sources)
+    Array.isArray(value.sources) &&
+    // rules도 같은 이유로 배열인지만 본다. 항목 구조(ruleCode/status/…)를 좁혀서 검증하면
+    // 백엔드가 필드를 하나 늘릴 때마다 응답 전체가 거부된다 — 실제로 그런 사고가 있었다.
+    Array.isArray(value.rules)
   );
 }
 

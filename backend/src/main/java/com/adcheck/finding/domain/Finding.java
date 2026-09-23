@@ -19,6 +19,7 @@ public record Finding(
         String category,
         String message,
         String officialFunction,
-        List<FindingSource> sources
+        List<FindingSource> sources,
+        List<FindingRule> rules
 ) {
 }

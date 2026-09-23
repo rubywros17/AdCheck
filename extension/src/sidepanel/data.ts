@@ -60,6 +60,7 @@ export const MOCK_FINDINGS: FindingWithKeyword[] = [
     officialFunction: "노화로 인해 감소될 수 있는 황반색소밀도를 유지하여 눈 건강에 도움을 줄 수 있음",
     selector: "p.claim-1",
     sources: [],
+    rules: [],
   },
   {
     keyword: "손상된 간세포 즉각 재생",
@@ -71,6 +72,7 @@ export const MOCK_FINDINGS: FindingWithKeyword[] = [
     officialFunction: "간 건강에 도움을 줄 수 있음",
     selector: "p.claim-2",
     sources: [],
+    rules: [],
   },
   {
     keyword: "만성 관절염 완치",
@@ -82,6 +84,7 @@ export const MOCK_FINDINGS: FindingWithKeyword[] = [
     officialFunction: "관절 및 연골건강에 도움을 줄 수 있음",
     selector: "p.claim-3",
     sources: [],
+    rules: [],
   },
   {
     keyword: "혈관 핏떡 100% 융해",
@@ -93,6 +96,7 @@ export const MOCK_FINDINGS: FindingWithKeyword[] = [
     officialFunction: "혈중 중성지질 개선·혈행개선에 도움을 줄 수 있음",
     selector: "p.claim-4",
     sources: [],
+    rules: [],
   },
   {
     keyword: "체지방 100% 완전 분해",
@@ -104,6 +108,7 @@ export const MOCK_FINDINGS: FindingWithKeyword[] = [
     officialFunction: "탄수화물이 지방으로 합성되는 것을 억제하여 체지방 감소에 도움을 줄 수 있음",
     selector: "p.claim-5",
     sources: [],
+    rules: [],
   },
   {
     keyword: "기적의 활력 부스터",
@@ -115,6 +120,7 @@ export const MOCK_FINDINGS: FindingWithKeyword[] = [
     officialFunction: "피로개선에 도움을 줄 수 있음",
     selector: "p.claim-6",
     sources: [],
+    rules: [],
   },
   {
     keyword: "단 3일 7kg 감량 보장",
@@ -126,6 +132,7 @@ export const MOCK_FINDINGS: FindingWithKeyword[] = [
     officialFunction: "체지방 감소에 도움을 줄 수 있음",
     selector: "p.claim-7",
     sources: [],
+    rules: [],
   },
   {
     keyword: "일일 권장량 1000% 배합",
@@ -137,6 +144,7 @@ export const MOCK_FINDINGS: FindingWithKeyword[] = [
     officialFunction: "영양소 보충 및 건강 증진에 도움을 줄 수 있음",
     selector: "p.claim-8",
     sources: [],
+    rules: [],
   },
   {
     keyword: "전문의 만장일치 보증",
@@ -148,6 +156,7 @@ export const MOCK_FINDINGS: FindingWithKeyword[] = [
     officialFunction: "건강기능식품 공통 기준",
     selector: "p.claim-9",
     sources: [],
+    rules: [],
   },
   {
     keyword: "초고속 면역력 급상승",
@@ -159,6 +168,7 @@ export const MOCK_FINDINGS: FindingWithKeyword[] = [
     officialFunction: "면역기능 유지에 도움을 줄 수 있음",
     selector: "p.claim-10",
     sources: [],
+    rules: [],
   },
 ];
 
