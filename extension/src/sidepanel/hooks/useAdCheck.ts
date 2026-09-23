@@ -7,6 +7,7 @@ import type { FilterCategory, FindingWithKeyword, ReviewLevel, ScanHistoryItem, 
 import { getCategoryTheme } from "../../constants/judgmentCategories";
 import type { AnalysisResponse, FindingResponse } from "../../types/analysis";
 import type { ActiveTabResult, AnalyzePageResult } from "../../types/message";
+import { getAnalysis } from "../../api/analysis-api";
 
 function isScanHistoryItem(value: unknown): value is ScanHistoryItem {
   if (typeof value !== "object" || value === null) return false;
@@ -20,7 +21,8 @@ function isScanHistoryItem(value: unknown): value is ScanHistoryItem {
     && item.count >= 0
     && item.count <= MOCK_FINDINGS.length
     && item.level === getReviewLevel(item.count)
-    && (item.favorite === undefined || typeof item.favorite === "boolean");
+    && (item.favorite === undefined || typeof item.favorite === "boolean")
+    && typeof item.analysisId === "number";
 }
 
 // extraction-test-recorder.ts와 동일한 chrome.storage.local 패턴 — 사이드패널을 닫았다 다시
@@ -73,9 +75,9 @@ export function useAdCheck(status: ViewStatus, setStatus: Dispatch<SetStateActio
   const [liveFindings, setLiveFindings] = useState<FindingWithKeyword[] | null>(null);
   const [livePageInfo, setLivePageInfo] = useState<{ title: string; url: string } | null>(null);
 
-  const findings = viewingHistory
-    ? MOCK_FINDINGS.slice(0, viewingHistory.count)
-    : liveFindings ?? MOCK_FINDINGS.slice(0, testTarget === "SAFE" ? 0 : MOCK_FINDINGS.length);
+  // 점검 기록을 볼 때도(성공적으로 불러온 뒤) 방금 분석을 마쳤을 때와 마찬가지로 liveFindings에
+  // 실제 결과가 채워진다 — 더 이상 MOCK_FINDINGS를 개수만 맞춰 흉내내지 않는다.
+  const findings = liveFindings ?? MOCK_FINDINGS.slice(0, testTarget === "SAFE" ? 0 : MOCK_FINDINGS.length);
   const targetCount = viewingHistory?.count ?? findings.length;
   const currentPageTitle = viewingHistory?.productName ?? livePageInfo?.title ?? CURRENT_PAGE_TITLE;
   const currentPageUrl = viewingHistory?.pageUrl ?? livePageInfo?.url ?? CURRENT_PAGE_URL;
@@ -128,7 +130,7 @@ export function useAdCheck(status: ViewStatus, setStatus: Dispatch<SetStateActio
     setStatus("IDLE");
   }, [cancelAnalysis, resetDetails, setStatus]);
 
-  function pushHistory(count: number, productName: string, pageUrl: string) {
+  function pushHistory(count: number, productName: string, pageUrl: string, analysisId: number) {
     const history: ScanHistoryItem = {
       id: crypto.randomUUID(),
       dateStr: "방금 전",
@@ -136,6 +138,7 @@ export function useAdCheck(status: ViewStatus, setStatus: Dispatch<SetStateActio
       pageUrl,
       count,
       level: getReviewLevel(count),
+      analysisId,
     };
     // 최신순으로 맨 앞에 추가하므로, 오래된 것을 버리려면 뒤쪽(끝)을 잘라내면 된다.
     setScanHistories((previous) => [history, ...previous].slice(0, MAX_SCAN_HISTORY_COUNT));
@@ -163,7 +166,10 @@ export function useAdCheck(status: ViewStatus, setStatus: Dispatch<SetStateActio
           return;
         }
         setStatus(count === 0 ? "EMPTY" : "SUMMARY_HERO");
-        pushHistory(count, CURRENT_PAGE_TITLE, CURRENT_PAGE_URL);
+        // 개발용 테스트 스위치 경로는 실제 Backend에 분석을 만들지 않으므로 조회 가능한
+        // analysisId가 없다 — 존재할 수 없는 음수 placeholder를 넣어, 이 기록을 나중에 클릭하면
+        // 정직하게 "만료됨" 안내(HISTORY_ERROR)로 이어지게 한다.
+        pushHistory(count, CURRENT_PAGE_TITLE, CURRENT_PAGE_URL, -1);
       }, SCAN_CYCLE_MS);
       return;
     }
@@ -197,7 +203,7 @@ export function useAdCheck(status: ViewStatus, setStatus: Dispatch<SetStateActio
       setLiveFindings(mapped);
       setLivePageInfo(tabResult.ok ? tabResult.data : null);
       setStatus(mapped.length === 0 ? "EMPTY" : "SUMMARY_HERO");
-      pushHistory(mapped.length, pageTitle, pageUrl);
+      pushHistory(mapped.length, pageTitle, pageUrl, response.analysisId);
     } catch {
       if (analysisRequestIdRef.current === requestId) setStatus("ERROR");
     }
@@ -208,12 +214,31 @@ export function useAdCheck(status: ViewStatus, setStatus: Dispatch<SetStateActio
     goHome();
   }
 
-  function selectHistory(history: ScanHistoryItem) {
+  async function selectHistory(history: ScanHistoryItem) {
     cancelAnalysis();
     resetDetails();
     setIsHistoryOpen(false);
     setViewingHistory(history);
-    setStatus(history.level === "SAFE" ? "EMPTY" : "DETAIL_LIST");
+    setLiveFindings(null);
+    setStatus("HISTORY_LOADING");
+
+    const requestId = ++analysisRequestIdRef.current;
+    try {
+      const response = await getAnalysis(history.analysisId);
+      if (analysisRequestIdRef.current !== requestId) return; // 그 사이 취소/재시작된 요청이면 무시
+
+      // 재사용 TTL이 지나 DB에서 이미 정리됐거나(404 등 → catch로 감), 아직 COMPLETED가
+      // 아닌 상태(정상 흐름에선 나올 일이 없지만 방어적으로)도 전부 같은 안내로 처리한다.
+      if (response.status !== "COMPLETED") {
+        setStatus("HISTORY_ERROR");
+        return;
+      }
+
+      setLiveFindings(response.findings.map(toFindingWithKeyword));
+      setStatus(response.findings.length === 0 ? "EMPTY" : "DETAIL_LIST");
+    } catch {
+      if (analysisRequestIdRef.current === requestId) setStatus("HISTORY_ERROR");
+    }
   }
 
   function selectBubble(finding: FindingWithKeyword, idx: number) {

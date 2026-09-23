@@ -70,7 +70,7 @@ export function App() {
             />
           )}
 
-          {(status === "ERROR" || status === "UNSUPPORTED") && (
+          {(status === "ERROR" || status === "UNSUPPORTED" || status === "HISTORY_LOADING" || status === "HISTORY_ERROR") && (
             <IdleView variant={status} onAnalyze={adCheck.analyze} onReset={adCheck.goHome} onGoHome={adCheck.goHome} />
           )}
         </div>

@@ -11,6 +11,8 @@ export const CURRENT_PAGE_TITLE = "프리미엄 눈 건강 루테인 지아잔�
 
 export const CURRENT_PAGE_URL = "https://example.com/product/12345";
 
+// 데모 fixture라 실제 백엔드에 대응하는 analyses 행이 없다 — analysisId는 절대 존재할 수 없는
+// 음수 placeholder로 채워, 클릭하면 정직하게 "만료됨" 안내(HISTORY_ERROR)로 이어지게 한다.
 export const DEFAULT_SCAN_HISTORIES: ScanHistoryItem[] = [
   {
     id: "h1",
@@ -19,6 +21,7 @@ export const DEFAULT_SCAN_HISTORIES: ScanHistoryItem[] = [
     pageUrl: CURRENT_PAGE_URL,
     count: 10,
     level: "REVIEW",
+    analysisId: -1,
   },
   {
     id: "h2",
@@ -27,6 +30,7 @@ export const DEFAULT_SCAN_HISTORIES: ScanHistoryItem[] = [
     pageUrl: "https://example.com/product/23456",
     count: 0,
     level: "SAFE",
+    analysisId: -2,
   },
   {
     id: "h3",
@@ -35,6 +39,7 @@ export const DEFAULT_SCAN_HISTORIES: ScanHistoryItem[] = [
     pageUrl: "https://example.com/product/34567",
     count: 2,
     level: "CAUTION",
+    analysisId: -3,
   },
   {
     id: "h4",
@@ -43,6 +48,7 @@ export const DEFAULT_SCAN_HISTORIES: ScanHistoryItem[] = [
     pageUrl: "https://example.com/product/45678",
     count: 7,
     level: "REVIEW",
+    analysisId: -4,
   },
   {
     id: "h5",
@@ -51,6 +57,7 @@ export const DEFAULT_SCAN_HISTORIES: ScanHistoryItem[] = [
     pageUrl: "https://example.com/product/56789",
     count: 1,
     level: "CAUTION",
+    analysisId: -5,
   },
 ];
 

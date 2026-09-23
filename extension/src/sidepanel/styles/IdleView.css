@@ -57,3 +57,17 @@
   animation: idleQuestionMarkFloat 2.2s ease-in-out infinite;
   filter: drop-shadow(0 4px 6px rgba(15, 23, 42, 0.12));
 }
+
+/* 점검 기록 재조회 대기 스피너 */
+.history-loading-spinner {
+  width: 32px;
+  height: 32px;
+  margin: 0 auto 16px;
+  border: 3px solid #E2E8F0;
+  border-top-color: #0F172A;
+  border-radius: 50%;
+  animation: historyLoadingSpin 0.8s linear infinite;
+}
+@keyframes historyLoadingSpin {
+  to { transform: rotate(360deg); }
+}
