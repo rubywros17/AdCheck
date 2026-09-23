@@ -78,14 +78,37 @@
   background: #F8FAFC;
 }
 
-/* 근거 법령 텍스트: 실제 링크가 붙기 전까지는 링크처럼 보이는 스타일만 제공 */
+/* 근거 법령 링크 목록: finding.sources를 여러 줄로 쌓아서 표시. 380px 사이드패널 폭에서
+   법령 제목이 길어도 어색하게 중간에서 끊기지 않고 자연스럽게 줄바꿈되도록 함 */
+.law-ref-list {
+  margin-top: 6px;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
 .law-ref-link {
+  display: block;
+  font-size: 11px;
+  line-height: 1.45;
   color: #64748B;
   text-decoration: underline;
   text-underline-offset: 2px;
+  word-break: keep-all;
+  overflow-wrap: anywhere;
   transition: color 0.15s ease;
 }
 
 .law-ref-link:hover {
   color: #0F172A;
+}
+
+/* sourceUrl이 없는 근거: 클릭할 수 없는 안내 텍스트라, 밑줄 없이 더 옅은 톤으로 구분 */
+.law-ref-link--plain {
+  color: #94A3B8;
+  text-decoration: none;
+}
+
+.law-ref-link--plain:hover {
+  color: #94A3B8;
 }

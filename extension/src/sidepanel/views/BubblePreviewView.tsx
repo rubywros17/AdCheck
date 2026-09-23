@@ -31,7 +31,7 @@ export function BubblePreviewView({ findings, onBack, onSelect, onShowAll }: Pro
       </p>
       <div className="bubble-cloud">
         {findings.slice(0, 5).map((finding, idx) => {
-          const theme = getCategoryTheme(finding.category);
+          const theme = getCategoryTheme(finding.rules[0].category);
           return (
             <span
               key={idx}

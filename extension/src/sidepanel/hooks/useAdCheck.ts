@@ -131,7 +131,7 @@ export function useAdCheck(status: ViewStatus, setStatus: Dispatch<SetStateActio
   }
 
   function selectBubble(finding: FindingWithKeyword, idx: number) {
-    setActiveFilter(finding.message.includes("의약품") ? "DISEASE" : "GUARANTEE");
+    setActiveFilter(finding.rules[0].message.includes("의약품") ? "DISEASE" : "GUARANTEE");
     setExpandedFindings(new Set([idx]));
     setPendingScrollIdx(idx);
     setStatus("DETAIL_LIST");
@@ -164,8 +164,8 @@ export function useAdCheck(status: ViewStatus, setStatus: Dispatch<SetStateActio
   const completeScroll = useCallback(() => setPendingScrollIdx(null), []);
 
   async function shareResults() {
-    const diseaseCount = findings.filter((finding) => finding.message.includes("의약품")).length;
-    const guaranteeCount = findings.filter((finding) => finding.message.includes("과장")).length;
+    const diseaseCount = findings.filter((finding) => finding.rules[0].message.includes("의약품")).length;
+    const guaranteeCount = findings.filter((finding) => finding.rules[0].message.includes("과장")).length;
     const shareText = `[AdCheck 광고 검토 결과]\n총 ${targetCount}건 검토 필요 (오인 우려 표현 ${diseaseCount}건, 과장 표현 ${guaranteeCount}건)`;
     try {
       if (!navigator.clipboard?.writeText) {
