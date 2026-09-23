@@ -29,8 +29,12 @@ public class OcrImageLoader {
     /** 이미지 동시 다운로드 상한 — 상대 서버 부담과 스레드 수를 함께 제한한다. */
     private static final int DOWNLOAD_CONCURRENCY = 6;
 
-    /** 이 크기를 넘는 이미지는 제외한다(애니메이션 GIF 같은 초대형 배너 방어). */
-    private static final int MAX_IMAGE_BYTES = 4 * 1024 * 1024;
+    /**
+     * 크기 상한은 엔진마다 다르므로 {@link #loadAll(List, int)} 인자로 받는다 — Gemini는 초대형
+     * 이미지가 OCR 호출을 19초까지 끌어올린 실측 때문에 4MB로 묶어야 하지만, Vision은 12.3MB
+     * GIF도 1.4초에 처리하므로(2026-09-22 실측) 같은 제한을 걸 이유가 없다. 각 상한의 근거는
+     * 호출부 상수 주석에 적어뒀다.
+     */
 
     /**
      * 이 크기 미만인 이미지는 제외한다 — 사이트 로고·아이콘·버튼류 방어. 실제 상품페이지
@@ -67,9 +71,10 @@ public class OcrImageLoader {
      * <p>수집은 각 워커가 <b>자기 인덱스에만</b> 쓰는 방식이라 순서가 그대로 보존되고 동기화도
      * 필요 없다.
      *
+     * @param maxImageBytes 이 크기를 넘는 이미지는 제외한다(엔진별로 다르다 — 클래스 주석 참고).
      * @return {@code imageUrls}와 같은 순서·크기의 리스트. 실패하거나 걸러진 자리는 {@code null}.
      */
-    public List<LoadedImage> loadAll(List<String> imageUrls) {
+    public List<LoadedImage> loadAll(List<String> imageUrls, int maxImageBytes) {
         int concurrency = Math.min(DOWNLOAD_CONCURRENCY, Math.max(1, imageUrls.size()));
         ExecutorService executor = Executors.newFixedThreadPool(concurrency, runnable -> {
             Thread thread = new Thread(runnable, "ocr-image-download-");
@@ -78,7 +83,7 @@ public class OcrImageLoader {
         });
         try {
             List<CompletableFuture<LoadedImage>> futures = imageUrls.stream()
-                    .map(imageUrl -> CompletableFuture.supplyAsync(() -> load(imageUrl), executor))
+                    .map(imageUrl -> CompletableFuture.supplyAsync(() -> load(imageUrl, maxImageBytes), executor))
                     .toList();
             return futures.stream().map(CompletableFuture::join).toList();
         } finally {
@@ -86,7 +91,7 @@ public class OcrImageLoader {
         }
     }
 
-    private LoadedImage load(String imageUrl) {
+    private LoadedImage load(String imageUrl, int maxImageBytes) {
         if (IRRELEVANT_IMAGE_URL_PATTERN.matcher(imageUrl).find()) {
             log.info("공지·배송안내 배너로 추정되는 URL이라 다운로드 없이 OCR에서 제외합니다: {}", imageUrl);
             return null;
@@ -95,12 +100,9 @@ public class OcrImageLoader {
         if (imageBytes == null || imageBytes.length == 0) {
             return null;
         }
-        // 실제 상품페이지에서 9MB·8.4MB짜리 애니메이션 GIF 2장이 전체 용량(21.6MB)의 80%를
-        // 차지하면서 OCR 호출을 19초까지 끌어올린 사례가 있었다. 이런 초대형 이미지는 대개
-        // 움짤·배너라 글자 정보 가치는 낮은데 비용만 압도적이라 제외한다.
-        if (imageBytes.length > MAX_IMAGE_BYTES) {
+        if (imageBytes.length > maxImageBytes) {
             log.info("이미지가 너무 커서 OCR에서 제외합니다 ({}KB, 상한 {}KB): {}",
-                    imageBytes.length / 1024, MAX_IMAGE_BYTES / 1024, imageUrl);
+                    imageBytes.length / 1024, maxImageBytes / 1024, imageUrl);
             return null;
         }
         if (imageBytes.length < MIN_IMAGE_BYTES) {

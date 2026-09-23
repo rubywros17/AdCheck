@@ -48,6 +48,21 @@ public class GoogleVisionOcrService implements OcrService {
      */
     private static final int OCR_CONCURRENCY = 8;
 
+    /**
+     * 이 크기를 넘는 이미지는 OCR에서 제외한다. Gemini(4MB)보다 느슨한 이유는 Vision에는 그
+     * 제한의 근거였던 "초대형 이미지가 호출을 19초까지 끌어올리는" 문제가 없기 때문이다 —
+     * 실측에서 12.3MB GIF를 1.4초에 처리했고(애니메이션 GIF는 첫 프레임만 본다), 과금도 용량과
+     * 무관하게 장당 고정이다.
+     *
+     * <p>그래도 상한을 두는 건 Vision의 <b>JSON 요청 크기 제한 10MB</b> 때문이다. 본문을 base64로
+     * 실어 보내면 약 1.33배로 불어나므로, 원본 7MB가 실질 한계다(7MB × 1.33 ≈ 9.3MB).
+     *
+     * <p>이 상한으로도 12.3MB짜리 애니메이션 GIF는 여전히 걸러진다 — 그런 이미지에서 실제 광고
+     * 문구를 놓치는 사례를 확인했고(docs/troubleshooting.md), 첫 프레임만 뽑아 재인코딩하면 수백
+     * KB로 줄어 살릴 수 있다. 해상도 사전 검사·PNG 재인코딩이 함께 필요해 별도 과제로 남겨둔다.
+     */
+    private static final int MAX_IMAGE_BYTES = 7 * 1024 * 1024;
+
     private final OcrImageLoader imageLoader;
     private final RestClient restClient;
     private final ObjectMapper objectMapper;
@@ -99,7 +114,7 @@ public class GoogleVisionOcrService implements OcrService {
         }
 
         long downloadStartedAt = System.currentTimeMillis();
-        List<OcrImageLoader.LoadedImage> loaded = imageLoader.loadAll(imageUrls);
+        List<OcrImageLoader.LoadedImage> loaded = imageLoader.loadAll(imageUrls, MAX_IMAGE_BYTES);
         List<OcrImageLoader.LoadedImage> targets = loaded.stream().filter(java.util.Objects::nonNull).toList();
         log.info("[TIMING] 이미지 병렬 다운로드 완료 — {}ms ({}장 요청 중 {}장 성공)",
                 System.currentTimeMillis() - downloadStartedAt, imageUrls.size(), targets.size());

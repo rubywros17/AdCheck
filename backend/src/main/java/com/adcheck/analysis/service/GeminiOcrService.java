@@ -59,6 +59,14 @@ public class GeminiOcrService implements OcrService {
     private static final int OCR_CHUNK_CONCURRENCY = 3;
 
     /**
+     * 이 크기를 넘는 이미지는 OCR에서 제외한다. 실제 상품페이지에서 9MB·8.4MB짜리 애니메이션
+     * GIF 2장이 전체 용량(21.6MB)의 80%를 차지하면서 <b>OCR 호출을 19초까지</b> 끌어올린 사례가
+     * 근거다 — 이런 초대형 이미지는 대개 움짤·배너라 글자 정보 가치는 낮은데 비용만 압도적이다.
+     * Vision은 같은 부담이 없어 상한이 다르다({@link GoogleVisionOcrService} 참고).
+     */
+    private static final int MAX_IMAGE_BYTES = 4 * 1024 * 1024;
+
+    /**
      * OCR로 보낼 때 맞출 가로 폭 상한. 비전 모델의 타일 격자(약 768px)에 맞춘 값이라, 이보다
      * 넓은 이미지는 가로로 타일이 2칸 이상 잡혀 토큰이 배로 든다({@link #downscaleForOcr} 참고).
      */
@@ -92,7 +100,7 @@ public class GeminiOcrService implements OcrService {
         }
 
         long downloadStartedAt = System.currentTimeMillis();
-        List<OcrImageLoader.LoadedImage> downloaded = imageLoader.loadAll(imageUrls);
+        List<OcrImageLoader.LoadedImage> downloaded = imageLoader.loadAll(imageUrls, MAX_IMAGE_BYTES);
 
         List<String> sentUrls = new ArrayList<>();
         List<GeminiClient.ImageInput> images = new ArrayList<>();
