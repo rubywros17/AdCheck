@@ -46,8 +46,8 @@ const ADCHECK_TIPS: TipItem[] = [
   { theme: "airplane", text: "해외직구 식품과 일반식품은\n건강기능식품이 아니에요." },
 
   // 3. 경고 도장 테마 (warning)
-  { theme: "warning", text: "일반식품은 '피로회복' 문구를 쓸 수 없어요." },
-  { theme: "warning", text: "일반식품에 '혈당조절' 문구를 쓸 수 없어요." },
+  { theme: "warning", text: "일반식품은 '피로회복' 문구를\n쓸 수 없어요." },
+  { theme: "warning", text: "일반식품에 '혈당조절' 문구를\n쓸 수 없어요." },
   { theme: "warning", text: "일반식품에 '항산화' 등의 문구를 쓰면\n건강기능식품 오인 광고예요." },
   { theme: "warning", text: "원재료 효능 논문을\n제품 효능처럼 광고할 수 없어요." },
   { theme: "warning", text: "'부작용 없음', '100% 천연' 같은\n절대적 표현은 금지돼요." },

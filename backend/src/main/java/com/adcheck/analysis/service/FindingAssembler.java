@@ -425,7 +425,8 @@ public class FindingAssembler {
                 outcome.claim().source() != null ? outcome.claim().source().selector() : null,
                 RiskLevel.fromSeverity(match.severity()),
                 match.judgmentCategory(),
-                "확인이 필요한 표현입니다.",
+                "제품의 원료 정보만으로는 이 표현이 과장인지 판단하기 어려워요.\n" +
+                "신중하게 살펴보시는 걸 권장해요.",
                 null,
                 toFindingSources(mostSevere(genuine))
         ));
