@@ -1,12 +1,25 @@
 //"이 상품 광고 믿고 사도 될까요?" 버튼 있는 첫 화면
 
+// CTA 버튼 바로 위 곰돌이 + 물음표 아이콘. 곰돌이(손 든 포즈)와 물음표를 별도 이미지로 분리해
+// 물음표만 둥둥 떠다니는 느낌을 줄 수 있게 함. DetailListView.tsx와 동일한 방식으로 확장 아이콘 경로를 구함
+const BEAR_QUESTION_HAND_ICON_URL =
+  typeof chrome !== "undefined" && chrome.runtime?.getURL
+    ? chrome.runtime.getURL("icons/bear-question%20-%20hand.png")
+    : "/icons/bear-question%20-%20hand.png";
+
+const QUESTION_MARK_ICON_URL =
+  typeof chrome !== "undefined" && chrome.runtime?.getURL
+    ? chrome.runtime.getURL("icons/question-mark.png")
+    : "/icons/question-mark.png";
+
 interface Props {
   variant?: "IDLE" | "ERROR" | "UNSUPPORTED";
   onAnalyze: () => void;
   onReset: () => void;
+  onGoHome?: () => void;
 }
 
-export function IdleView({ variant = "IDLE", onAnalyze, onReset }: Props) {
+export function IdleView({ variant = "IDLE", onAnalyze, onReset, onGoHome }: Props) {
   if (variant !== "IDLE") {
     const isError = variant === "ERROR";
 
@@ -49,12 +62,17 @@ export function IdleView({ variant = "IDLE", onAnalyze, onReset }: Props) {
         >
           {isError ? "다시 시도" : "처음으로 돌아가기"}
         </button>
+        {isError && onGoHome && (
+          <button className="btn-idle-secondary" type="button" onClick={onGoHome}>
+            처음으로 돌아가기
+          </button>
+        )}
       </div>
     );
   }
 
   return (
-    <div className="toss-hero-box stagger-entry">
+    <div className="toss-hero-box toss-hero-box-idle stagger-entry">
       <h2 className="hero-title hero-title-idle">
         이 상품 광고,<br />
         <span className="text-dark">믿고 사도 될까요?</span>
@@ -63,7 +81,22 @@ export function IdleView({ variant = "IDLE", onAnalyze, onReset }: Props) {
         식약처 공식 기능성 인정 기준과<br />
         상세페이지 광고 표현을 실시간 비교해드려요.
       </p>
-      <button className="btn-brand-primary btn-idle-margin" type="button" onClick={onAnalyze}>
+      <div className="btn-idle-margin idle-bear-figure">
+        <img
+          src={BEAR_QUESTION_HAND_ICON_URL}
+          alt=""
+          aria-hidden="true"
+          style={{ width: "75px", height: "auto", display: "block" }}
+        />
+        <img
+          src={QUESTION_MARK_ICON_URL}
+          alt=""
+          aria-hidden="true"
+          className="idle-question-mark-float"
+          style={{ position: "absolute", top: "-6px", right: "-30px", width: "30px", height: "auto" }}
+        />
+      </div>
+      <button className="btn-brand-primary btn-idle-cta-lower" type="button" onClick={onAnalyze}>
         현재 페이지 광고 점검하기
       </button>
     </div>

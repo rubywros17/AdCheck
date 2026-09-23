@@ -55,7 +55,7 @@ export function BubblePreviewView({ findings, onBack, onSelect, onShowAll }: Pro
         })}
       </div>
       <button className="btn-brand-primary btn-summary-margin" type="button" onClick={onShowAll}>
-        전체 목록 보기 →
+        전체 목록 보기
       </button>
     </div>
   );
