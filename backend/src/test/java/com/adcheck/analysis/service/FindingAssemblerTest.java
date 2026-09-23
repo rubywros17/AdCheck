@@ -91,7 +91,9 @@ class FindingAssemblerTest {
 
         assertThat(result.findings()).hasSize(1);
         var finding = result.findings().getFirst();
-        assertThat(finding.message()).isEqualTo("확인이 필요한 표현입니다.");
+        assertThat(finding.message()).isEqualTo(
+                "제품의 원료 정보만으로는 이 표현이 과장인지 판단하기 어려워요.\n"
+                        + "신중하게 살펴보시는 걸 권장해요.");
         assertThat(finding.riskLevel()).isEqualTo(RiskLevel.HIGH);
         org.mockito.Mockito.verifyNoInteractions(geminiClaimComparisonService);
     }
@@ -156,7 +158,9 @@ class FindingAssemblerTest {
         assertThat(result.findings()).hasSize(1);
         var finding = result.findings().getFirst();
         assertThat(finding.category()).isEqualTo("ABSOLUTE_EFFECT");
-        assertThat(finding.message()).isEqualTo("확인이 필요한 표현입니다.");
+        assertThat(finding.message()).isEqualTo(
+                "제품의 원료 정보만으로는 이 표현이 과장인지 판단하기 어려워요.\n"
+                        + "신중하게 살펴보시는 걸 권장해요.");
         org.mockito.Mockito.verifyNoInteractions(geminiClaimComparisonService);
     }
 
