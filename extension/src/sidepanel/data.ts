@@ -145,19 +145,35 @@ export const MOCK_FINDINGS: FindingWithKeyword[] = [
     bubbleLabel: "체지방 100% 완전 분해",
     sourceText: "운동이나 식단 조절 전혀 없이도 섭취된 탄수화물과 체지방을 100% 태웁니다.",
     selector: "p.claim-5",
-    // 규칙 3개가 매핑되는 케이스 테스트: "그 외 판정된 규칙 (2건)"으로 노출됨
+    // 규칙 3개가 매핑되는 케이스 테스트: "그 외 판정된 규칙 (2건)"으로 노출됨.
+    // rules[0]/[1]에는 sources를 채워 대표 근거 법령 1줄 + 배지 팝오버 내 서브 규칙 미니 링크(↗)를 함께 테스트하고,
+    // rules[2]는 sources를 비워둬 링크 없는 방어 경로(라벨만 노출)도 함께 확인한다.
     rules: [
       {
         message: "과장 광고",
         riskLevel: "HIGH",
         category: "WEIGHT_FAT",
         officialFunction: "탄수화물이 지방으로 합성되는 것을 억제하여 체지방 감소에 도움을 줄 수 있음",
+        sources: [
+          {
+            title: "식품 등의 표시·광고에 관한 법률",
+            section: "제8조제1항제1호",
+            sourceUrl: "https://law.go.kr/법령/식품등의표시광고에관한법률/제8조 (부당한 표시·광고행위의 금지)",
+          },
+        ],
       },
       {
         message: "쉽고 빠른 감량 표방",
         riskLevel: "HIGH",
         category: "EASY_DIET",
         officialFunction: "탄수화물이 지방으로 합성되는 것을 억제하여 체지방 감소에 도움을 줄 수 있음",
+        sources: [
+          {
+            title: "식품 등의 표시·광고에 관한 법률",
+            section: "제8조제1항제2호",
+            sourceUrl: "https://law.go.kr/법령/식품등의표시광고에관한법률/제8조 (사실과 다르거나 과장된 표시·광고행위의 금지)",
+          },
+        ],
       },
       {
         message: "식욕 억제 과장",

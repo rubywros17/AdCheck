@@ -4,8 +4,8 @@
 // ==========================================
 import React, { useEffect, useRef, useState } from 'react';
 import type { FilterCategory, FindingWithKeyword } from '../types';
-import type { Rule } from '../../types/analysis';
-import { getCategoryTheme, type SeverityType } from '../../constants/judgmentCategories';
+import type { FindingSource, Rule } from '../../types/analysis';
+import { getCategoryTheme } from '../../constants/judgmentCategories';
 
 // "주의가 필요한 이유" 박스 좌측의 물음표 곰돌이 아이콘. MoodFace.tsx와 동일한 방식으로 확장 아이콘 경로를 구함
 const BEAR_QUESTION_ICON_URL =
@@ -28,6 +28,51 @@ function parseSourceUrls(sourceUrl: string): { url: string; label: string | null
       }
       return { url: chunk, label: null };
     });
+}
+
+// 법령 정식 명칭 -> 법제처 공식 약칭 치환표. title에 포함돼 있으면 앞부분만 부분 치환한다.
+const LAW_TITLE_ABBREVIATIONS: [string, string][] = [
+  ['식품 등의 표시·광고에 관한 법률 시행령', '식품표시광고법 시행령'],
+  ['식품 등의 표시·광고에 관한 법률', '식품표시광고법'],
+];
+
+// 근거 법령 1줄 축약: 공식 약칭으로 치환한 뒤, "제N조"까지만 남기고 그 뒤에 붙는 [별표 1],
+// 제1항제1호 관련 같은 부속 조항은 잘라내 20자 내외 한 줄로 정리한다.
+function abbreviateLawTitle(title: string): string {
+  let short = title;
+  for (const [full, abbr] of LAW_TITLE_ABBREVIATIONS) {
+    if (short.includes(full)) {
+      short = short.replace(full, abbr);
+      break;
+    }
+  }
+  const match = short.match(/^(.*?제\d+조(?:의\d+)?)/);
+  return (match ? match[1] : short).trim();
+}
+
+// 여러 규칙의 message를 카테고리명 없이 하나의 자연스러운 줄글(문단)로 이어붙인다.
+// 각 message 끝에 마침표가 없으면 붙여서 문장처럼 읽히게 한다.
+function buildMultiRuleReason(rules: Rule[]): string {
+  return rules
+    .map((rule) => rule.message.trim())
+    .filter(Boolean)
+    .map((msg) => (/[.!?]$/.test(msg) ? msg : `${msg}.`))
+    .join(' ');
+}
+
+// 대표 근거 법령 딱 1줄: 이중 토글 없이 sources[0]만 축약해서 보여준다.
+// sourceUrl이 세미콜론으로 여러 URL을 이어붙이고 있어도 첫 번째 URL 하나만 사용한다.
+function RepresentativeSourceLink({ source }: { source: FindingSource }) {
+  const shortTitle = abbreviateLawTitle(source.title);
+  if (!source.sourceUrl) {
+    return <span className="law-ref-link law-ref-link--plain">근거: {shortTitle}</span>;
+  }
+  const [firstEntry] = parseSourceUrls(source.sourceUrl);
+  return (
+    <a href={firstEntry.url} target="_blank" rel="noopener noreferrer" className="law-ref-link">
+      근거: {shortTitle} ↗
+    </a>
+  );
 }
 
 export interface DetailListViewProps {
@@ -69,9 +114,20 @@ function getRules(finding: FindingWithKeyword): Rule[] {
   return [];
 }
 
-// 대표 규칙(rules[0])의 message("의약품" 포함 여부)로 2대 구분 버킷(기능성 표시/광고 심의)을 매핑
+// 규칙 하나의 message("의약품" 포함 여부)로 2대 구분 버킷(기능성 표시/광고 심의)을 매핑
+function getRuleBucket(rule: Rule): 'DISEASE' | 'GUARANTEE' {
+  return rule.message.includes('의약품') ? 'DISEASE' : 'GUARANTEE';
+}
+
+// 목록 헤더의 대표 배지/타이틀 표시용: 대표 규칙(rules[0]) 기준 버킷
 function getFindingBucket(finding: FindingWithKeyword): 'DISEASE' | 'GUARANTEE' {
-  return getRules(finding)[0]?.message.includes('의약품') ? 'DISEASE' : 'GUARANTEE';
+  const primary = getRules(finding)[0];
+  return primary ? getRuleBucket(primary) : 'GUARANTEE';
+}
+
+// 필터 탭용: 대표 규칙뿐 아니라 함께 걸린 규칙 중 하나라도 해당 버킷에 속하면 필터 결과에 포함
+function findingMatchesBucket(finding: FindingWithKeyword, bucket: 'DISEASE' | 'GUARANTEE'): boolean {
+  return getRules(finding).some((rule) => getRuleBucket(rule) === bucket);
 }
 
 // 토글 내부 뱃지에 쓰는 2대 구분 버킷 표시 문구 (71종 세부 카테고리 대신 큰 갈래만 보여줌)
@@ -98,98 +154,122 @@ const SEVERITY_LEGEND_ITEMS: { key: 'HIGH' | 'CAUTION'; color: string; dotLabel:
   },
 ];
 
-// "그 외 판정된 규칙" 목록의 심각도 배지 문구. SEVERITY_LEGEND_ITEMS(높음/보통)와 같은 단어를 쓰되,
-// 개별 규칙은 NORMAL(공식 인정 기능성처럼 위반이 아닌 경우)도 나올 수 있어 여기서는 3단계 모두 다룸.
-const SEVERITY_BADGE_LABEL: Record<SeverityType, string> = {
-  HIGH: '높음',
-  CAUTION: '보통',
-  NORMAL: '정상',
-};
-
-// 대표 규칙(rules[0]) 외에 같은 문장에 추가로 매핑된 규칙들을 접힌 목록으로 보여주는 미니 아코디언.
-// rules.length가 1이면(추가 규칙 없음) 호출하는 쪽에서 아예 렌더링하지 않음.
-function ExtraRulesSection({ rules }: { rules: Rule[] }) {
-  const [isOpen, setIsOpen] = useState(false);
+// "감지된 문구" 우측 상단 카테고리 배지. 추가로 매핑된 규칙이 있으면(extraRules.length > 0)
+// "[기능성 표시 +N ▾]" 형태로 표시하고, 클릭 시 배지 바로 아래(우측 정렬)에 나머지 규칙 목록을
+// 미니 팝오버로 띄운다. 380px 사이드패널 폭을 벗어나지 않도록 right: 0으로 고정.
+function CategoryBadge({
+  label,
+  extraRules,
+  isOpen,
+  onToggle,
+  registerRef,
+}: {
+  label: string;
+  extraRules: Rule[];
+  isOpen: boolean;
+  onToggle: () => void;
+  registerRef: (el: HTMLDivElement | null) => void;
+}) {
+  const hasExtra = extraRules.length > 0;
 
   return (
-    <div style={{ borderTop: '1px solid #F1F5F9', padding: '10px 14px 12px' }}>
+    <div ref={registerRef} style={{ position: 'relative', flexShrink: 0 }}>
       <button
         type="button"
-        onClick={() => setIsOpen((prev) => !prev)}
-        aria-expanded={isOpen}
+        onClick={hasExtra ? onToggle : undefined}
+        aria-expanded={hasExtra ? isOpen : undefined}
+        className="category-badge"
         style={{
-          display: 'flex',
+          display: 'inline-flex',
           alignItems: 'center',
-          gap: '4px',
-          background: 'transparent',
-          border: 'none',
-          padding: 0,
-          cursor: 'pointer',
-          fontSize: '11.5px',
+          gap: '3px',
+          background: '#F1F5F9',
+          color: '#475569',
+          fontSize: '11px',
           fontWeight: 700,
-          color: '#64748B',
+          padding: '2px 6px',
+          borderRadius: '4px',
+          border: 'none',
+          cursor: hasExtra ? 'pointer' : 'default',
         }}
       >
-        <span
-          aria-hidden="true"
-          style={{
-            display: 'inline-block',
-            transition: 'transform 0.25s ease',
-            transform: isOpen ? 'rotate(90deg)' : 'rotate(0deg)',
-          }}
-        >
-          ▸
-        </span>
-        그 외 판정된 규칙 {rules.length}건
+        {label}
+        {hasExtra && ` +${extraRules.length}`}
+        {hasExtra && (
+          <span
+            aria-hidden="true"
+            style={{
+              display: 'inline-block',
+              fontSize: '9px',
+              transition: 'transform 0.2s ease',
+              transform: isOpen ? 'rotate(180deg)' : 'rotate(0deg)',
+            }}
+          >
+            ▾
+          </span>
+        )}
       </button>
 
-      <div
-        style={{
-          display: 'grid',
-          gridTemplateRows: isOpen ? '1fr' : '0fr',
-          transition: 'grid-template-rows 0.3s ease',
-        }}
-      >
-        <div style={{ overflow: 'hidden' }}>
-          <ul style={{ listStyle: 'none', margin: 0, padding: 0, marginTop: '8px', display: 'flex', flexDirection: 'column', gap: '6px' }}>
-            {rules.map((rule, ruleIdx) => {
+      {hasExtra && (
+        <div
+          style={{
+            position: 'absolute',
+            top: 'calc(100% + 6px)',
+            right: 0,
+            zIndex: 20,
+            minWidth: '170px',
+            maxWidth: '220px',
+            background: '#FFFFFF',
+            border: '1px solid #E2E8F0',
+            borderRadius: '10px',
+            padding: '10px 12px',
+            boxShadow: '0 10px 24px rgba(15, 23, 42, 0.16)',
+            opacity: isOpen ? 1 : 0,
+            transform: isOpen ? 'translateY(0) scale(1)' : 'translateY(-6px) scale(0.97)',
+            pointerEvents: isOpen ? 'auto' : 'none',
+            transition: 'opacity 0.2s cubic-bezier(0.34, 1.56, 0.64, 1), transform 0.25s cubic-bezier(0.34, 1.56, 0.64, 1)',
+          }}
+        >
+          <div style={{ fontSize: '11px', fontWeight: 700, color: '#0F172A', marginBottom: '6px' }}>
+            함께 위반된 규칙
+          </div>
+          <ul style={{ listStyle: 'none', margin: 0, padding: 0, display: 'flex', flexDirection: 'column', gap: '5px' }}>
+            {extraRules.map((rule, ruleIdx) => {
               const ruleTheme = getCategoryTheme(rule.category);
+              const source = rule.sources?.[0];
+              const firstUrl = source?.sourceUrl ? parseSourceUrls(source.sourceUrl)[0]?.url : null;
+              const dotColor =
+                ruleTheme.severity === 'HIGH' ? '#FA4224' : ruleTheme.severity === 'CAUTION' ? '#FDDC5C' : '#94A3B8';
               return (
-                <li key={ruleIdx} style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
-                  <span aria-hidden="true" style={{ fontSize: '11px', color: '#94A3B8', flexShrink: 0 }}>•</span>
-                  <span
-                    style={{
-                      flex: '1 1 auto',
-                      minWidth: 0,
-                      overflow: 'hidden',
-                      textOverflow: 'ellipsis',
-                      whiteSpace: 'nowrap',
-                      fontSize: '12px',
-                      color: '#334155',
-                    }}
-                  >
+                <li
+                  key={ruleIdx}
+                  style={{ display: 'flex', alignItems: 'center', gap: '6px', fontSize: '11.5px', color: '#334155', lineHeight: 1.4 }}
+                >
+                  <span aria-hidden="true" style={{ width: '6px', height: '6px', borderRadius: '50%', flexShrink: 0, background: dotColor }} />
+                  <span style={{ flex: '1 1 auto', minWidth: 0 }}>
                     {ruleTheme.label}
-                  </span>
-                  <span
-                    style={{
-                      flexShrink: 0,
-                      fontSize: '10.5px',
-                      fontWeight: 700,
-                      padding: '2px 6px',
-                      borderRadius: '999px',
-                      background: ruleTheme.badgeBg,
-                      color: ruleTheme.badgeText,
-                      border: `1px solid ${ruleTheme.badgeBorder}`,
-                    }}
-                  >
-                    {SEVERITY_BADGE_LABEL[ruleTheme.severity]}
+                    {firstUrl && source && (
+                      <>
+                        {' '}
+                        (
+                        <a
+                          href={firstUrl}
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          style={{ color: '#0D9488', textDecoration: 'underline', textUnderlineOffset: '2px' }}
+                        >
+                          {abbreviateLawTitle(source.title)} ↗
+                        </a>
+                        )
+                      </>
+                    )}
                   </span>
                 </li>
               );
             })}
           </ul>
         </div>
-      </div>
+      )}
     </div>
   );
 }
@@ -214,14 +294,31 @@ export const DetailListView: React.FC<DetailListViewProps> = ({
 
   const filteredFindings = indexedFindings.filter(({ finding }) => {
     if (activeFilter === 'ALL') return true;
-    return getFindingBucket(finding) === activeFilter;
+    return findingMatchesBucket(finding, activeFilter);
   });
 
-  const diseaseCount = findings.filter((finding) => getFindingBucket(finding) === 'DISEASE').length;
-  const guaranteeCount = findings.length - diseaseCount;
+  const diseaseCount = findings.filter((finding) => findingMatchesBucket(finding, 'DISEASE')).length;
+  const guaranteeCount = findings.filter((finding) => findingMatchesBucket(finding, 'GUARANTEE')).length;
 
   // 심각도 기준 안내 토글창 열림 상태
   const [isInfoOpen, setIsInfoOpen] = useState(false);
+
+  // "함께 감지된 규칙" 배지 팝오버: 한 번에 하나만 열리도록 idx 하나만 추적
+  const [openBadgeIdx, setOpenBadgeIdx] = useState<number | null>(null);
+  const badgeRefs = useRef<Map<number, HTMLDivElement>>(new Map());
+
+  // 팝오버 바깥 클릭 시 닫기
+  useEffect(() => {
+    if (openBadgeIdx === null) return;
+    function handleClickOutside(event: MouseEvent) {
+      const container = badgeRefs.current.get(openBadgeIdx as number);
+      if (container && !container.contains(event.target as Node)) {
+        setOpenBadgeIdx(null);
+      }
+    }
+    document.addEventListener('mousedown', handleClickOutside);
+    return () => document.removeEventListener('mousedown', handleClickOutside);
+  }, [openBadgeIdx]);
 
   // 말풍선 화면에서 특정 문구를 선택해 넘어온 경우, 그 항목으로 자동 스크롤
   const itemRefs = useRef<Map<number, HTMLDivElement>>(new Map());
@@ -556,7 +653,8 @@ export const DetailListView: React.FC<DetailListViewProps> = ({
               >
                 <div
                   style={{
-                    overflow: 'hidden',
+                    // 이 항목의 배지 팝오버가 열려 있을 때는 팝오버가 잘리지 않도록 clip을 잠깐 풀어준다
+                    overflow: openBadgeIdx === idx ? 'visible' : 'hidden',
                     opacity: isOpen ? 1 : 0,
                     transform: isOpen ? 'translateY(0) scale(1)' : 'translateY(-6px) scale(0.97)',
                     transition:
@@ -571,7 +669,7 @@ export const DetailListView: React.FC<DetailListViewProps> = ({
                         border: '1px solid #E2E8F0',
                         borderRadius: '12px',
                         boxShadow: '0 2px 8px rgba(15, 23, 42, 0.04)',
-                        overflow: 'hidden',
+                        overflow: openBadgeIdx === idx ? 'visible' : 'hidden',
                       }}
                     >
                       {/* 상단 헤더: "감지된 문구" 라벨 + 위반 유형 뱃지(2대 구분 버킷)를 한 줄(flex space-between)에 배치해
@@ -581,30 +679,27 @@ export const DetailListView: React.FC<DetailListViewProps> = ({
                           <span style={{ fontSize: '13.5px', fontWeight: 700, color: '#0F172A', letterSpacing: '-0.2px' }}>
                             감지된 문구
                           </span>
-                          <span
-                            className="category-badge"
-                            style={{
-                              display: 'inline-block',
-                              background: '#F1F5F9',
-                              color: '#475569',
-                              fontSize: '11px',
-                              fontWeight: 700,
-                              padding: '2px 6px',
-                              borderRadius: '4px',
+                          <CategoryBadge
+                            label={FINDING_BUCKET_LABEL[getFindingBucket(finding)]}
+                            extraRules={rules.slice(1)}
+                            isOpen={openBadgeIdx === idx}
+                            onToggle={() => setOpenBadgeIdx((prev) => (prev === idx ? null : idx))}
+                            registerRef={(el) => {
+                              if (el) badgeRefs.current.set(idx, el);
+                              else badgeRefs.current.delete(idx);
                             }}
-                          >
-                            {FINDING_BUCKET_LABEL[getFindingBucket(finding)]}
-                          </span>
+                          />
                         </div>
                         <div style={{ fontSize: '13px', color: '#0F172A', lineHeight: 1.5 }}>
                           "{finding.sourceText}"
                         </div>
                       </div>
 
-                      {/* 주의가 필요한 이유: 대표 규칙(rules[0])의 AI 요약 한 문장 설명을 옅은 에드체크 민트 톤 박스로.
-                          공식 인정 문구 섹션을 없애면서, 그 아래 있던 근거 법령 링크를 이 섹션 끝으로 올림.
-                          근거 링크는 rules[0].sources를 파싱해 실제 법령 원문 URL로 연결(백엔드 인수인계 스펙) */}
-                      {primaryRule.message && (
+                      {/* 주의가 필요한 이유: 규칙이 1개면 대표 규칙(rules[0])의 설명 문장을 그대로,
+                          여러 개면 각 규칙의 message를 카테고리명 없이 하나의 줄글(문단)로 이어붙인다.
+                          어차피 AI가 추출한 문장들이라 라벨 없이도 자연스럽게 읽힌다.
+                          근거 법령은 대표 규칙(rules[0]) 1줄만 이중 토글 없이 노출 */}
+                      {(rules.length > 1 || primaryRule.message) && (
                         <div style={{ padding: '11px 14px 12px', borderTop: '1px solid #F1F5F9' }}>
                           <div style={{ fontSize: '13.5px', fontWeight: 700, color: '#0F172A', letterSpacing: '-0.2px' }}>
                             주의가 필요한 이유
@@ -628,48 +723,19 @@ export const DetailListView: React.FC<DetailListViewProps> = ({
                               style={{ width: '32px', height: '32px', flexShrink: 0, objectFit: 'contain' }}
                             />
                             <div style={{ fontSize: '12.5px', fontWeight: 500, color: '#1E293B', lineHeight: 1.5 }}>
-                              {primaryRule.message}
+                              {rules.length > 1 ? buildMultiRuleReason(rules) : primaryRule.message}
                             </div>
                           </div>
 
-                          {/* 아직 목업/실제 API 모두 sources가 없는 경로가 있을 수 있어 옵셔널 체이닝으로 방어 */}
+                          {/* 대표 근거 법령 딱 1줄: 토글 없이 sources[0]만 약칭으로 축약해서 노출.
+                              아직 목업/실제 API 모두 sources가 없는 경로가 있을 수 있어 옵셔널 체이닝으로 방어 */}
                           {primaryRule.sources?.length ? (
                             <div className="law-ref-list">
-                              {primaryRule.sources.flatMap((source, sourceIdx) => {
-                                if (!source.sourceUrl) {
-                                  const suffix = source.section ? ` (${source.section})` : '';
-                                  return [
-                                    <span key={`src-${sourceIdx}`} className="law-ref-link law-ref-link--plain">
-                                      근거: {source.title}{suffix}
-                                    </span>,
-                                  ];
-                                }
-                                return parseSourceUrls(source.sourceUrl).map((entry, entryIdx) => {
-                                  const suffix = entry.label
-                                    ? ` (${entry.label})`
-                                    : source.section
-                                      ? ` (${source.section})`
-                                      : '';
-                                  return (
-                                    <a
-                                      key={`src-${sourceIdx}-${entryIdx}`}
-                                      href={entry.url}
-                                      target="_blank"
-                                      rel="noopener noreferrer"
-                                      className="law-ref-link"
-                                    >
-                                      근거: {source.title}{suffix} ↗
-                                    </a>
-                                  );
-                                });
-                              })}
+                              <RepresentativeSourceLink source={primaryRule.sources[0]} />
                             </div>
                           ) : null}
                         </div>
                       )}
-
-                      {/* 같은 문장에 매핑된 규칙이 여러 개일 때만(rules.length > 1) 나머지 규칙을 접힌 목록으로 노출 */}
-                      {rules.length > 1 && <ExtraRulesSection rules={rules.slice(1)} />}
                     </div>
                   </div>
                 </div>
