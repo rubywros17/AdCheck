@@ -24,7 +24,7 @@ import static org.assertj.core.api.Assertions.assertThat;
 class FindingAssemblerMostSevereTest {
 
     private final FindingAssembler assembler =
-            new FindingAssembler(null, null, null, null, null, null, null, null, null);
+            new FindingAssembler(null, null, null, null, null, null, null, null, null, null);
 
     @Test
     void severity가_더_높아도_UNSUPPORTED_RULE은_실제_판정_결과에_밀린다() {

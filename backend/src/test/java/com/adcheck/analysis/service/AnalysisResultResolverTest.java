@@ -441,6 +441,7 @@ class AnalysisResultResolverTest {
                         "FUNCTION_CLAIM",
                         "공식 기능성보다 강한 표현일 가능성이 있습니다.",
                         "눈 건강에 도움을 줄 수 있음",
+                        List.of(),
                         List.of()
                 ))
         );

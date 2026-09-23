@@ -117,4 +117,55 @@ class IngredientMatchingServiceTest {
 
         assertThat(result.matchStatus()).isEqualTo(IngredientMatchingService.UNMATCHED);
     }
+
+    @Test
+    void 구분자_없이_반복된_원료표시도_각각_매칭된다() {
+        // 실제 상세페이지에서 같은 문구가 디자인상 세 번 반복돼 콤마 없이 이어진 케이스.
+        seedIngredient("락토페린(우유정제단백질)", "LACTO001", "락토페린(우유정제단백질)");
+        IngredientMatchingService service = freshService();
+
+        IngredientFieldMatchResult result = service.matchField(
+                "락토페린(우유정제단백질) 270mg/일 락토페린(우유정제단백질) 270mg/일 락토페린(우유정제단백질) 270mg/일");
+
+        assertThat(result.items()).hasSize(3);
+        assertThat(result.items())
+                .allMatch(item -> IngredientMatchingService.MATCHED.equals(item.matchStatus()));
+    }
+
+    @Test
+    void 함량_뒤에_섭취주기가_붙어도_정규화되어_매칭된다() {
+        seedIngredient("락토페린", "LACTO002", "락토페린");
+        IngredientMatchingService service = freshService();
+
+        IngredientMatchResult result = service.match("락토페린 270mg/일");
+
+        assertThat(result.matchStatus()).isEqualTo(IngredientMatchingService.MATCHED);
+        assertThat(result.standardName()).isEqualTo("락토페린");
+    }
+
+    @Test
+    void 텍스트가_잘려_괄호_짝이_깨져도_멀쩡한_항목은_건진다() {
+        // 상세페이지 텍스트가 중간에 잘리면 여는/닫는 괄호가 각각 날아간다. 원래 경로는 안전을
+        // 위해 통째로 한 항목으로 두는데, 그래서 전부 UNMATCHED가 되던 것을 보정한다.
+        seedIngredient("니코틴산아미드", "NIACIN001", "니코틴산아미드");
+        IngredientMatchingService service = freshService();
+
+        IngredientFieldMatchResult result = service.matchField(
+                "니코틴산아미드, 판토텐산칼슘, 크씨슬추출물분말(독일산), 제비오틴, 제이인산칼슘), 비타민B12혼합제제(비타민B");
+
+        assertThat(result.items())
+                .anyMatch(item -> IngredientMatchingService.MATCHED.equals(item.matchStatus())
+                        && "니코틴산아미드".equals(item.standardName()));
+    }
+
+    @Test
+    void 괄호_짝이_맞으면_보정_분할이_동작하지_않아_기존_동작이_유지된다() {
+        seedIngredient("비타민C", "VITC003", "비타민C");
+        IngredientMatchingService service = freshService();
+
+        IngredientFieldMatchResult result = service.matchField("비타민C 500mg, 알 수 없는 원료(수입산)");
+
+        assertThat(result.parsed()).isTrue();
+        assertThat(result.items()).hasSize(2);
+    }
 }

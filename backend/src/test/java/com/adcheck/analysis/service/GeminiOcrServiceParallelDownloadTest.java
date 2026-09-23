@@ -76,7 +76,7 @@ class GeminiOcrServiceParallelDownloadTest {
         List<String> urls = List.of(
                 baseUrl + "/ok/1.png", baseUrl + "/ok/2.png", baseUrl + "/ok/3.png",
                 baseUrl + "/ok/4.png", baseUrl + "/ok/5.png", baseUrl + "/ok/6.png");
-        GeminiOcrService service = new GeminiOcrService(new CountingGeminiClient());
+        GeminiOcrService service = new GeminiOcrService(new CountingGeminiClient(), new OcrImageLoader());
 
         long startedAt = System.currentTimeMillis();
         Map<String, String> result = service.extractTexts(urls);
@@ -96,7 +96,7 @@ class GeminiOcrServiceParallelDownloadTest {
             urls.add(baseUrl + "/ok/" + i + ".png");
         }
         CountingGeminiClient geminiClient = new CountingGeminiClient();
-        GeminiOcrService service = new GeminiOcrService(geminiClient);
+        GeminiOcrService service = new GeminiOcrService(geminiClient, new OcrImageLoader());
 
         Map<String, String> result = service.extractTexts(urls);
 
@@ -113,7 +113,7 @@ class GeminiOcrServiceParallelDownloadTest {
         List<String> urls = List.of(
                 baseUrl + "/ok/1.png", baseUrl + "/huge/2.png", baseUrl + "/ok/3.png");
         CountingGeminiClient geminiClient = new CountingGeminiClient();
-        GeminiOcrService service = new GeminiOcrService(geminiClient);
+        GeminiOcrService service = new GeminiOcrService(geminiClient, new OcrImageLoader());
 
         Map<String, String> result = service.extractTexts(urls);
 
@@ -130,7 +130,7 @@ class GeminiOcrServiceParallelDownloadTest {
         List<String> urls = List.of(
                 baseUrl + "/ok/1.png", baseUrl + "/tiny/2.png", baseUrl + "/ok/3.png");
         CountingGeminiClient geminiClient = new CountingGeminiClient();
-        GeminiOcrService service = new GeminiOcrService(geminiClient);
+        GeminiOcrService service = new GeminiOcrService(geminiClient, new OcrImageLoader());
 
         Map<String, String> result = service.extractTexts(urls);
 
@@ -146,7 +146,7 @@ class GeminiOcrServiceParallelDownloadTest {
     void 다운로드에_실패한_이미지는_빈_문자열로_남고_나머지는_정상_처리된다() {
         List<String> urls = List.of(
                 baseUrl + "/ok/1.png", baseUrl + "/missing/2.png", baseUrl + "/ok/3.png");
-        GeminiOcrService service = new GeminiOcrService(new CountingGeminiClient());
+        GeminiOcrService service = new GeminiOcrService(new CountingGeminiClient(), new OcrImageLoader());
 
         Map<String, String> result = service.extractTexts(urls);
 

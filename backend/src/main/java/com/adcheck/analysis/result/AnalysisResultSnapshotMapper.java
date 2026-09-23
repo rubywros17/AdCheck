@@ -49,7 +49,8 @@ public class AnalysisResultSnapshotMapper {
                 finding.category(),
                 finding.message(),
                 finding.officialFunction(),
-                finding.sources()
+                finding.sources(),
+                finding.rules()
         );
     }
 
@@ -61,7 +62,8 @@ public class AnalysisResultSnapshotMapper {
                 finding.category(),
                 finding.message(),
                 finding.officialFunction(),
-                finding.sources()
+                finding.sources(),
+                finding.rules()
         );
     }
 }

@@ -307,6 +307,20 @@ public class AiRuleEvaluator implements RuleEvaluator {
             sb.append("된다고 단정할 근거도 없다면) MATCHED로 단정하지 말고 needsOutsideContext를 ");
             sb.append("true로 답해 REVIEW_REQUIRED로 넘기세요.)\n");
         }
+        if ("C05_FUNCTION_EXCEED".equals(rule.getRuleCode())) {
+            // 안정성 측정(RuleJudgeStabilityTest, 2026-09-23)에서 "1정당 130mg 함유, 주원료 기준
+            // 100% 충족합니다"가 3회 중 NOT_MATCHED/REVIEW_REQUIRED/REVIEW_REQUIRED로 갈렸다.
+            // 위반이냐 아니냐가 뒤집힌 게 아니라 "확실히 아니다"와 "애매하다" 사이를 오간 것으로,
+            // 함량·충족률 표기를 기능성 주장으로 볼지에 대한 기준이 프롬프트에 없어서 모델이
+            // 매번 새로 판단한 탓으로 보인다. 같은 문구가 Claim 추출 단계에서도 흔들렸고, 거기에
+            // 기준을 명시하자 안정도가 60%→100%로 올라간 전례가 있어 같은 방식으로 적어둔다.
+            sb.append("(함량 표기 판단 기준: \"1정당 130mg 함유\", \"주원료 기준 100% 충족\"처럼 ");
+            sb.append("성분의 함량·비율·충족률만 밝히는 문구는, 그 자체로는 인정된 기능성의 범위를 ");
+            sb.append("넘어서는 주장이 아닙니다 — 이 규칙 대상이 아니므로 NOT_MATCHED입니다. ");
+            sb.append("다만 함량이 많다는 것을 근거로 효과가 더 크다거나 더 빠르다고 말하면(예: ");
+            sb.append("\"2배 함량이라 2배 효과\") 그건 함량 표기가 아니라 효능 주장이므로 따로 ");
+            sb.append("판단하세요.)\n");
+        }
         if ("C11_SUB_INGREDIENT_FUNCTION".equals(rule.getRuleCode())) {
             // 실측(3회 반복)에서 "비타민C, 아연, 마그네슘, 폴리페놀 함유"(REVIEW_REQUIRED 기대,
             // 실제 사례 DISC-17)를 매번 NOT_MATCHED로 틀렸다 — 단순 나열로 보고 안전하다고

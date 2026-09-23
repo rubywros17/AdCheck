@@ -9,7 +9,7 @@ AdCheck helps consumers check the advertising claims on health-supplement produc
 - `backend/` — Spring Boot 4 (Java 21) analysis API
 - `extension/` — Manifest V3 Chrome Extension (React + TypeScript, built with Vite)
 
-The backend currently has **no real claims analysis**: `MockClaimAnalyzer` (a simple keyword matcher) stands in for the eventual AI/rule-based pipeline, so the full request/response flow can be validated end-to-end without medical/legal judgment logic being implemented yet.
+The backend runs a real multi-stage AI pipeline (`GeminiClaimAnalyzer` → `FindingAssembler`). `MockClaimAnalyzer` still exists as a keyword-matcher stand-in but is **not** what runs by default — see "Analysis pipeline stages" below.
 
 ## Commands
 
@@ -57,7 +57,7 @@ This is the part most likely to need cross-file understanding. Flow through `Ana
    - an **active** (PENDING/PROCESSING) analysis with the same key → `InProgress` (HTTP 202, no results yet).
    - otherwise → `NewAnalysis`.
 2. For a new analysis, `AnalysisLifecycleService.createPending()` inserts a row. A partial unique index (`uk_analyses_active_result_reuse`, migration V2) enforces at most one active PENDING/PROCESSING row per reuse key at the DB level — a `DataIntegrityViolationException` here means a concurrent duplicate request raced this one; `AnalysisActiveReuseConstraintDetector` distinguishes that specific constraint from other integrity violations, and the service recovers by looking up and returning the now-existing active row instead of failing.
-3. `AnalysisBackgroundJob.process()` is submitted to a dedicated executor (`@Async(AnalysisAsyncConfiguration.EXECUTOR_NAME)`, not the default Spring async pool) and runs `ClaimAnalyzer` (currently `MockClaimAnalyzer`), then persists the result (completed) or failure via `AnalysisLifecycleService`. If the executor's queue is full, `TaskRejectedException` is translated into `AnalysisQueueFullException` and the pending row is marked failed rather than left stuck in PENDING.
+3. `AnalysisBackgroundJob.process()` is submitted to a dedicated executor (`@Async(AnalysisAsyncConfiguration.EXECUTOR_NAME)`, not the default Spring async pool) and runs `ClaimAnalyzer` (`GeminiClaimAnalyzer` in normal operation; `MockClaimAnalyzer` is a stand-in kept for tests), then persists the result (completed) or failure via `AnalysisLifecycleService`. If the executor's queue is full, `TaskRejectedException` is translated into `AnalysisQueueFullException` and the pending row is marked failed rather than left stuck in PENDING.
 4. The initial HTTP response for a new/in-progress analysis carries no results (`PENDING`/`PROCESSING`, empty findings) — the client is expected to poll `POST /api/v1/analyses` again with the same request to eventually get the `Reused` result once processing completes.
 
 `AnalysisAsyncConfiguration.Async` properties (`adcheck.analysis.async.*`: core-pool-size, max-pool-size, queue-capacity, thread-name-prefix) are validated at startup via Jakarta Bean Validation (`@Min`, `@NotBlank` on `AnalysisProperties.Async`) plus a manual `core-pool-size <= max-pool-size` check in the executor's `@Bean` method — invalid config fails application startup rather than silently degrading (e.g. `queueCapacity <= 0` would otherwise make Spring silently swap in a `SynchronousQueue`).
@@ -65,6 +65,19 @@ This is the part most likely to need cross-file understanding. Flow through `Ana
 ### Result codecs
 
 Completed results are stored as JSON in the `analyses.result_json` column and round-tripped through `AnalysisResultSnapshotMapper`/`AnalysisResultJsonCodec` — when changing `AnalysisResponse`/`FindingResponse` shapes, check whether old stored `result_json` rows still deserialize (there's no versioned migration for stored JSON payloads).
+
+### Analysis pipeline stages
+
+`FindingAssembler.assemble()` is the real orchestrator. Order matters — each stage depends on the previous one's output:
+
+1. **AI#1 extraction** (`GeminiClaimAnalyzer` → `ProductContentExtractionService`) — one Gemini call pulls claims / product candidates / ingredient candidates / risk signals out of body text + OCR text. Image OCR runs first via `FallbackOcrService` (Google Vision first, Gemini as fallback).
+2. **Product + ingredient confirmation** — extracted candidates are matched against `products` / `ingredient_master`. Use `IngredientMatchingService.matchField()` for an ingredient *table*, not `match()`, which expects a single ingredient (passing a whole table to `match()` silently yielded 0 confirmations for a long time).
+3. **Official-function quotation filter** (`OfficialFunctionQuotationDetector`) — drops claims that merely reproduce the confirmed ingredients' officially recognised wording, since those are label text, not ad copy. **Only the confirmed ingredients' wording is used as the comparison set**; that narrowness is a safety constraint, not an optimisation — a page quoting an ingredient it does not contain stays in as a genuine violation. Any change here must keep the "violation misread as quotation" count at 0 (`OfficialFunctionQuotationDetectorTest`).
+4. **Rule judgment** (`RuleAnalysisService.analyzeAll()`) — batched along the *rule* axis, so call count is the number of rules, not rules × claims. Each claim comes back MATCHED / REVIEW_REQUIRED / NOT_MATCHED.
+5. **RAG** (`RagRetrievalService`) and **AI#2 comparison** (`GeminiClaimComparisonService`) — **only for claims with at least one MATCHED rule.** Claims with only REVIEW_REQUIRED skip both and get the fixed message "확인이 필요한 표현입니다." This asymmetry is the reason several fields look empty in practice; check it before assuming a matching bug.
+6. **Finding assembly** — `riskLevel`/`category`/`sources` come from one representative rule (`mostSevere()`), while `rules` carries every judged rule. Adding to `rules` is safe; changing the representative-rule fields is not.
+
+Rate limit worth knowing: one analysis costs ~12 Gemini calls and the free tier allows 15 RPM, so **two analyses inside one minute always trigger 429** and the retry delay (~45s) inflates the whole analysis. Space timing measurements at least a minute apart.
 
 ### Error handling
 
@@ -79,7 +92,9 @@ Manifest V3, three build entry points (`vite.config.ts`): `sidepanel` (React UI)
 - **Side panel** (`src/sidepanel/App.tsx`) is a single-view state machine (`IDLE → EXTRACTING/ANALYZING → SUCCESS/ERROR`) driven by responses from the service worker.
 - Message contracts live in `src/types/message.ts`; all cross-context messages are runtime-validated with type guards (`isSidePanelRequest`, `isPageExtractionResult`, etc.) since `chrome.runtime`/`chrome.tabs` messaging isn't statically typed.
 
-**Known gap**: the side panel currently treats any successful message-passing round-trip as `SUCCESS` and renders `analysis.findings` directly — it does not yet handle the backend's `PENDING`/`PROCESSING` statuses by polling for the final result. Since the backend now processes analyses asynchronously (see above), a first-time request against a given page will return `PENDING` with empty findings today rather than the analyzed result. This needs polling/re-submit logic in the service worker or side panel before the async backend work is fully usable end-to-end.
+**Polling is implemented** (`pollUntilFinished` in `src/background/service-worker.ts`): the service worker polls `GET /api/v1/analyses/{id}` every 1.5s up to 40 times (60s timeout) until `COMPLETED` or `FAILED`. Note `FAILED` comes back to the side panel inside an `ok: true` envelope, not as an error — `useAdCheck.ts` catches `response.status === "FAILED"` explicitly and routes it to the `ERROR` view. Without that branch a failed analysis would render as the "no problems found" screen.
+
+**Known gap — the `ERROR` view conflates three causes**: `IdleView`'s error variant shows one fixed message ("분석 서버에 연결할 수 없어요"), but it is reached by `BACKEND_UNAVAILABLE` (backend really is down), `ANALYSIS_TIMEOUT` (60s polling exceeded) and `status: "FAILED"` (server responded fine, the analysis itself failed). Only the first is accurate. Side panel UI is another teammate's area, so this is a discussion item rather than a fix to make unilaterally.
 
 **Known issue — no automated coverage for the Backend response contract**: the extension has zero automated tests (`tsc --noEmit` is the only check), so the *logical* correctness of the Backend response contract (e.g. which fields are required for a given `status`) is never verified — TypeScript's type checker only confirms the code compiles against the declared `AnalysisResponse` type, not that a runtime type guard like `isAnalysisResponse()` (`src/api/analysis-api.ts`) actually implements that contract correctly. Bugs in these `unknown`-based runtime guards only surface by manually exercising the extension in real Chrome; a curl/Postman check against the Backend alone is not enough, since that only confirms the JSON shape, not how the Extension parses it. Case in point (2026-09-16): `isAnalysisResponse()` required `summary`/`findings` to always be present and non-null, but the Backend intentionally sends `summary: null` for `PENDING`/`PROCESSING`/`FAILED` (only `COMPLETED` populates `summary`) — every curl-based check passed, and the mismatch was only caught when polling failed in a real Chrome side panel session. **When the Backend's `AnalysisResponse` contract changes, verify with curl AND manually re-run all four `status` values (`PENDING`/`PROCESSING`/`COMPLETED`/`FAILED`) through the actual Extension in Chrome** — a curl check alone will not catch a parsing mismatch like this one.
 
@@ -94,4 +109,5 @@ Manifest V3, three build entry points (`vite.config.ts`): `sidepanel` (React UI)
 
 - Working on branch `feature/analysis-orchestration` (13 commits ahead of `main`), building out the async analysis pipeline and result-reuse logic described above.
 - `data/`, `adcheck_rule_engine_data.dump`, and `backend/src/main/java/com/adcheck/analysis/repository/.cph/` are untracked local artifacts (rule-engine seed CSVs, a DB dump, and a stray Competitive-Programming-Helper cache dir) — not part of the source tree; don't `git add` them.
-- The extension/backend integration gap noted above (polling for async results) is the most likely next piece of work once the backend orchestration lands.
+- The open thread is that `REVIEW_REQUIRED` ("could not judge") is rendered with the rule's own severity, so it shows as HIGH alongside real violations — 63 of 86 such findings survive the quotation filter. Investigate why `C05`/`C07`/`C08`/`C09`/`C24` abstain on nearly every claim before changing how it is displayed.
+- Measurement fixtures live in `backend/src/test/resources/` (`official-functions.tsv`, `stored-claims.txt`, `review-only-claims.txt`), exported from the local Postgres. They back the quotation-filter tests; regenerate them rather than hand-editing.

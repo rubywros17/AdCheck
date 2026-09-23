@@ -30,8 +30,11 @@ const DETAIL_CONTAINER_PATTERN =
   /(?:^|[\s_-])(product|prd)?[\s_-]*(detail|description|contents?)(?:$|[\s_-])|상품\s*상세|상세\s*(설명|정보)/i;
 const EXCLUDED_SECTION_PATTERN =
   /recommend|related|relation|review|testimonial|feedback|comment|qna|question|recent|history|rating|best[\s_-]*item|other[\s_-]*product|추천\s*상품|상품\s*추천|연관\s*상품|관련\s*상품|포토\s*리뷰|리뷰|후기|구매평/i;
+// notice/banner류는 로고·아이콘과 달리 판매자마다 이름 붙이는 방식이 제각각이라 완전히
+// 걸러내진 못한다 — 실측(2026-09-22)에서 "notice_05.png" 같은 흔한 명명 사례를 잡기 위한
+// 최소한의 패턴. 의미 없는 CDN 해시 파일명(예: img_20240512.jpg)은 이 패턴으로 못 걸러낸다.
 const IRRELEVANT_IMAGE_PATTERN =
-  /(?:^|[\/_\-.])(logo|icon|sprite|favicon|payment|kakao|callcenter)(?:[\/_\-.]|$)|고객센터/i;
+  /(?:^|[\/_\-.])(logo|icon|sprite|favicon|payment|kakao|callcenter|notice|banner)(?:[\/_\-.]|$)|고객센터|공지사항|배송안내|교환환불|반품안내|이용안내/i;
 const INVISIBLE_CHAR_PATTERN = /[\u200B\u200C\u200D\uFEFF]/g;
 const SEMANTIC_CONTAINER_SELECTOR = "section, article, div, td";
 const IMAGE_SOURCE_ATTRIBUTES = [

@@ -103,6 +103,7 @@ class AnalysisApiIntegrationTest {
                             "FUNCTION_CLAIM",
                             "공식 인정 기능성보다 강한 표현일 가능성이 있습니다.",
                             null,
+                            List.of(),
                             List.of()
                     ))
                     .toList();
