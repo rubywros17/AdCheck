@@ -206,7 +206,7 @@ export const DetailListView: React.FC<DetailListViewProps> = ({
       </div>
 
       {/* 2. 카테고리 필터 칩: 전체 / 기능성 표시 / 광고 심의 2대 구분 */}
-      <div style={{ display: 'flex', gap: '8px', overflowX: 'auto', margin: '12px 0 16px' }}>
+      <div style={{ display: 'flex', gap: '8px', justifyContent: 'center', overflowX: 'auto', margin: '12px 0 16px' }}>
         <button
           type="button"
           className="filter-chip-enter"

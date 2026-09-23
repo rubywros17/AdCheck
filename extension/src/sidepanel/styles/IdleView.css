@@ -45,14 +45,15 @@
 .idle-bear-figure {
   position: relative;
   display: inline-block;
+  transform: translateX(-6px);
 }
 
-/* 물음표만 따로 위아래로 살짝 흔들리며 떠다니는 애니메이션 */
+/* 물음표만 따로 위아래로 아주 살짝(4~5px) 떠다니며, 약간의 틸트로 가벼운 부유감을 줌 */
 @keyframes idleQuestionMarkFloat {
-  0%, 100% { transform: translateY(0) rotate(-6deg); }
-  50% { transform: translateY(-10px) rotate(6deg); }
+  0%, 100% { transform: translateY(0) rotate(-2deg); }
+  50% { transform: translateY(-5px) rotate(3deg); }
 }
 .idle-question-mark-float {
-  animation: idleQuestionMarkFloat 2.8s ease-in-out infinite;
+  animation: idleQuestionMarkFloat 2.2s ease-in-out infinite;
   filter: drop-shadow(0 4px 6px rgba(15, 23, 42, 0.12));
 }
