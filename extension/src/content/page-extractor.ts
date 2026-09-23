@@ -39,6 +39,13 @@ const INVISIBLE_CHAR_PATTERN = /[\u200B\u200C\u200D\uFEFF]/g;
 const SEMANTIC_CONTAINER_SELECTOR = "section, article, div, td";
 const IMAGE_SOURCE_ATTRIBUTES = [
   "src",
+  // 카페24가 쓰는 지연 로딩 속성. 2026-09-23 실측(i-hi.co.kr/product_no=111)에서 상세 이미지
+  // 24장이 전부 src 없이 ec-data-src만 갖고 있었고, 스크롤 대기가 끝날 때까지 브라우저가
+  // src로 옮겨주지 못한 최하단 한 장이 빠졌다. 그게 하필 "상품정보고시"(원재료명·함량·
+  // 품목보고번호) 이미지라, 원료 후보 0건 → 원료별 규칙 31개 미실행 → C05 보류 →
+  // officialFunction·표시란 필터 무력화로 이어져 Claim 11건이 전부 "확인이 필요한 표현입니다"가
+  // 됐다(3회 분석 내내 동일 재현). 속성에서 URL을 직접 읽으면 로딩 완료 여부와 무관해진다.
+  "ec-data-src",
   "data-src",
   "data-original",
   "data-lazy-src",
