@@ -67,7 +67,7 @@ public class IngredientMatchingService {
      * 제거·소문자화 다음 단계로 적용하므로 단위 앞뒤 공백·대소문자는 이미 정리된 상태다.
      */
     private static final Pattern TRAILING_DOSAGE_PATTERN =
-            Pattern.compile("(?:[0-9][0-9,.]*(?:mg|g|%|μg|ug|iu))+$");
+            Pattern.compile("(?:[0-9][0-9,.]*(?:mg|g|㎎|㎍|μg|ug|iu|%)(?:/[가-힣a-z]+)?)+$");
 
     public static final String MATCHED = "MATCHED";
     public static final String REVIEW_REQUIRED = "REVIEW_REQUIRED";
@@ -214,6 +214,19 @@ public class IngredientMatchingService {
     public IngredientFieldMatchResult matchField(String rawField) {
         IngredientSplitter.SplitResult split = IngredientSplitter.split(rawField);
         List<IngredientMatchResult> items = split.items().stream().map(this::match).toList();
+
+        // 괄호 짝이 안 맞아 통째로 한 항목이 된 경우(상세페이지 텍스트가 중간에 잘린 경우가
+        // 대부분이다), 아무것도 못 건졌을 때만 짝 없는 괄호를 지우고 한 번 더 쪼개본다.
+        // 원래 경로에서 하나라도 인식됐으면 건드리지 않으므로 기존 매칭 결과는 그대로 유지된다.
+        if (!split.parsed() && items.stream().allMatch(item -> UNMATCHED.equals(item.matchStatus()))) {
+            List<String> lenient = IngredientSplitter.splitLenient(rawField);
+            if (!lenient.isEmpty()) {
+                List<IngredientMatchResult> retried = lenient.stream().map(this::match).toList();
+                if (retried.stream().anyMatch(item -> !UNMATCHED.equals(item.matchStatus()))) {
+                    return new IngredientFieldMatchResult(false, retried);
+                }
+            }
+        }
         return new IngredientFieldMatchResult(split.parsed(), items);
     }
 
