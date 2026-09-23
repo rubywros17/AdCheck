@@ -181,6 +181,19 @@ public class FindingAssembler {
      * 사전계산된 {@code ProductIngredientQueryService} 결과에 없는 rawText만
      * {@link IngredientMatchingService}로 실시간 매칭해서 보충한다. 이미 확정된
      * ingredientMasterId와 겹치면 중복 추가하지 않는다.
+     *
+     * <p><b>{@code match()}가 아니라 {@code matchField()}를 쓴다</b>(2026-09-23 수정). 후보의
+     * rawText는 원료표 한 덩어리라 "밀크씨슬추출물 50%, 비타민B1 100%, 나이아신 20%"처럼 여러
+     * 성분이 들어 있는데, {@code match()}는 <b>문자열 전체를 원료명 하나로</b> 조회하므로 이런
+     * 후보는 절대 매칭되지 않는다. 그래서 {@code IngredientSplitter}로 쪼개 각각 매칭하는
+     * {@code matchField()}를 쓰고, 그중 MATCHED인 항목을 <b>각각</b> 확정한다(후보 1건 → 확정 N건).
+     *
+     * <p>이 불일치 때문에 원료 확정이 구조적으로 불가능했다 — AI#1은 후보를 거를 때 이미
+     * {@code matchField()}로 "하나라도 인식되면 통과"시키고 있었는데(ProductContentExtraction
+     * Service#hasAtLeastOneRecognizedIngredient) 확정 단계만 {@code match()}를 써서, 후보가
+     * 있어도 확정은 항상 0건이었다. 실측 18건 중 후보가 잡힌 10건이 전부 확정 0건이었던 게
+     * 우연이 아니라 이 구조 탓이다. 그 여파로 공식 인정 기능성 조회와 INGREDIENT_SPECIFIC
+     * 규칙(활성 50개 중 26개)이 통째로 동작하지 않았다.
      */
     private List<ProductIngredientReadModel> resolveIngredients(
             List<ProductIngredientReadModel> precomputed,
@@ -199,20 +212,21 @@ public class FindingAssembler {
             if (rawText == null || rawText.isBlank() || coveredRawTexts.contains(rawText)) {
                 continue;
             }
-            IngredientMatchResult matchResult = ingredientMatchingService.match(rawText);
-            if (!IngredientMatchingService.MATCHED.equals(matchResult.matchStatus())) {
-                continue;
+            for (IngredientMatchResult matchResult : ingredientMatchingService.matchField(rawText).items()) {
+                if (!IngredientMatchingService.MATCHED.equals(matchResult.matchStatus())) {
+                    continue;
+                }
+                if (!seenMasterIds.add(matchResult.ingredientMasterId())) {
+                    continue;
+                }
+                merged.add(new ProductIngredientReadModel(
+                        matchResult.ingredientMasterId(),
+                        matchResult.standardName(),
+                        matchResult.rawText(),
+                        MatchMethod.valueOf(matchResult.matchMethod()),
+                        MatchStatus.valueOf(matchResult.matchStatus())
+                ));
             }
-            if (!seenMasterIds.add(matchResult.ingredientMasterId())) {
-                continue;
-            }
-            merged.add(new ProductIngredientReadModel(
-                    matchResult.ingredientMasterId(),
-                    matchResult.standardName(),
-                    matchResult.rawText(),
-                    MatchMethod.valueOf(matchResult.matchMethod()),
-                    MatchStatus.valueOf(matchResult.matchStatus())
-            ));
         }
         return merged;
     }
