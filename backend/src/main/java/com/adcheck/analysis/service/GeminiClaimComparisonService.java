@@ -54,7 +54,13 @@ public class GeminiClaimComparisonService {
         sb.append("ruleMatches의 judgmentCategory/reason은 Rule Engine이 이미 판단한 근거이니, ");
         sb.append("있으면 explanation 작성 시 참고하되 그대로 베끼지 말고 소비자가 이해할 수 있게 풀어 쓰세요.\n");
         sb.append("- evidence가 있으면 explanation 작성에 근거로 활용하세요.\n");
-        sb.append("- reason에는 판단 근거를 간단히, explanation에는 소비자가 이해할 수 있는 설명을 쓰세요.\n");
+        sb.append("- reason에는 판단 근거를 간단히 쓰세요.\n");
+        sb.append("- explanation은 건강기능식품을 실제로 구매하려는 일반 소비자가 읽습니다. ");
+        sb.append("이 표현이 왜 문제인지 설명한 뒤, 반드시 소비자가 이 문구를 어떻게 받아들여야 하는지 ");
+        sb.append("명확한 결론으로 마무리하세요. '주의가 필요합니다', '오해의 소지가 있습니다'처럼 판단을 ");
+        sb.append("유보하는 표현으로 끝내지 말고, '이 효과를 보장하는 것은 아니니 그대로 믿지 마세요', ");
+        sb.append("'이 표현만으로 결정하지 말고 다른 정보도 함께 확인하세요'처럼 소비자가 취해야 할 행동이 ");
+        sb.append("드러나도록 구체적으로 마무리하세요. 2~3문장 이내로 간결하게 쓰세요.\n");
         sb.append("- claims 각각에 대해 정확히 하나의 결과를 claimComparisons에 반환하세요.\n\n");
 
         sb.append("[제품]\n").append(toJson(request.product())).append("\n\n");
