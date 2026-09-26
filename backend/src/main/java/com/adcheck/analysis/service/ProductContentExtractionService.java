@@ -137,6 +137,12 @@ public class ProductContentExtractionService {
                 reconstructCandidates(allLines, lineSources, lineGroups, groupConfidences);
         List<IngredientCandidate> filteredCandidates =
                 candidates.stream().filter(candidate -> hasAtLeastOneRecognizedIngredient(candidate.rawText())).toList();
+        // 원료 후보가 0건일 때 "AI가 원료표를 못 찾은 것"과 "찾았는데 사전에서 다 걸러진 것"은
+        // 대응이 전혀 다른데(전자는 프롬프트, 후자는 원료 사전), 지금까지 로그로 구분되지 않아
+        // 사전을 의심하며 시간을 쓴 적이 있다. 실제로는 labelLineGroups가 빈 배열로 오는
+        // 경우였다(2026-09-23). 두 수를 같이 남겨 다음부터 바로 갈리게 한다.
+        log.info("원료표 후보 {}건(AI가 지목한 줄 그룹 {}개) → 사전 인식 {}건",
+                candidates.size(), lineGroups.size(), filteredCandidates.size());
 
         List<RawRiskSignal> rawRiskSignals = response.riskSignals() != null ? response.riskSignals() : List.of();
         List<RiskSignalCandidate> riskSignalCandidates = toRiskSignalCandidates(rawRiskSignals, claims);
@@ -313,6 +319,21 @@ public class ProductContentExtractionService {
         sb.append("  · 성분의 기능·작용을 설명하는 문장 → 포함. ");
         sb.append("예: \"탄수화물, 지방, 단백질 대사에 관여하여 에너지를 만드는 데 필요합니다\"\n");
         sb.append("- 해당하는 문장이 하나도 없으면 claims는 빈 배열로 반환하세요.\n");
+        // 2026-09-23 실측: 같은 입력(프롬프트 39,872자)을 5회 넣었더니 5회 전부에 등장한 Claim이
+        // 하나도 없었다(안정도 0%). 원인은 "어떤 문장을 뽑을지"가 아니라 "뽑은 문장을 옮겨 적는
+        // 방식"이었다 — 모델이 단어를 바꿔 쓴다. 예: 원문 "사용할 시"를 회차에 따라 "섭취할 시"로
+        // 바꿔 내놓고, 공백만 다른 중복("아스타잔틴(…)" vs "아스타잔틴 (…)")도 섞인다.
+        // claimText는 화면의 sourceText가 되고 익스텐션이 페이지에서 그 문장을 찾아 하이라이트하는
+        // 데도 쓰이므로, 한 글자만 달라도 하이라이트가 실패하고 재사용 캐시도 빗나간다.
+        // 앞선 명문화(성분 문장 3분류)는 "선택 기준"을 고친 것이라 이 층위를 막지 못했다.
+        sb.append("- claimText는 반드시 아래 [본문 텍스트]나 [이미지 OCR 결과]에 실제로 있는 문자열을 ");
+        sb.append("<글자 하나 바꾸지 말고 그대로> 복사하세요. 다음은 모두 금지입니다: ");
+        sb.append("단어 바꾸기(\"사용할\"을 \"섭취할\"로), 요약·축약, 어색한 표현 다듬기, 오탈자 교정, ");
+        sb.append("띄어쓰기 추가·삭제, 문장 이어 붙이기.\n");
+        sb.append("  · 원문이 \"최소 3~6개월 이상 사용할 시\"면 그대로 \"최소 3~6개월 이상 사용할 시\"입니다. ");
+        sb.append("더 자연스러워 보여도 고치지 마세요.\n");
+        sb.append("  · 원문이 \"아스타잔틴(헤마토코쿠스 추출물) 4mg\"이면 괄호 앞 공백을 넣거나 빼지 마세요.\n");
+        sb.append("  · 한 줄에서 필요한 부분만 잘라 쓰는 것은 됩니다. 단 잘라낸 구간은 원문과 완전히 같아야 합니다.\n");
         sb.append("- 각 claim마다 이 문장을 판매자의 제품 효과 주장으로 볼 수 있는지, 근거 위치와 함께 판단해서 context/contextEvidence로 표시하세요. ");
         sb.append("candidateExamples 같은 단어 하나만 보고 정하지 말고, 바로 앞뒤 문장과 전체 문맥까지 실제로 확인한 경우에만 UNKNOWN이 아닌 값을 쓰세요.\n");
         sb.append("  · PRODUCT_HEALTH_EFFECT_COPY: 주변 문맥에서 이 문장이 이 제품의 건강 효과를 주장하는 것으로 확인됨(배송·편의성 등 비건강 효과가 아님)\n");
@@ -351,7 +372,7 @@ public class ProductContentExtractionService {
         sb.append("- 해당하는 게 없으면 riskSignals는 빈 배열로 반환하세요.\n\n");
 
         sb.append("반드시 아래 JSON 형식으로만 응답하세요. 다른 설명은 붙이지 마세요.\n");
-        sb.append("{\"claims\": [{\"claimText\": \"주장/표현 문장 원문 그대로\", \"source\": \"본문\" 또는 해당 이미지 URL, ");
+        sb.append("{\"claims\": [{\"claimText\": \"입력에 있는 문자열을 글자 하나 바꾸지 말고 그대로 복사\", \"source\": \"본문\" 또는 해당 이미지 URL, ");
         sb.append("\"context\": \"PRODUCT_HEALTH_EFFECT_COPY\" 또는 \"PRODUCT_COPY\" 또는 \"NON_PRODUCT_INFORMATION\" 또는 \"UNKNOWN\", ");
         sb.append("\"contextEvidence\": \"판단 근거 한 문장\" 또는 null, \"sourceLineIndex\": 3 또는 null}], ");
         sb.append("\"productCandidates\": [{\"productReportNo\": \"...\" 또는 null, \"productName\": \"...\" 또는 null, ");
