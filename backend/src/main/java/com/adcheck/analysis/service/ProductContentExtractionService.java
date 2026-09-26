@@ -10,8 +10,10 @@ import tools.jackson.core.JacksonException;
 import tools.jackson.databind.ObjectMapper;
 
 import java.util.ArrayList;
+import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 import java.util.TreeSet;
 import java.util.stream.Collectors;
 
@@ -170,19 +172,48 @@ public class ProductContentExtractionService {
         return toSource(rawSource, null, ocrResults, List.of());
     }
 
-    /** claimId는 이 분석 1건 안에서만 유일하면 되는 로컬 식별자라 순서대로 채번한다. */
+    /**
+     * claimId는 이 분석 1건 안에서만 유일하면 되는 로컬 식별자라 순서대로 채번한다.
+     *
+     * <p>줄바꿈·연속 공백을 공백 하나로 눌러 담고, 그 형태가 같으면 같은 Claim으로 본다.
+     *
+     * <p>OCR 텍스트에는 줄바꿈이 섞여 있는데, 모델이 회차마다 그걸 살리기도 하고 합치기도 한다.
+     * 둘 다 "원문 그대로"라 지시 위반이 아니지만 문자열로는 다른 Claim이 되어, 같은 항목이
+     * 두 벌로 갈리고 재사용 캐시도 빗나간다. 실측(2026-09-27, 같은 입력 5회):
+     * <pre>
+     *   (2/5회) "아스타잔틴\n(헤마토코쿠스 추출물)\n4mg"
+     *   (3/5회) "아스타잔틴 (헤마토코쿠스 추출물) 4mg"   ← 같은 항목인데 별개로 집계
+     * </pre>
+     * 문자열 그대로 비교하면 안정도 0%인데, 공백을 정규화하면 뽑히는 항목이 4개로 일정했다.
+     * 즉 남은 편차의 상당 부분이 내용이 아니라 표기 차이였다.
+     *
+     * <p>모델에게 줄바꿈 처리를 매번 정확히 시키는 것보다 받은 뒤 정리하는 쪽이 결정론적이라
+     * 여기서 처리한다. 하이라이트를 깨뜨릴 걱정은 지금 없다 — 익스텐션은 아직 문구를 화면에
+     * 표시할 뿐이고(useAdCheck.ts), 위치는 selector로 따로 들고 간다. 표시 품질 면에서도
+     * 줄바꿈이 끼어 있는 것보다 한 줄이 낫다.
+     */
     private static List<ExtractedClaim> toExtractedClaims(
             List<RawClaim> rawClaims, Map<String, String> ocrResults, List<Source> lineSources) {
         List<ExtractedClaim> claims = new ArrayList<>();
+        Set<String> seen = new LinkedHashSet<>();
         int index = 1;
         for (RawClaim raw : rawClaims) {
+            String claimText = collapseWhitespace(raw.claimText());
+            if (claimText.isEmpty() || !seen.add(claimText)) {
+                continue;
+            }
             claims.add(new ExtractedClaim(
-                    "claim-" + index, raw.claimText(),
+                    "claim-" + index, claimText,
                     toSource(raw.source(), raw.sourceLineIndex(), ocrResults, lineSources),
                     parseContext(raw.context()), raw.contextEvidence()));
             index++;
         }
         return claims;
+    }
+
+    /** 줄바꿈을 포함한 연속 공백을 공백 하나로 누른다. */
+    private static String collapseWhitespace(String text) {
+        return text == null ? "" : text.strip().replaceAll("\\s+", " ");
     }
 
     /** 모르는 값·null이면 안전하게 UNKNOWN으로 — RiskLevel.fromSeverity()와 같은 폴백 정책. */
@@ -334,6 +365,18 @@ public class ProductContentExtractionService {
         sb.append("더 자연스러워 보여도 고치지 마세요.\n");
         sb.append("  · 원문이 \"아스타잔틴(헤마토코쿠스 추출물) 4mg\"이면 괄호 앞 공백을 넣거나 빼지 마세요.\n");
         sb.append("  · 한 줄에서 필요한 부분만 잘라 쓰는 것은 됩니다. 단 잘라낸 구간은 원문과 완전히 같아야 합니다.\n");
+        // 2026-09-27 실측: 원료표 이미지가 들어간 입력에서 원문 보존이 100%→52%로 떨어졌다.
+        // "원문에 없음"으로 잡힌 3건이 전부 공식 기능성 문구였는데, 원료표에 항목별로 흩어져
+        // 있는 것을 모델이 쉼표로 이어 붙여 한 문장으로 재구성한 것이었다. 각 조각은 실재하니
+        // 위의 "글자 그대로" 지시는 지킨 셈이지만, 합쳐진 문장은 페이지에 없다.
+        // claimText는 익스텐션이 페이지에서 찾아 하이라이트하는 데 쓰이므로 이러면 하이라이트가
+        // 실패하고, 재사용 캐시도 빗나간다.
+        sb.append("  · <b>여러 줄을 이어 붙이지 마세요.</b> 떨어져 있는 항목을 쉼표나 가운뎃점으로 묶어 ");
+        sb.append("한 문장으로 만들면 페이지에 없는 문장이 됩니다. 예를 들어 원료표에 ");
+        sb.append("\"철의 흡수에 필요\"와 \"항산화 작용을 하여 유해산소로부터 세포를 보호하는데 필요\"가 ");
+        sb.append("각각 다른 줄에 있으면, 둘을 합치지 말고 <b>각각 별개의 claim으로</b> 내거나 한쪽만 고르세요.\n");
+        sb.append("  · 줄바꿈이 섞인 구간을 옮길 때는 줄바꿈을 공백 하나로 바꿔도 됩니다. ");
+        sb.append("단 <b>연속한 줄</b>이어야 하고, 떨어진 줄을 끌어와 붙이는 것은 안 됩니다.\n");
         sb.append("- 각 claim마다 이 문장을 판매자의 제품 효과 주장으로 볼 수 있는지, 근거 위치와 함께 판단해서 context/contextEvidence로 표시하세요. ");
         sb.append("candidateExamples 같은 단어 하나만 보고 정하지 말고, 바로 앞뒤 문장과 전체 문맥까지 실제로 확인한 경우에만 UNKNOWN이 아닌 값을 쓰세요.\n");
         sb.append("  · PRODUCT_HEALTH_EFFECT_COPY: 주변 문맥에서 이 문장이 이 제품의 건강 효과를 주장하는 것으로 확인됨(배송·편의성 등 비건강 효과가 아님)\n");
