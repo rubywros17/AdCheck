@@ -160,6 +160,47 @@ class AnalysisRequestFingerprintTest {
         assertThat(fingerprint.generate(nullValues)).isEqualTo(fingerprint.generate(emptyValues));
     }
 
+    /**
+     * selector가 달라도 내용이 같으면 같은 요청으로 본다 — 재사용 캐시가 성립하는 근거다.
+     *
+     * <p>실측(2026-09-27, i-hi.co.kr/product_no=111): 같은 페이지를 연달아 분석했는데 텍스트
+     * 146개·이미지 24장이 내용까지 동일한데도 해시가 갈렸다. 원인은 네이버페이 결제 위젯
+     * 두 줄이었고, 하나는 id에 타임스탬프가 박혀 있었으며(#NPAY_PROMOTION_IDNC_ID_1790436451926390)
+     * 다른 하나는 위젯 로딩 타이밍에 따라 nth-of-type 번호가 밀렸다. 그 탓에 캐시가 매번
+     * 빗나가 같은 페이지를 볼 때마다 새로 분석했고, AI#1 편차가 그대로 드러나
+     * "새로고침할 때마다 검출 문구 수가 다르다"는 증상이 됐다.
+     *
+     * <p>아래 두 selector는 그때 실제로 관측된 값이다.
+     */
+    @Test
+    void selector만_달라도_같은_요청으로_본다() {
+        List<PageTextEvidence> before = List.of(
+                new PageTextEvidence("이벤트100% 지급! 최대 1만원 혜택 확인하기",
+                        "#NPAY_PROMOTION_IDNC_ID_1790436451926390"),
+                new PageTextEvidence("간 건강에 도움을 줄 수 있습니다",
+                        "div:nth-of-type(7) > div:nth-of-type(2) > div > p"));
+        List<PageTextEvidence> after = List.of(
+                new PageTextEvidence("이벤트100% 지급! 최대 1만원 혜택 확인하기",
+                        "#NPAY_PROMOTION_IDNC_ID_179043652200755"),
+                new PageTextEvidence("간 건강에 도움을 줄 수 있습니다",
+                        "div:nth-of-type(6) > div:nth-of-type(2) > div > p"));
+
+        assertThat(fingerprint.generate(request("상품", "제목", before, List.of())))
+                .isEqualTo(fingerprint.generate(request("상품", "제목", after, List.of())));
+    }
+
+    /** 반대로 내용이 바뀌면 반드시 다른 요청이어야 한다 — 위 완화가 과하지 않은지 함께 고정한다. */
+    @Test
+    void 내용이_다르면_여전히_다른_요청이다() {
+        List<PageTextEvidence> one = List.of(
+                new PageTextEvidence("간 건강에 도움을 줄 수 있습니다", "p.claim"));
+        List<PageTextEvidence> other = List.of(
+                new PageTextEvidence("간 건강을 완벽하게 회복시킵니다", "p.claim"));
+
+        assertThat(fingerprint.generate(request("상품", "제목", one, List.of())))
+                .isNotEqualTo(fingerprint.generate(request("상품", "제목", other, List.of())));
+    }
+
     private CreateAnalysisRequest request(
             String productName,
             String pageTitle,
