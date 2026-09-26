@@ -26,6 +26,7 @@ public class AnalysisResultResolver {
     private final AnalysisProperties properties;
     private final AnalysisRepository analysisRepository;
     private final AnalysisResultJsonCodec resultJsonCodec;
+    private final AnalysisRequestChangeLogger requestChangeLogger;
     private final Clock clock;
 
     public AnalysisResultResolver(
@@ -34,6 +35,7 @@ public class AnalysisResultResolver {
             AnalysisProperties properties,
             AnalysisRepository analysisRepository,
             AnalysisResultJsonCodec resultJsonCodec,
+            AnalysisRequestChangeLogger requestChangeLogger,
             Clock clock
     ) {
         this.urlNormalizer = urlNormalizer;
@@ -41,6 +43,7 @@ public class AnalysisResultResolver {
         this.properties = properties;
         this.analysisRepository = analysisRepository;
         this.resultJsonCodec = resultJsonCodec;
+        this.requestChangeLogger = requestChangeLogger;
         this.clock = clock;
     }
 
@@ -50,6 +53,9 @@ public class AnalysisResultResolver {
                 requestFingerprint.generate(request),
                 requirePipelineVersion()
         );
+        // 같은 URL인데 해시가 갈리면 재사용을 못 하고 매번 새로 분석하게 된다. 그때 무엇이
+        // 달라졌는지 남겨둔다 — 저장되는 건 해시뿐이라 나중에는 되짚을 수 없다.
+        requestChangeLogger.logChangesSince(reuseKey.normalizedUrl(), reuseKey.contentHash(), request);
 
         Optional<Analysis> completed = analysisRepository.findLatestReusableCompleted(
                 reuseKey.normalizedUrl(),

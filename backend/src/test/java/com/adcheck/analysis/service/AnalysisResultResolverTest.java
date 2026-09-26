@@ -58,6 +58,7 @@ class AnalysisResultResolverTest {
                 properties,
                 repository,
                 resultJsonCodec,
+                new AnalysisRequestChangeLogger(),
                 Clock.fixed(NOW, ZoneOffset.UTC)
         );
 
