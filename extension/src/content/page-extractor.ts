@@ -234,17 +234,34 @@ export function extractImageEvidence(container: HTMLElement | null = findDetailC
 
   const seen = new Set<string>();
   const evidence: PageImageEvidence[] = [];
+  // 관문별로 몇 장을 왜 버렸는지 센다. 이게 없을 때 "23장이 왔다"는 결과만 보여서,
+  // 원료표가 담긴 이미지 한 장이 빠지는 원인을 추측으로 좁히다 세 번 틀렸다(2026-09-23).
+  const skipped = { excludedSection: 0, noUrl: 0, duplicate: 0, irrelevant: 0 };
+  const skippedDetail: Array<{ 이유: string; url: string; alt: string }> = [];
 
   for (const image of container.querySelectorAll<HTMLImageElement>("img")) {
     if (evidence.length >= MAX_IMAGE_EVIDENCE_COUNT) {
       break;
     }
     if (isInsideExcludedSection(image, container)) {
+      skipped.excludedSection += 1;
+      skippedDetail.push({ 이유: "제외섹션", url: image.getAttribute("ec-data-src") ?? image.src, alt: image.alt });
       continue;
     }
 
     const url = extractImageUrl(image);
-    if (!url || seen.has(url) || isIrrelevantImage(image, url)) {
+    if (!url) {
+      skipped.noUrl += 1;
+      skippedDetail.push({ 이유: "URL없음", url: image.getAttribute("ec-data-src") ?? image.src, alt: image.alt });
+      continue;
+    }
+    if (seen.has(url)) {
+      skipped.duplicate += 1;
+      continue;
+    }
+    if (isIrrelevantImage(image, url)) {
+      skipped.irrelevant += 1;
+      skippedDetail.push({ 이유: "부적합필터", url, alt: image.alt });
       continue;
     }
 
@@ -254,6 +271,15 @@ export function extractImageEvidence(container: HTMLElement | null = findDetailC
       alt: truncateNullable(normalizeText(image.alt), 500),
     });
   }
+
+  console.info("[AdCheck] 이미지 수집", {
+    컨테이너: `${container.tagName}#${container.id || "-"}.${
+      typeof container.className === "string" ? container.className.split(/\s+/)[0] : "-"}`,
+    컨테이너_내_img: container.querySelectorAll("img").length,
+    수집됨: evidence.length,
+    건너뜀: skipped,
+    건너뛴상세: skippedDetail,
+  });
   return evidence;
 }
 
@@ -442,9 +468,24 @@ function extractSrcsetUrls(srcset: string | null): string[] {
 }
 
 function isIrrelevantImage(image: HTMLImageElement, url: string): boolean {
+  // 로고·아이콘을 걸러내는 크기 검사. 단 <b>채택한 url이 실제로 화면에 그려진 경우에만</b>
+  // 크기를 신뢰한다. 지연 로딩 중인 이미지는 1×1 투명 PNG(data URI) placeholder가 그려져
+  // 있어 naturalWidth가 1로 읽히는데, 그걸 그대로 믿으면 실제 860×3043인 원료표까지
+  // 로고 취급해 버린다.
+  //
+  // 실측(2026-09-23~27, i-hi.co.kr/product_no=111): 원재료명·함량·품목보고번호가 담긴
+  // "상품정보고시" 이미지가 이 검사에서 버려져 원료 확정 0건 → 원료별 규칙 31개 미실행 →
+  // C05 보류 → officialFunction·표시란 필터 무력화로 이어졌고, Claim이 전부 "확인이 필요한
+  // 표현입니다." HIGH 카드가 됐다. 맨 아래까지 스크롤해 이미지가 로드된 뒤 분석하면 24장이
+  // 전부 수집되는데, 스크롤 없이 누르면 23장이 되는 차이가 여기서 났다.
+  //
+  // image.complete로는 못 가른다 — placeholder 자체는 로드가 끝나 complete가 true다.
+  // 로드를 기다리는 방법(대기 보강)도 시도했다 실패했는데, 애초에 우리는 URL만 필요하고
+  // 백엔드가 직접 내려받으므로 브라우저 렌더링을 기다릴 이유가 없다.
+  const renderedUrl = image.currentSrc || image.src;
   const width = image.naturalWidth || image.width;
   const height = image.naturalHeight || image.height;
-  if (width > 0 && height > 0 && width < 80 && height < 80) {
+  if (renderedUrl === url && width > 0 && height > 0 && width < 80 && height < 80) {
     return true;
   }
 
@@ -456,10 +497,16 @@ function isIrrelevantImage(image: HTMLImageElement, url: string): boolean {
   }
 
   const descriptor = [decodedUrl, image.alt, getElementDescriptor(image)].join(" ");
-  if (
-    IRRELEVANT_IMAGE_PATTERN.test(descriptor) ||
-    EXCLUDED_SECTION_PATTERN.test(image.alt)
-  ) {
+  const irrelevantMatch = descriptor.match(IRRELEVANT_IMAGE_PATTERN);
+  const excludedMatch = image.alt.match(EXCLUDED_SECTION_PATTERN);
+  if (irrelevantMatch || excludedMatch) {
+    // 어느 단어에 왜 걸렸는지 남긴다. 이게 없어서 URL·alt·class를 따로 확인하고도
+    // 원인을 못 짚었다(2026-09-23~27, 상품정보고시 이미지 한 장이 계속 제외되던 건).
+    console.info("[AdCheck] 부적합 이미지로 제외", {
+      매칭단어: irrelevantMatch?.[0] ?? excludedMatch?.[0],
+      어디서: irrelevantMatch ? "url+alt+속성" : "alt",
+      descriptor: descriptor.slice(0, 400),
+    });
     return true;
   }
 
