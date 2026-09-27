@@ -3,7 +3,6 @@ package com.adcheck.analysis.service;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Value;
-import org.springframework.context.annotation.Primary;
 import org.springframework.stereotype.Service;
 
 import java.util.ArrayList;
@@ -29,8 +28,9 @@ import java.util.Optional;
  * 정상 응답이라 폴백하지 않는다 — 147장 중 11장이 양쪽 엔진 모두 빈 결과였던 실제로 글자가 없는
  * 이미지였고, 이런 것까지 폴백하면 Gemini 호출만 헛되이 늘어난다.
  */
+// @Primary는 CachingOcrService가 갖는다 — 파이프라인의 진입점은 캐시이고, 이 서비스는 그
+// 캐시가 비었을 때 실제로 인식하는 뒤쪽이다.
 @Service
-@Primary
 public class FallbackOcrService implements OcrService {
 
     private static final Logger log = LoggerFactory.getLogger(FallbackOcrService.class);
