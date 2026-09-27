@@ -84,8 +84,10 @@ class RealPageExtractionStabilityTest {
         String configured = System.getProperty("stability.inputs", System.getenv("STABILITY_INPUTS"));
         List<String> inputs = List.of((configured == null || configured.isBlank()
                 ? FROZEN_INPUT : configured).split(","));
+        String model = model();
+        System.out.printf("%n모델: %s%n", model);
         ProductContentExtractionService service = new ProductContentExtractionService(
-                new GeminiClient(apiKey, "gemini-3.5-flash-lite"),
+                new GeminiClient(apiKey, model),
                 new IngredientMatchingService(List.of(), List.of(), List.of(), List.of()));
 
         List<PageOutcome> outcomes = new ArrayList<>();
@@ -283,6 +285,18 @@ class RealPageExtractionStabilityTest {
                 .mapToLong(item -> runs.stream().filter(run -> run.contains(item)).count())
                 .sum();
         return 100.0 * seen / ((double) union.size() * runs.size());
+    }
+
+    /**
+     * {@code STABILITY_MODEL} — 어느 모델로 잴지. 기본은 운영과 같은 {@code gemini-3.5-flash-lite}.
+     *
+     * <p>"편차가 큰 게 가벼운 모델 탓인가"를 가르려고 둔다. 같은 세대에서 한 단계 위
+     * ({@code gemini-3.5-flash})와 견주면 세대 차이가 아니라 <b>모델 크기</b>의 효과만 분리된다.
+     * 상위 모델은 무료 티어 분당 한도가 더 낮으므로 회차 간격을 넉넉히 둘 것.
+     */
+    private String model() {
+        String raw = System.getProperty("stability.model", System.getenv("STABILITY_MODEL"));
+        return raw == null || raw.isBlank() ? "gemini-3.5-flash-lite" : raw.strip();
     }
 
     /** {@code STABILITY_UNION} — K회 뽑아 합집합을 쓰는 실험. 1이면 끈다. */
