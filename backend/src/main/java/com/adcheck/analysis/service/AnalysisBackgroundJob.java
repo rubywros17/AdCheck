@@ -127,7 +127,8 @@ public class AnalysisBackgroundJob {
         List<FindingResponse> findings = assembled.findings().stream()
                 .map(FindingResponse::from)
                 .toList();
-        AnalysisSummary summary = new AnalysisSummary(findings.size(), assembled.officialFunctionMatchedCount());
+        AnalysisSummary summary = new AnalysisSummary(findings.size(),
+                assembled.officialFunctionMatchedCount(), assembled.unevaluatedClaimCount());
 
         return new AnalysisResponse(
                 analysisId,

@@ -107,7 +107,7 @@ class AnalysisApiIntegrationTest {
                             List.of()
                     ))
                     .toList();
-            return new FindingAssembler.Result(null, findings, 0, 0);
+            return new FindingAssembler.Result(null, findings, 0, 0, 0);
         });
     }
 

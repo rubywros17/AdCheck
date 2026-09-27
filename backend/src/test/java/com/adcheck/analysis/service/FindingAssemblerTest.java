@@ -85,7 +85,7 @@ class FindingAssemblerTest {
 
     @Test
     void reviewRequiredOnlyProducesFixedMessageFindingWithoutCallingAi2() {
-        ClaimAnalysisResult claimResult = singleClaimResult("정말 좋은 효과가 있어요");
+        ClaimAnalysisResult claimResult = genuineReviewClaimResult("정말 좋은 효과가 있어요");
 
         FindingAssembler.Result result = findingAssembler.assemble(claimResult);
 
@@ -93,6 +93,29 @@ class FindingAssemblerTest {
         var finding = result.findings().getFirst();
         assertThat(finding.message()).isEqualTo("확인이 필요한 표현입니다.");
         assertThat(finding.riskLevel()).isEqualTo(RiskLevel.HIGH);
+        org.mockito.Mockito.verifyNoInteractions(geminiClaimComparisonService);
+    }
+
+    /**
+     * 정규식이 아무것도 못 짚어 흘러나온 것({@code OUTSIDE_SUPPORTED_LANGUAGE})은 Finding이
+     * 아니다 — "위험이 확인됐다"가 아니라 "평가기의 지원 범위를 벗어났다"는 뜻이기 때문이다.
+     *
+     * <p>다만 조용히 사라지면 안 된다. 그러면 "위험 0건"이 "문제 없음"으로 읽히는데, 실제로는
+     * 확인하지 못한 것이다. 그래서 건수로 남긴다.
+     *
+     * <p>{@code NOT_MATCHED}로 바꾸지 않는 이유도 같다 — 정규식 불일치는 "해당 없음"의 근거가
+     * 아니라서, 표현이 다른 진짜 위반까지 지워버린다.
+     */
+    @Test
+    void 자동_판정_범위_밖은_Finding이_아니라_미평가_건수로_센다() {
+        // source가 있으므로 문맥은 확정되고, C07은 정규식 어디에도 안 걸려
+        // OUTSIDE_SUPPORTED_LANGUAGE로 떨어진다.
+        ClaimAnalysisResult claimResult = singleClaimResult("정말 좋은 효과가 있어요");
+
+        FindingAssembler.Result result = findingAssembler.assemble(claimResult);
+
+        assertThat(result.findings()).isEmpty();
+        assertThat(result.unevaluatedClaimCount()).isEqualTo(1);
         org.mockito.Mockito.verifyNoInteractions(geminiClaimComparisonService);
     }
 
@@ -138,9 +161,10 @@ class FindingAssemblerTest {
     }
 
     /**
-     * "정말 좋은 효과가 있어요"는 C07을 진짜(reasonCode=OUTSIDE_SUPPORTED_LANGUAGE)
-     * REVIEW_REQUIRED로 판정한다({@link #reviewRequiredOnlyProducesFixedMessageFindingWithoutCallingAi2}
-     * 참고). 여기에 rule_code가 알파벳순으로 "C07"보다 앞서는(그래서 필터링이 없다면
+     * source 없는 Claim은 문맥이 확정되지 않아 C07이 진짜(reasonCode=CONTEXT_UNVERIFIED)
+     * REVIEW_REQUIRED를 낸다({@link #reviewRequiredOnlyProducesFixedMessageFindingWithoutCallingAi2}
+     * 참고) — {@code OUTSIDE_SUPPORTED_LANGUAGE}는 이제 Finding이 되지 않으므로 이 검증에 쓸 수
+     * 없다. 여기에 rule_code가 알파벳순으로 "C07"보다 앞서는(그래서 필터링이 없다면
      * {@code mostSevere()}의 동점 tie-break에서 이겨버리는) UNSUPPORTED_RULE 더미 규칙을
      * 같은 HIGH severity로 추가해서, reasonCode 필터링이 실제로 UNSUPPORTED_RULE을
      * 제외하고 진짜 REVIEW_REQUIRED(C07)만 남기는지 검증한다.
@@ -149,7 +173,7 @@ class FindingAssemblerTest {
     void genuineReviewRequiredSurvivesWhileUnsupportedRuleIsExcludedEvenIfItWouldWinByOrder() {
         seedUnsupportedRule("A01_DUMMY_UNSUPPORTED", "TEST_CATEGORY_DUMMY", "HIGH");
 
-        ClaimAnalysisResult claimResult = singleClaimResult("정말 좋은 효과가 있어요");
+        ClaimAnalysisResult claimResult = genuineReviewClaimResult("정말 좋은 효과가 있어요");
 
         FindingAssembler.Result result = findingAssembler.assemble(claimResult);
 
@@ -162,7 +186,7 @@ class FindingAssemblerTest {
 
     @Test
     void 판정된_규칙을_rules에_모두_담고_대표_규칙은_기존_필드에_그대로_남는다() {
-        ClaimAnalysisResult claimResult = singleClaimResult("정말 좋은 효과가 있어요");
+        ClaimAnalysisResult claimResult = genuineReviewClaimResult("정말 좋은 효과가 있어요");
 
         FindingAssembler.Result result = findingAssembler.assemble(claimResult);
 
@@ -181,7 +205,7 @@ class FindingAssemblerTest {
     void 평가기가_없는_규칙은_rules에도_담기지_않는다() {
         seedUnsupportedRule("A02_DUMMY_UNSUPPORTED", "TEST_CATEGORY_DUMMY2", "HIGH");
 
-        ClaimAnalysisResult claimResult = singleClaimResult("정말 좋은 효과가 있어요");
+        ClaimAnalysisResult claimResult = genuineReviewClaimResult("정말 좋은 효과가 있어요");
 
         FindingAssembler.Result result = findingAssembler.assemble(claimResult);
 
@@ -263,6 +287,19 @@ class FindingAssemblerTest {
                 """,
                 ruleCode, judgmentCategory, severity
         );
+    }
+
+    /**
+     * source가 없는 Claim — {@code ClaimContextClassifier}가 문맥을 UNKNOWN으로 두고
+     * contextEvidence도 비워두므로, 평가기가 <b>진짜</b> REVIEW_REQUIRED
+     * ({@code CONTEXT_UNVERIFIED})를 낸다.
+     *
+     * <p>{@code OUTSIDE_SUPPORTED_LANGUAGE}(정규식이 아무것도 못 짚어 흘러나온 것)와 구분하기
+     * 위해 필요하다 — 후자는 이제 Finding이 되지 않고 미평가 건수로만 센다.
+     */
+    private ClaimAnalysisResult genuineReviewClaimResult(String claimText) {
+        ExtractedClaim claim = new ExtractedClaim("claim-1", claimText, null);
+        return new ClaimAnalysisResult(List.of(claim), List.of(), List.of(), List.of());
     }
 
     private ClaimAnalysisResult singleClaimResult(String claimText) {

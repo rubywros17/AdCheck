@@ -16,7 +16,8 @@ public class AnalysisResultSnapshotMapper {
 
         AnalysisResultSnapshot.Summary summary = new AnalysisResultSnapshot.Summary(
                 response.summary().findingCount(),
-                response.summary().officialFunctionMatchedCount()
+                response.summary().officialFunctionMatchedCount(),
+                response.summary().unevaluatedClaimCount()
         );
         var findings = response.findings().stream()
                 .map(this::toSnapshot)
@@ -33,7 +34,10 @@ public class AnalysisResultSnapshotMapper {
 
         AnalysisSummary summary = new AnalysisSummary(
                 snapshot.summary().findingCount(),
-                snapshot.summary().officialFunctionMatchedCount()
+                snapshot.summary().officialFunctionMatchedCount(),
+                // 옛 JSON에는 이 키가 없어 null로 온다 — 그때는 0으로 본다.
+                snapshot.summary().unevaluatedClaimCount() == null
+                        ? 0 : snapshot.summary().unevaluatedClaimCount()
         );
         var findings = snapshot.findings().stream()
                 .map(this::toResponse)

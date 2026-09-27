@@ -163,17 +163,29 @@ public class FindingAssembler {
 
         long ai2StartedAt = System.currentTimeMillis();
         List<Finding> findings = new ArrayList<>(compareAllWithAi2(needsAi2, confirmedProduct, assembled, evidenceByClaimId));
+        // 평가기가 판단을 못 한 문구 수. Finding에서는 빠지지만 "문제 없음"과 구분해 알려야 한다.
+        int unevaluatedClaims = 0;
         for (ClaimRuleOutcome outcome : outcomes) {
             if (outcome.matched().isEmpty() && !outcome.reviewRequired().isEmpty()) {
-                toReviewRequiredFinding(outcome, assembled.officialFunctions()).ifPresent(findings::add);
+                Optional<Finding> finding = toReviewRequiredFinding(outcome, assembled.officialFunctions());
+                if (finding.isPresent()) {
+                    findings.add(finding.get());
+                } else {
+                    // 걸린 규칙은 있는데 전부 평가기 범위 밖이었다 — 확인하지 못한 문구다.
+                    unevaluatedClaims++;
+                }
             }
             // matched/reviewRequired 둘 다 비어있으면(전부 NOT_MATCHED) Finding을 만들지 않는다.
+        }
+        if (unevaluatedClaims > 0) {
+            log.info("자동 판정 범위를 벗어난 문구 {}건 — Finding에서 제외하되 요약에 건수로 남긴다",
+                    unevaluatedClaims);
         }
         log.info("[TIMING] ⑥ AI#2 비교+Finding 조립 완료 — {}ms (AI#2 호출 대상 {}건, 최종 Finding {}건)",
                 System.currentTimeMillis() - ai2StartedAt, needsAi2.size(), findings.size());
 
         return new Result(product, List.copyOf(findings), assembled.officialFunctions().size(),
-                assembled.confirmedIngredients().size());
+                assembled.confirmedIngredients().size(), unevaluatedClaims);
     }
 
     private Product identifyProduct(List<ProductCandidate> candidates) {
@@ -480,7 +492,7 @@ public class FindingAssembler {
             List<OfficialFunction> officialFunctions
     ) {
         List<RuleAnalysisResult.RuleMatch> genuine = outcome.reviewRequired().stream()
-                .filter(m -> m.evaluation().reasonCode() != RuleEvaluation.ReasonCode.UNSUPPORTED_RULE)
+                .filter(m -> !isOutsideEvaluatorScope(m.evaluation().reasonCode()))
                 .toList();
         if (genuine.isEmpty()) {
             return Optional.empty();
@@ -626,6 +638,36 @@ public class FindingAssembler {
                         .thenComparingInt(m -> RiskLevel.fromSeverity(m.severity()).ordinal()));
     }
 
+    /**
+     * 평가기가 <b>판단을 내린 것이 아니라</b> "우리 범위 밖"이라 떨어진 경우인지.
+     *
+     * <p>{@code REVIEW_REQUIRED}는 이유가 여러 가지인데, 그중 둘은 성격이 다르다.
+     * {@code UNSUPPORTED_RULE}은 평가기 자체가 없어 시도조차 못 한 것이고,
+     * {@code OUTSIDE_SUPPORTED_LANGUAGE}는 평가기는 있지만 지원하는 문장 형태가 아니라
+     * 흘러나온 것이다. 둘 다 <b>위험이 확인됐다는 뜻이 아니다.</b>
+     *
+     * <p>그런데 지금까지 앞의 하나만 걸러냈다. 남은 하나는 Finding이 되고, 규칙 본래의
+     * severity가 그대로 위험도로 쓰여(C05·C07·C08·C09·C24가 전부 HIGH) 무해한 섹션 제목까지
+     * 실제 위반과 같은 빨간 카드가 됐다. 실측(2026-09-27, 실제 문구 86건 × 5규칙)에서 이 다섯은
+     * 판정 430건이 전부 이 경로였고, 저장된 Finding의 76%가 여기서 나왔다.
+     *
+     * <p>{@code OFFICIAL_FUNCTION_DATA_INCOMPLETE}(C05)도 같은 이유로 넣는다. 이 게이트는
+     * 제품별 함량·일일섭취량까지 확인돼야 열리는데, 그 데이터가 전체 제품의 3.3%에만 있어
+     * <b>구조적으로 영원히 보류</b>다. 실측에서 실제 문구 86건이 전부 이 코드였고, 실제 분석
+     * (2026-09-27, analysisId=78)에서는 C07·C08·C09·C24를 전부 걸러내고도 <b>C05 하나 때문에</b>
+     * "아연 8.5mg"·"비타민D 100ug"이 HIGH 카드로 살아남았다 — 규칙 하나만 남아도 카드가 생긴다.
+     *
+     * <p><b>{@code NOT_MATCHED}로 바꾸지는 않는다.</b> 정규식에 안 걸렸다는 것이 "해당 없음"의
+     * 근거는 아니다 — 표현이 다른 진짜 위반까지 "문제 없음"으로 지워버린다. 집계에서만 빼고
+     * 건수는 {@code unevaluatedClaimCount}로 남겨, 확인하지 못했다는 사실이 사라지지 않게 한다.
+     * 판정 사실 자체도 {@code rules}에는 그대로 보존한다(→ {@link #appendRules}).
+     */
+    private static boolean isOutsideEvaluatorScope(RuleEvaluation.ReasonCode code) {
+        return code == RuleEvaluation.ReasonCode.UNSUPPORTED_RULE
+                || code == RuleEvaluation.ReasonCode.OUTSIDE_SUPPORTED_LANGUAGE
+                || code == RuleEvaluation.ReasonCode.OFFICIAL_FUNCTION_DATA_INCOMPLETE;
+    }
+
     private record ClaimRuleOutcome(
             ExtractedClaim claim,
             List<RuleAnalysisResult.RuleMatch> matched,
@@ -634,6 +676,6 @@ public class FindingAssembler {
     }
 
     public record Result(Product product, List<Finding> findings, int officialFunctionMatchedCount,
-                         int confirmedIngredientCount) {
+                         int confirmedIngredientCount, int unevaluatedClaimCount) {
     }
 }

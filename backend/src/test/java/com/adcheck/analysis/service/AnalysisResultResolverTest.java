@@ -434,7 +434,7 @@ class AnalysisResultResolverTest {
 
     private AnalysisResultSnapshot snapshot() {
         return new AnalysisResultSnapshot(
-                new AnalysisResultSnapshot.Summary(1, 1),
+                new AnalysisResultSnapshot.Summary(1, 1, 0),
                 List.of(new AnalysisResultSnapshot.Finding(
                         "시력을 회복합니다.",
                         "#claim",
