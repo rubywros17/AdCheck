@@ -46,6 +46,23 @@ import java.util.Set;
 class RealPageExtractionStabilityTest {
 
     private static final int REPEAT = 5;
+
+    /**
+     * 한 번 뽑은 결과를 그대로 쓰지 않고 <b>K회 뽑아 합집합</b>을 쓰면 어떻게 되는지 재기 위한
+     * 설정({@code STABILITY_UNION}, 기본 1 = 끄기).
+     *
+     * <p>왜 합집합인가: 출현율이 55%라는 것은 claim 하나가 5회 중 2~3회만 잡힌다는 뜻이다.
+     * 독립이라고 보면 3회 합집합의 기대 포착률은 1 − 0.45³ ≈ 91%다. 호출 비용은 거의 안 든다 —
+     * 규칙 판정은 규칙 축으로, AI#2는 Claim 전체를 한 번에 묶으므로 <b>Claim이 늘어도 뒤쪽
+     * 호출 수는 그대로</b>이고, 늘어나는 것은 AI#1 호출 K−1회뿐이다.
+     *
+     * <p>대신 잡음도 같이 데려온다. 그래서 재현율만이 아니라 <b>claim 수가 몇 배가 되는지</b>를
+     * 함께 본다.
+     *
+     * <p>켜면 페이지당 {@code UNION_SAMPLES × K}회 호출한다. 같은 실행에서 단일 실행 지표와
+     * 합집합 지표를 모두 내므로 둘을 같은 조건에서 견줄 수 있다.
+     */
+    private static final int UNION_SAMPLES = 3;
     /** 한 페이지를 마치고 다음 페이지로 넘어가기 전 간격. 무료 티어 15 RPM에 걸리지 않게 둔다. */
     private static final long PAGE_GAP_MS = 20_000L;
 
@@ -108,6 +125,8 @@ class RealPageExtractionStabilityTest {
                 + "\n" + String.join("\n", ocr.values());
         String corpusNoSpace = corpus.replaceAll("\\s+", "");
 
+        int unionSize = unionSize();
+        int runs = unionSize == 1 ? REPEAT : unionSize * UNION_SAMPLES;
         List<Set<String>> claimRuns = new ArrayList<>();
         List<Set<String>> ingredientRuns = new ArrayList<>();
         int totalClaims = 0;
@@ -115,7 +134,7 @@ class RealPageExtractionStabilityTest {
         int spacingOnly = 0;
         List<String> fabricated = new ArrayList<>();
 
-        for (int i = 0; i < REPEAT; i++) {
+        for (int i = 0; i < runs; i++) {
             long startedAt = System.currentTimeMillis();
             var result = service.extract(blocks, ocr);
 
@@ -150,6 +169,29 @@ class RealPageExtractionStabilityTest {
         fabricated.forEach(claim -> System.out.println("     (원문에 없음) "
                 + (claim.length() > 70 ? claim.substring(0, 70) + "…" : claim)));
 
+        double recurrence = recurrence(claimRuns);
+        double avgClaims = claimRuns.stream().mapToInt(Set::size).average().orElse(0);
+        double unionRecurrence = recurrence;
+        double avgUnionClaims = avgClaims;
+        if (unionSize > 1) {
+            List<Set<String>> unions = new ArrayList<>();
+            for (int sample = 0; sample < UNION_SAMPLES; sample++) {
+                Set<String> merged = new LinkedHashSet<>();
+                for (int k = 0; k < unionSize; k++) {
+                    merged.addAll(claimRuns.get(sample * unionSize + k));
+                }
+                unions.add(merged);
+            }
+            unionRecurrence = recurrence(unions);
+            avgUnionClaims = unions.stream().mapToInt(Set::size).average().orElse(0);
+            System.out.printf("%n  -- %d회 합집합 (표본 %d개) --%n", unionSize, UNION_SAMPLES);
+            System.out.printf("  합집합 건수%s · 평균 %.1f건 (단일 실행 평균 %.1f건, %.1f배)%n",
+                    unions.stream().map(u -> String.valueOf(u.size())).toList(),
+                    avgUnionClaims, avgClaims, avgUnionClaims / Math.max(avgClaims, 0.01));
+            System.out.printf("  재현율: 단일 %.0f%% → 합집합 %.0f%%%n", recurrence, unionRecurrence);
+            report("Claim 추출 - 합집합", unions);
+        }
+
         double claimStability = report("Claim 추출 - 문자열 그대로", claimRuns);
         // 같은 문장인데 줄바꿈·띄어쓰기만 다른 경우를 한 건으로 묶어 다시 센다. OCR 텍스트에는
         // 줄바꿈이 섞여 있고 모델이 회차마다 그걸 살리거나 합치는데, 둘 다 "원문 그대로"라
@@ -165,23 +207,38 @@ class RealPageExtractionStabilityTest {
         String counts = claimRuns.stream().map(r -> String.valueOf(r.size()))
                 .reduce((a, b) -> a + "," + b).orElse("");
         return new PageOutcome(name, blocks.size(), ocr.size(), counts,
-                claimStability, normalizedStability, notInOriginal);
+                claimStability, normalizedStability, notInOriginal,
+                recurrence, unionRecurrence, avgClaims, avgUnionClaims);
     }
 
     /** 페이지별 결과를 한 표로 모은다. 한 페이지만 잰 수치를 파이프라인의 성질로 오해하지 않기 위해서다. */
     private void summarize(List<PageOutcome> outcomes) {
         System.out.printf("%n%n==== 페이지 교차 요약 (%d개 페이지 x %d회) ====%n", outcomes.size(), REPEAT);
-        System.out.printf("%-26s %6s %5s %-16s %8s %9s %8s%n",
-                "페이지", "텍스트", "OCR", "Claim 건수", "안정도", "정규화후", "원문없음");
+        boolean union = unionSize() > 1;
+        System.out.printf("%-26s %6s %5s %-16s %8s %8s %10s %8s%n",
+                "페이지", "텍스트", "OCR", "Claim 건수", "안정도", "재현율",
+                union ? "합집합재현" : "정규화후", union ? "평균건수" : "원문없음");
         for (PageOutcome o : outcomes) {
-            System.out.printf("%-26s %6d %5d %-16s %7.0f%% %8.0f%% %8d%n",
+            System.out.printf("%-26s %6d %5d %-16s %7.0f%% %7.0f%% %9.0f%% %8s%n",
                     o.name(), o.textCount(), o.ocrCount(), "[" + o.counts() + "]",
-                    o.stability(), o.normalizedStability(), o.notInOriginal());
+                    o.stability(), o.recurrence(),
+                    union ? o.unionRecurrence() : o.normalizedStability(),
+                    union ? String.format("%.1f→%.1f", o.avgClaims(), o.avgUnionClaims())
+                          : String.valueOf(o.notInOriginal()));
         }
-        System.out.printf("%n평균 안정도 %.0f%% · 정규화 후 %.0f%% · 원문에 없음 합계 %d건%n",
+        System.out.printf("%n평균 안정도 %.0f%% · 평균 재현율 %.0f%% · 원문에 없음 합계 %d건%n",
                 outcomes.stream().mapToDouble(PageOutcome::stability).average().orElse(0),
-                outcomes.stream().mapToDouble(PageOutcome::normalizedStability).average().orElse(0),
+                outcomes.stream().mapToDouble(PageOutcome::recurrence).average().orElse(0),
                 outcomes.stream().mapToInt(PageOutcome::notInOriginal).sum());
+        if (union) {
+            System.out.printf("합집합(%d회) 평균 재현율 %.0f%% · claim 평균 %.1f건 → %.1f건 (%.1f배)%n",
+                    unionSize(),
+                    outcomes.stream().mapToDouble(PageOutcome::unionRecurrence).average().orElse(0),
+                    outcomes.stream().mapToDouble(PageOutcome::avgClaims).average().orElse(0),
+                    outcomes.stream().mapToDouble(PageOutcome::avgUnionClaims).average().orElse(0),
+                    outcomes.stream().mapToDouble(PageOutcome::avgUnionClaims).average().orElse(0)
+                            / Math.max(outcomes.stream().mapToDouble(PageOutcome::avgClaims).average().orElse(1), 0.01));
+        }
     }
 
     /** 매번 나온 것(교집합)과 한 번이라도 나온 것(합집합)의 비로 안정도를 낸다. */
@@ -211,6 +268,33 @@ class RealPageExtractionStabilityTest {
         return stability;
     }
 
+    /**
+     * 각 항목이 몇 회에 등장했는지의 평균. 안정도(교집합/합집합)는 항목이 적은 페이지에서
+     * 하나만 빠져도 0%가 되어 페이지끼리 비교가 안 되는데, 이 값은 그렇지 않다 — 2026-09-27
+     * 교차 측정에서 6개 페이지가 전부 50~65%로 일정했다.
+     */
+    private double recurrence(List<Set<String>> runs) {
+        Set<String> union = new LinkedHashSet<>();
+        runs.forEach(union::addAll);
+        if (union.isEmpty()) {
+            return 0;
+        }
+        long seen = union.stream()
+                .mapToLong(item -> runs.stream().filter(run -> run.contains(item)).count())
+                .sum();
+        return 100.0 * seen / ((double) union.size() * runs.size());
+    }
+
+    /** {@code STABILITY_UNION} — K회 뽑아 합집합을 쓰는 실험. 1이면 끈다. */
+    private int unionSize() {
+        String raw = System.getProperty("stability.union", System.getenv("STABILITY_UNION"));
+        try {
+            return raw == null || raw.isBlank() ? 1 : Math.max(1, Integer.parseInt(raw.strip()));
+        } catch (NumberFormatException e) {
+            return 1;
+        }
+    }
+
     /** 클래스패스 자원으로 먼저 찾고, 없으면 파일 경로로 읽는다. */
     private byte[] read(String reference) throws Exception {
         try (var in = getClass().getClassLoader().getResourceAsStream(reference)) {
@@ -228,6 +312,8 @@ class RealPageExtractionStabilityTest {
     }
 
     private record PageOutcome(String name, int textCount, int ocrCount, String counts,
-                               double stability, double normalizedStability, int notInOriginal) {
+                               double stability, double normalizedStability, int notInOriginal,
+                               double recurrence, double unionRecurrence,
+                               double avgClaims, double avgUnionClaims) {
     }
 }
