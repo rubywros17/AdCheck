@@ -52,7 +52,7 @@ class AnalysisControllerTest {
         AnalysisResponse response = new AnalysisResponse(
                 5L,
                 AnalysisStatus.COMPLETED,
-                new AnalysisSummary(1, 1),
+                new AnalysisSummary(1, 1, 0),
                 List.of()
         );
         when(analysisService.getAnalysis(5L)).thenReturn(response);
@@ -71,7 +71,7 @@ class AnalysisControllerTest {
                         : AnalysisStatus.COMPLETED,
                 outcome == AnalysisSubmissionResult.Outcome.IN_PROGRESS
                         ? null
-                        : new AnalysisSummary(0, 0),
+                        : new AnalysisSummary(0, 0, 0),
                 List.of()
         );
         when(analysisService.analyze(request))

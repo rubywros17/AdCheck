@@ -7,6 +7,7 @@ import com.adcheck.rule.service.RuleAnalysisRequest;
 import com.adcheck.rule.service.RuleEvaluation;
 import com.adcheck.rule.service.RuleEvaluator;
 import com.fasterxml.jackson.annotation.JsonIgnoreProperties;
+import com.fasterxml.jackson.annotation.JsonProperty;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -674,10 +675,15 @@ public class AiRuleEvaluator implements RuleEvaluator {
                 .append("이고, 각 원소의 \"no\"에는 위 [판단 대상 Claim 목록]에서 그 Claim에 붙은 번호를 ")
                 .append("그대로 적으세요(1부터 ").append(requests.size())
                 .append("까지 하나씩, 빠지거나 겹치면 안 됩니다). ");
+        sb.append("\"no\"는 <b>따옴표 없는 숫자</b>입니다 — true/false를 쓰지 마세요. ");
         sb.append("다른 설명은 붙이지 마세요.\n");
-        sb.append("[{\"no\": 1, \"needsOutsideContext\": true 또는 false, ");
+        // "no" 바로 뒤에 "true 또는 false"가 오는 예시였을 때, 모델이 그 값을 no로 끌어와
+        // {"no": true}로 답해 배치 전체의 역직렬화가 깨진 사례가 있다(2026-09-27).
+        // 두 필드를 떼어 놓고, no가 숫자라는 것을 위에서 한 번 더 못박는다.
+        sb.append("[{\"no\": 1, ");
         sb.append("\"status\": \"MATCHED\" 또는 \"NOT_MATCHED\" 또는 \"REVIEW_REQUIRED\", ");
-        sb.append("\"reasonCode\": \"...\", \"reason\": \"판단 근거\"}, ...]\n");
+        sb.append("\"reasonCode\": \"...\", \"reason\": \"판단 근거\", ");
+        sb.append("\"needsOutsideContext\": true 또는 false}, ...]\n");
 
         return sb.toString();
     }
@@ -762,9 +768,42 @@ public class AiRuleEvaluator implements RuleEvaluator {
         return value != null && !value.isBlank();
     }
 
-    /** Gemini 응답 JSON 그대로의 모양 — 모르는 필드가 있어도 깨지지 않도록 ignoreUnknown. */
+    /**
+     * Gemini 응답 JSON 그대로의 모양 — 모르는 필드가 있어도 깨지지 않도록 ignoreUnknown.
+     *
+     * <p>{@code no}를 {@code Integer}가 아니라 {@code Object}로 받는 이유: 모델이 이 자리에
+     * 숫자가 아닌 값을 넣는 일이 실제로 있었다. 2026-09-27 측정에서
+     * {@code Cannot deserialize value of type Integer from Boolean value (VALUE_TRUE)}로
+     * 배치 응답 전체가 깨졌는데, 응답 형식 예시가
+     * {@code {"no": 1, "needsOutsideContext": true 또는 false, ...}}라 바로 옆 필드의
+     * "true 또는 false"가 {@code no}로 번진 것으로 보인다.
+     *
+     * <p>문제는 실패의 <b>크기</b>였다. 필드 하나의 타입이 어긋났을 뿐인데 역직렬화가 통째로
+     * 실패하고, 그 호출에 묶인 Claim 전부가 {@code REVIEW_REQUIRED}로 떨어졌다(실측: 12건 전부).
+     * 운영에서는 규칙 하나당 한 번 호출하므로, 한 번 깨지면 그 규칙에 대한 모든 Claim이 한꺼번에
+     * 판단 보류가 된다. 번호를 못 읽는 것과 판정을 통째로 버리는 것은 전혀 다른 손해다.
+     *
+     * <p>그래서 {@code no}는 관대하게 받고 {@link #no()}에서 정수로 해석해 본다. 해석에 실패하면
+     * {@code null}이 되고, {@link #alignByClaimNo}가 이미 갖고 있는 "번호가 없으면 순서로
+     * 맞춘다" 경로로 자연스럽게 내려간다.
+     */
     @JsonIgnoreProperties(ignoreUnknown = true)
-    private record RawJudgment(Integer no, Boolean needsOutsideContext,
+    private record RawJudgment(@JsonProperty("no") Object rawNo, Boolean needsOutsideContext,
                                String status, String reasonCode, String reason) {
+
+        /** 숫자로 읽히면 그 값, 아니면 {@code null}(→ 순서 기반 짝짓기로 폴백). */
+        Integer no() {
+            if (rawNo instanceof Number number) {
+                return number.intValue();
+            }
+            if (rawNo instanceof String text) {
+                try {
+                    return Integer.valueOf(text.strip());
+                } catch (NumberFormatException e) {
+                    return null;
+                }
+            }
+            return null;
+        }
     }
 }

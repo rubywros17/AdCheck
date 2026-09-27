@@ -20,7 +20,7 @@ class AnalysisResultSnapshotMapperTest {
         AnalysisResponse response = new AnalysisResponse(
                 7L,
                 AnalysisStatus.COMPLETED,
-                new AnalysisSummary(1, 1),
+                new AnalysisSummary(1, 1, 0),
                 List.of(new FindingResponse(
                         "광고 원문",
                         "#claim",
@@ -41,5 +41,18 @@ class AnalysisResultSnapshotMapperTest {
         );
 
         assertThat(restored).isEqualTo(response);
+    }
+
+    @Test
+    void 미평가_건수가_없던_옛_스냅샷은_0으로_응답한다() {
+        // unevaluatedClaimCount를 추가하기 전에 저장된 result_json은 이 키가 없어 null로 복원된다.
+        // 응답 DTO는 int라 여기서 0으로 채워야 하며, 이걸 놓치면 NPE로 조회가 통째로 실패한다.
+        AnalysisResultSnapshot old = new AnalysisResultSnapshot(
+                new AnalysisResultSnapshot.Summary(2, 1, null), List.of());
+
+        AnalysisResponse restored = mapper.toResponse(7L, AnalysisStatus.COMPLETED, old);
+
+        assertThat(restored.summary().findingCount()).isEqualTo(2);
+        assertThat(restored.summary().unevaluatedClaimCount()).isZero();
     }
 }

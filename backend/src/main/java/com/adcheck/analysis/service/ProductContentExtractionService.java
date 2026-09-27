@@ -10,8 +10,10 @@ import tools.jackson.core.JacksonException;
 import tools.jackson.databind.ObjectMapper;
 
 import java.util.ArrayList;
+import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 import java.util.TreeSet;
 import java.util.stream.Collectors;
 
@@ -137,6 +139,12 @@ public class ProductContentExtractionService {
                 reconstructCandidates(allLines, lineSources, lineGroups, groupConfidences);
         List<IngredientCandidate> filteredCandidates =
                 candidates.stream().filter(candidate -> hasAtLeastOneRecognizedIngredient(candidate.rawText())).toList();
+        // 원료 후보가 0건일 때 "AI가 원료표를 못 찾은 것"과 "찾았는데 사전에서 다 걸러진 것"은
+        // 대응이 전혀 다른데(전자는 프롬프트, 후자는 원료 사전), 지금까지 로그로 구분되지 않아
+        // 사전을 의심하며 시간을 쓴 적이 있다. 실제로는 labelLineGroups가 빈 배열로 오는
+        // 경우였다(2026-09-23). 두 수를 같이 남겨 다음부터 바로 갈리게 한다.
+        log.info("원료표 후보 {}건(AI가 지목한 줄 그룹 {}개) → 사전 인식 {}건",
+                candidates.size(), lineGroups.size(), filteredCandidates.size());
 
         List<RawRiskSignal> rawRiskSignals = response.riskSignals() != null ? response.riskSignals() : List.of();
         List<RiskSignalCandidate> riskSignalCandidates = toRiskSignalCandidates(rawRiskSignals, claims);
@@ -164,19 +172,48 @@ public class ProductContentExtractionService {
         return toSource(rawSource, null, ocrResults, List.of());
     }
 
-    /** claimId는 이 분석 1건 안에서만 유일하면 되는 로컬 식별자라 순서대로 채번한다. */
+    /**
+     * claimId는 이 분석 1건 안에서만 유일하면 되는 로컬 식별자라 순서대로 채번한다.
+     *
+     * <p>줄바꿈·연속 공백을 공백 하나로 눌러 담고, 그 형태가 같으면 같은 Claim으로 본다.
+     *
+     * <p>OCR 텍스트에는 줄바꿈이 섞여 있는데, 모델이 회차마다 그걸 살리기도 하고 합치기도 한다.
+     * 둘 다 "원문 그대로"라 지시 위반이 아니지만 문자열로는 다른 Claim이 되어, 같은 항목이
+     * 두 벌로 갈리고 재사용 캐시도 빗나간다. 실측(2026-09-27, 같은 입력 5회):
+     * <pre>
+     *   (2/5회) "아스타잔틴\n(헤마토코쿠스 추출물)\n4mg"
+     *   (3/5회) "아스타잔틴 (헤마토코쿠스 추출물) 4mg"   ← 같은 항목인데 별개로 집계
+     * </pre>
+     * 문자열 그대로 비교하면 안정도 0%인데, 공백을 정규화하면 뽑히는 항목이 4개로 일정했다.
+     * 즉 남은 편차의 상당 부분이 내용이 아니라 표기 차이였다.
+     *
+     * <p>모델에게 줄바꿈 처리를 매번 정확히 시키는 것보다 받은 뒤 정리하는 쪽이 결정론적이라
+     * 여기서 처리한다. 하이라이트를 깨뜨릴 걱정은 지금 없다 — 익스텐션은 아직 문구를 화면에
+     * 표시할 뿐이고(useAdCheck.ts), 위치는 selector로 따로 들고 간다. 표시 품질 면에서도
+     * 줄바꿈이 끼어 있는 것보다 한 줄이 낫다.
+     */
     private static List<ExtractedClaim> toExtractedClaims(
             List<RawClaim> rawClaims, Map<String, String> ocrResults, List<Source> lineSources) {
         List<ExtractedClaim> claims = new ArrayList<>();
+        Set<String> seen = new LinkedHashSet<>();
         int index = 1;
         for (RawClaim raw : rawClaims) {
+            String claimText = collapseWhitespace(raw.claimText());
+            if (claimText.isEmpty() || !seen.add(claimText)) {
+                continue;
+            }
             claims.add(new ExtractedClaim(
-                    "claim-" + index, raw.claimText(),
+                    "claim-" + index, claimText,
                     toSource(raw.source(), raw.sourceLineIndex(), ocrResults, lineSources),
                     parseContext(raw.context()), raw.contextEvidence()));
             index++;
         }
         return claims;
+    }
+
+    /** 줄바꿈을 포함한 연속 공백을 공백 하나로 누른다. */
+    private static String collapseWhitespace(String text) {
+        return text == null ? "" : text.strip().replaceAll("\\s+", " ");
     }
 
     /** 모르는 값·null이면 안전하게 UNKNOWN으로 — RiskLevel.fromSeverity()와 같은 폴백 정책. */
@@ -313,6 +350,33 @@ public class ProductContentExtractionService {
         sb.append("  · 성분의 기능·작용을 설명하는 문장 → 포함. ");
         sb.append("예: \"탄수화물, 지방, 단백질 대사에 관여하여 에너지를 만드는 데 필요합니다\"\n");
         sb.append("- 해당하는 문장이 하나도 없으면 claims는 빈 배열로 반환하세요.\n");
+        // 2026-09-23 실측: 같은 입력(프롬프트 39,872자)을 5회 넣었더니 5회 전부에 등장한 Claim이
+        // 하나도 없었다(안정도 0%). 원인은 "어떤 문장을 뽑을지"가 아니라 "뽑은 문장을 옮겨 적는
+        // 방식"이었다 — 모델이 단어를 바꿔 쓴다. 예: 원문 "사용할 시"를 회차에 따라 "섭취할 시"로
+        // 바꿔 내놓고, 공백만 다른 중복("아스타잔틴(…)" vs "아스타잔틴 (…)")도 섞인다.
+        // claimText는 화면의 sourceText가 되고 익스텐션이 페이지에서 그 문장을 찾아 하이라이트하는
+        // 데도 쓰이므로, 한 글자만 달라도 하이라이트가 실패하고 재사용 캐시도 빗나간다.
+        // 앞선 명문화(성분 문장 3분류)는 "선택 기준"을 고친 것이라 이 층위를 막지 못했다.
+        sb.append("- claimText는 반드시 아래 [본문 텍스트]나 [이미지 OCR 결과]에 실제로 있는 문자열을 ");
+        sb.append("<글자 하나 바꾸지 말고 그대로> 복사하세요. 다음은 모두 금지입니다: ");
+        sb.append("단어 바꾸기(\"사용할\"을 \"섭취할\"로), 요약·축약, 어색한 표현 다듬기, 오탈자 교정, ");
+        sb.append("띄어쓰기 추가·삭제, 문장 이어 붙이기.\n");
+        sb.append("  · 원문이 \"최소 3~6개월 이상 사용할 시\"면 그대로 \"최소 3~6개월 이상 사용할 시\"입니다. ");
+        sb.append("더 자연스러워 보여도 고치지 마세요.\n");
+        sb.append("  · 원문이 \"아스타잔틴(헤마토코쿠스 추출물) 4mg\"이면 괄호 앞 공백을 넣거나 빼지 마세요.\n");
+        sb.append("  · 한 줄에서 필요한 부분만 잘라 쓰는 것은 됩니다. 단 잘라낸 구간은 원문과 완전히 같아야 합니다.\n");
+        // 2026-09-27 실측: 원료표 이미지가 들어간 입력에서 원문 보존이 100%→52%로 떨어졌다.
+        // "원문에 없음"으로 잡힌 3건이 전부 공식 기능성 문구였는데, 원료표에 항목별로 흩어져
+        // 있는 것을 모델이 쉼표로 이어 붙여 한 문장으로 재구성한 것이었다. 각 조각은 실재하니
+        // 위의 "글자 그대로" 지시는 지킨 셈이지만, 합쳐진 문장은 페이지에 없다.
+        // claimText는 익스텐션이 페이지에서 찾아 하이라이트하는 데 쓰이므로 이러면 하이라이트가
+        // 실패하고, 재사용 캐시도 빗나간다.
+        sb.append("  · <b>여러 줄을 이어 붙이지 마세요.</b> 떨어져 있는 항목을 쉼표나 가운뎃점으로 묶어 ");
+        sb.append("한 문장으로 만들면 페이지에 없는 문장이 됩니다. 예를 들어 원료표에 ");
+        sb.append("\"철의 흡수에 필요\"와 \"항산화 작용을 하여 유해산소로부터 세포를 보호하는데 필요\"가 ");
+        sb.append("각각 다른 줄에 있으면, 둘을 합치지 말고 <b>각각 별개의 claim으로</b> 내거나 한쪽만 고르세요.\n");
+        sb.append("  · 줄바꿈이 섞인 구간을 옮길 때는 줄바꿈을 공백 하나로 바꿔도 됩니다. ");
+        sb.append("단 <b>연속한 줄</b>이어야 하고, 떨어진 줄을 끌어와 붙이는 것은 안 됩니다.\n");
         sb.append("- 각 claim마다 이 문장을 판매자의 제품 효과 주장으로 볼 수 있는지, 근거 위치와 함께 판단해서 context/contextEvidence로 표시하세요. ");
         sb.append("candidateExamples 같은 단어 하나만 보고 정하지 말고, 바로 앞뒤 문장과 전체 문맥까지 실제로 확인한 경우에만 UNKNOWN이 아닌 값을 쓰세요.\n");
         sb.append("  · PRODUCT_HEALTH_EFFECT_COPY: 주변 문맥에서 이 문장이 이 제품의 건강 효과를 주장하는 것으로 확인됨(배송·편의성 등 비건강 효과가 아님)\n");
@@ -351,7 +415,7 @@ public class ProductContentExtractionService {
         sb.append("- 해당하는 게 없으면 riskSignals는 빈 배열로 반환하세요.\n\n");
 
         sb.append("반드시 아래 JSON 형식으로만 응답하세요. 다른 설명은 붙이지 마세요.\n");
-        sb.append("{\"claims\": [{\"claimText\": \"주장/표현 문장 원문 그대로\", \"source\": \"본문\" 또는 해당 이미지 URL, ");
+        sb.append("{\"claims\": [{\"claimText\": \"입력에 있는 문자열을 글자 하나 바꾸지 말고 그대로 복사\", \"source\": \"본문\" 또는 해당 이미지 URL, ");
         sb.append("\"context\": \"PRODUCT_HEALTH_EFFECT_COPY\" 또는 \"PRODUCT_COPY\" 또는 \"NON_PRODUCT_INFORMATION\" 또는 \"UNKNOWN\", ");
         sb.append("\"contextEvidence\": \"판단 근거 한 문장\" 또는 null, \"sourceLineIndex\": 3 또는 null}], ");
         sb.append("\"productCandidates\": [{\"productReportNo\": \"...\" 또는 null, \"productName\": \"...\" 또는 null, ");

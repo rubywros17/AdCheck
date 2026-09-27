@@ -39,8 +39,23 @@ public class AnalysisRequestFingerprint {
                 .toList();
         updateCollectionSize(digest, "texts", texts.size());
         for (CanonicalText text : texts) {
+            // selector는 해시에 넣지 않는다. 화면 하이라이트 위치를 가리킬 뿐 분석 대상이 아니고,
+            // 페이지를 열 때마다 쉽게 달라져 재사용 캐시를 통째로 무력화하기 때문이다.
+            //
+            // 실측(2026-09-27, i-hi.co.kr/product_no=111): 같은 페이지를 연달아 분석했는데 텍스트
+            // 146개·이미지 24장이 내용까지 완전히 같은데도 해시가 갈렸다. 원인은 네이버페이 결제
+            // 위젯 두 줄뿐이었다 — 하나는 id에 타임스탬프가 박혀 있고
+            // (#NPAY_PROMOTION_IDNC_ID_1790436451926390), 다른 하나는 위젯 로딩 타이밍에 따라
+            // nth-of-type 번호가 밀렸다(div:nth-of-type(7) → (6)).
+            //
+            // 그 탓에 캐시가 매번 빗나가 같은 페이지를 볼 때마다 새로 분석했고, AI#1의 편차가
+            // 그대로 화면에 드러나 "새로고침할 때마다 검출 문구 수가 다르다"는 증상이 됐다.
+            // 결제 위젯만의 문제가 아니라 광고·배너·챗봇 등 무엇이든 nth-of-type을 밀 수 있어,
+            // 특정 패턴을 막기보다 selector를 해시에서 빼는 쪽이 근본적이다.
+            //
+            // 정렬 기준(TEXT_ORDER)에는 selector를 그대로 둔다 — 내용이 같은 항목끼리의 순서만
+            // 가르는 용도라, 순서가 바뀌어도 해시에 들어가는 content 열은 동일하다.
             updateField(digest, "text.content", text.content());
-            updateField(digest, "text.selector", text.selector());
         }
 
         List<CanonicalImage> images = request.images().stream()

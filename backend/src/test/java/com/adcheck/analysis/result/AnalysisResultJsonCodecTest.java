@@ -46,6 +46,25 @@ class AnalysisResultJsonCodecTest {
     }
 
     @Test
+    void 미평가_건수가_없던_옛_JSON은_0으로_읽힌다() {
+        // unevaluatedClaimCount를 추가하기 전에 저장된 형태. 저장된 JSON에는 버전이 없어
+        // 마이그레이션이 불가능하므로, 옛 분석은 "미평가 0건"으로 보인다 — 그 시점에는 애초에
+        // 이 구분이 없었으니 값을 지어내는 것보다 낫다. 중요한 건 복원이 깨지지 않는 것이다.
+        String oldJson = """
+                {"summary":{"findingCount":2,"officialFunctionMatchedCount":1},
+                 "findings":[]}
+                """;
+
+        AnalysisResultSnapshot restored = codec.deserialize(oldJson);
+
+        assertThat(restored.summary().findingCount()).isEqualTo(2);
+        assertThat(restored.summary().officialFunctionMatchedCount()).isEqualTo(1);
+        // 스냅샷에는 null 그대로 남는다 — 0으로 채우는 것은 응답으로 옮길 때의 일이라
+        // AnalysisResultSnapshotMapperTest가 맡는다. 여기서 확인할 것은 복원이 깨지지 않는 것.
+        assertThat(restored.summary().unevaluatedClaimCount()).isNull();
+    }
+
+    @Test
     void 나중에_추가된_모르는_필드가_있어도_읽힌다() {
         // 새 코드가 저장한 JSON을 옛 코드가 읽는 방향. 모르는 필드는 무시돼야 한다.
         String newerJson = """
@@ -92,7 +111,7 @@ class AnalysisResultJsonCodecTest {
 
     private AnalysisResultSnapshot snapshot() {
         return new AnalysisResultSnapshot(
-                new AnalysisResultSnapshot.Summary(1, 1),
+                new AnalysisResultSnapshot.Summary(1, 1, 0),
                 List.of(new AnalysisResultSnapshot.Finding(
                         "광고 원문",
                         "#claim",

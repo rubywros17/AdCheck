@@ -19,7 +19,17 @@ public record AnalysisResultSnapshot(
 
     public record Summary(
             int findingCount,
-            int officialFunctionMatchedCount
+            int officialFunctionMatchedCount,
+            /*
+             * 뒤에 추가된 필드라 이미 저장된 result_json에는 이 키가 없다. int로 두면 Jackson이
+             * "Cannot map null into type int"로 복원 자체를 실패시켜 <b>저장된 모든 분석 결과가
+             * 읽히지 않는다</b>(실제로 테스트에서 재현됐다). 그래서 Integer로 받고 읽는 쪽에서
+             * 0으로 채운다.
+             *
+             * 옛 분석은 "미평가 0건"으로 보인다. 그 시점에는 애초에 이 구분이 없었으므로 값을
+             * 지어내는 것보다 낫고, 저장된 JSON에 버전이 없어 마이그레이션도 불가능하다.
+             */
+            Integer unevaluatedClaimCount
     ) {
     }
 
