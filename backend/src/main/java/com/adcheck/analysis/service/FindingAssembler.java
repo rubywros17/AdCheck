@@ -181,6 +181,7 @@ public class FindingAssembler {
             log.info("자동 판정 범위를 벗어난 문구 {}건 — Finding에서 제외하되 요약에 건수로 남긴다",
                     unevaluatedClaims);
         }
+        logDismissedClaims(claims, ruleResults, findings, claimResult.riskSignalCandidates());
         log.info("[TIMING] ⑥ AI#2 비교+Finding 조립 완료 — {}ms (AI#2 호출 대상 {}건, 최종 Finding {}건)",
                 System.currentTimeMillis() - ai2StartedAt, needsAi2.size(), findings.size());
 
@@ -662,6 +663,54 @@ public class FindingAssembler {
      * 건수는 {@code unevaluatedClaimCount}로 남겨, 확인하지 못했다는 사실이 사라지지 않게 한다.
      * 판정 사실 자체도 {@code rules}에는 그대로 보존한다(→ {@link #appendRules}).
      */
+    /**
+     * 화면에 아무것도 안 뜨는 분석이 <b>"정말 문제가 없어서"인지 "잘못 기각해서"인지</b>
+     * 구분할 수단이 없었다. Finding이 0건이면 응답에 {@code rules}도 없어서, 어떤 규칙이
+     * 무엇을 보고 {@code NOT_MATCHED}를 냈는지 아무 데도 남지 않는다.
+     *
+     * <p>2026-09-27 실측(analysisId=80)에서 이 빈틈이 드러났다. <b>AI#1이 DISEASE_PREVENTION
+     * 신호를 띄웠는데 최종 Finding이 0건</b>이라 화면은 "안심"이었다. AI#1은 과탐을 허용하도록
+     * 설계됐으니 규칙이 제대로 기각한 것일 수도 있고, 규칙 판정이 흔들려 놓친 것일 수도 있는데
+     * (실측에서 같은 문구가 3회 중 1회만 MATCHED인 사례를 확인했다) 사후에 가릴 방법이 없었다.
+     *
+     * <p>{@code unevaluatedClaimCount}로 "확인 못 한 것"을 남긴 것과 같은 이유다 — 조용히
+     * 사라지면 "문제 없음"으로 읽힌다. 다만 이쪽은 응답 형식을 건드리지 않고 로그로만 남긴다.
+     *
+     * <p><b>AI#1이 위험 신호를 띄운 Claim은 따로 표시한다</b> — 그런 Claim이 기각됐다면
+     * 다시 볼 만한 후보이기 때문이다.
+     */
+    private void logDismissedClaims(
+            List<ExtractedClaim> claims,
+            List<RuleAnalysisResult> ruleResults,
+            List<Finding> findings,
+            List<RiskSignalCandidate> riskSignals
+    ) {
+        if (!findings.isEmpty() || claims.isEmpty()) {
+            return;
+        }
+        Set<String> flaggedClaimIds = riskSignals.stream()
+                .map(RiskSignalCandidate::claimId)
+                .filter(java.util.Objects::nonNull)
+                .collect(java.util.stream.Collectors.toSet());
+
+        log.info("Finding 0건 — Claim {}건이 모두 기각됐습니다 (AI#1 위험 신호 {}건). "
+                        + "기각 근거를 아래에 남깁니다.",
+                claims.size(), riskSignals.size());
+        for (int i = 0; i < claims.size() && i < ruleResults.size(); i++) {
+            ExtractedClaim claim = claims.get(i);
+            List<String> dismissedBy = ruleResults.get(i).matches().stream()
+                    .filter(m -> m.evaluation().status() == RuleEvaluation.Status.NOT_MATCHED)
+                    .map(m -> m.ruleCode() + "(" + m.evaluation().reasonCode() + ")")
+                    .toList();
+            boolean flagged = flaggedClaimIds.contains(claim.claimId());
+            log.info("  {}«{}» — NOT_MATCHED {}건: {}",
+                    flagged ? "[AI#1 위험 신호] " : "",
+                    claim.claimText().length() > 60
+                            ? claim.claimText().substring(0, 60) + "…" : claim.claimText(),
+                    dismissedBy.size(), dismissedBy);
+        }
+    }
+
     private static boolean isOutsideEvaluatorScope(RuleEvaluation.ReasonCode code) {
         return code == RuleEvaluation.ReasonCode.UNSUPPORTED_RULE
                 || code == RuleEvaluation.ReasonCode.OUTSIDE_SUPPORTED_LANGUAGE
