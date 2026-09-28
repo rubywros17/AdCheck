@@ -1,6 +1,7 @@
 # AdCheck
 <img width="960" height="540" alt="image" src="https://github.com/user-attachments/assets/601c9892-975e-45b9-ad82-14017678df32" />
 
+---
 건강기능식품 상세페이지의 광고 표현을 AI로 분석하고 공식 인정 기능성과 비교해, 소비자가 구매 전에 주의할 표현과 그 근거를 확인할 수 있도록 돕는 Chrome Extension입니다.
 
 
