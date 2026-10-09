@@ -23,6 +23,7 @@ public class AnalysisService {
     private final AnalysisResultSnapshotMapper snapshotMapper;
     private final AnalysisActiveReuseConstraintDetector activeReuseConstraintDetector;
     private final AnalysisResultJsonCodec resultJsonCodec;
+    private final DailyAnalysisLimitGuard dailyLimitGuard;
 
     public AnalysisService(
             AnalysisResultResolver resultResolver,
@@ -30,7 +31,8 @@ public class AnalysisService {
             AnalysisBackgroundJob backgroundJob,
             AnalysisResultSnapshotMapper snapshotMapper,
             AnalysisActiveReuseConstraintDetector activeReuseConstraintDetector,
-            AnalysisResultJsonCodec resultJsonCodec
+            AnalysisResultJsonCodec resultJsonCodec,
+            DailyAnalysisLimitGuard dailyLimitGuard
     ) {
         this.resultResolver = resultResolver;
         this.lifecycleService = lifecycleService;
@@ -38,6 +40,7 @@ public class AnalysisService {
         this.snapshotMapper = snapshotMapper;
         this.activeReuseConstraintDetector = activeReuseConstraintDetector;
         this.resultJsonCodec = resultJsonCodec;
+        this.dailyLimitGuard = dailyLimitGuard;
     }
 
     public AnalysisResponse getAnalysis(Long analysisId) {
@@ -83,6 +86,7 @@ public class AnalysisService {
     }
 
     private AnalysisSubmissionResult create(CreateAnalysisRequest request, AnalysisReuseKey reuseKey) {
+        dailyLimitGuard.checkAvailable();
         AnalysisJobInput jobInput = AnalysisJobInput.from(request);
         Long analysisId;
         try {

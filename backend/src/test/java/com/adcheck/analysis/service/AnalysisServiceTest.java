@@ -23,6 +23,7 @@ import java.util.Optional;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.Mockito.doThrow;
 import static org.mockito.Mockito.inOrder;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.never;
@@ -42,6 +43,7 @@ class AnalysisServiceTest {
     private AnalysisBackgroundJob backgroundJob;
     private AnalysisResultJsonCodec resultJsonCodec;
     private AnalysisService analysisService;
+    private DailyAnalysisLimitGuard dailyLimitGuard;
 
     @BeforeEach
     void setUp() {
@@ -49,13 +51,15 @@ class AnalysisServiceTest {
         lifecycleService = mock(AnalysisLifecycleService.class);
         backgroundJob = mock(AnalysisBackgroundJob.class);
         resultJsonCodec = new AnalysisResultJsonCodec(new ObjectMapper());
+        dailyLimitGuard = mock(DailyAnalysisLimitGuard.class);  
         analysisService = new AnalysisService(
                 resultResolver,
                 lifecycleService,
                 backgroundJob,
                 new AnalysisResultSnapshotMapper(),
                 new AnalysisActiveReuseConstraintDetector(),
-                resultJsonCodec
+                resultJsonCodec,
+                dailyLimitGuard                                       
         );
     }
 
@@ -278,6 +282,37 @@ class AnalysisServiceTest {
                     assertThat(exception.getStatus()).isEqualTo(HttpStatus.NOT_FOUND);
                     assertThat(exception.getCode()).isEqualTo("ANALYSIS_NOT_FOUND");
                 });
+    }
+
+    @Test
+    void rejectsNewAnalysisWhenDailyLimitExceeded() {
+        CreateAnalysisRequest request = request("광고 문구");
+        when(resultResolver.resolve(request))
+                .thenReturn(new AnalysisResultResolution.NewAnalysis(REUSE_KEY));
+        doThrow(new DailyAnalysisLimitExceededException(20))
+                .when(dailyLimitGuard).checkAvailable();
+
+        assertThatThrownBy(() -> analysisService.analyze(request))
+                .isInstanceOfSatisfying(DailyAnalysisLimitExceededException.class, exception -> {
+                    assertThat(exception.getStatus()).isEqualTo(HttpStatus.TOO_MANY_REQUESTS);
+                    assertThat(exception.getCode()).isEqualTo("DAILY_ANALYSIS_LIMIT_EXCEEDED");
+                });
+
+        verify(lifecycleService, never()).createPending(any(), any());
+        verify(backgroundJob, never()).process(any(), any());
+    }
+
+    @Test
+    void reusedResultDoesNotCheckDailyLimit() {
+        CreateAnalysisRequest request = request("광고 문구");
+        when(resultResolver.resolve(request)).thenReturn(
+                new AnalysisResultResolution.Reused(21L, snapshot(), REUSE_KEY)
+        );
+
+        AnalysisSubmissionResult result = analysisService.analyze(request);
+
+        assertThat(result.outcome()).isEqualTo(AnalysisSubmissionResult.Outcome.REUSED);
+        verify(dailyLimitGuard, never()).checkAvailable();
     }
 
     private AnalysisResultSnapshot snapshot() {
