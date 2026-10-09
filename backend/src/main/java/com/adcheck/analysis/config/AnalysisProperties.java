@@ -23,6 +23,9 @@ public class AnalysisProperties {
     @NotNull(message = "adcheck.analysis.reuse-ttl-with-finding must not be null")
     private Duration reuseTtlWithFinding = Duration.ofDays(7);
 
+    @Min(value = 1, message = "adcheck.analysis.daily-limit must be at least 1")
+    private int dailyLimit = 20;
+
     @Valid
     private final Async async = new Async();
 
@@ -48,6 +51,14 @@ public class AnalysisProperties {
 
     public void setReuseTtlWithFinding(Duration reuseTtlWithFinding) {
         this.reuseTtlWithFinding = reuseTtlWithFinding;
+    }
+
+    public int getDailyLimit() {
+        return dailyLimit;
+    }
+
+    public void setDailyLimit(int dailyLimit) {
+        this.dailyLimit = dailyLimit;
     }
 
     public Async getAsync() {
