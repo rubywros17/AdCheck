@@ -37,6 +37,7 @@ class AnalysisServiceTest {
             "a".repeat(64),
             "v1"
     );
+    private static final String CLIENT_IP = "203.0.113.10";
 
     private AnalysisResultResolver resultResolver;
     private AnalysisLifecycleService lifecycleService;
@@ -44,6 +45,7 @@ class AnalysisServiceTest {
     private AnalysisResultJsonCodec resultJsonCodec;
     private AnalysisService analysisService;
     private DailyAnalysisLimitGuard dailyLimitGuard;
+    private IpAnalysisLimitGuard ipLimitGuard;
 
     @BeforeEach
     void setUp() {
@@ -51,7 +53,8 @@ class AnalysisServiceTest {
         lifecycleService = mock(AnalysisLifecycleService.class);
         backgroundJob = mock(AnalysisBackgroundJob.class);
         resultJsonCodec = new AnalysisResultJsonCodec(new ObjectMapper());
-        dailyLimitGuard = mock(DailyAnalysisLimitGuard.class);  
+        dailyLimitGuard = mock(DailyAnalysisLimitGuard.class);
+        ipLimitGuard = mock(IpAnalysisLimitGuard.class);
         analysisService = new AnalysisService(
                 resultResolver,
                 lifecycleService,
@@ -59,7 +62,8 @@ class AnalysisServiceTest {
                 new AnalysisResultSnapshotMapper(),
                 new AnalysisActiveReuseConstraintDetector(),
                 resultJsonCodec,
-                dailyLimitGuard                                       
+                dailyLimitGuard,
+                ipLimitGuard
         );
     }
 
@@ -70,7 +74,7 @@ class AnalysisServiceTest {
                 .thenReturn(new AnalysisResultResolution.NewAnalysis(REUSE_KEY));
         when(lifecycleService.createPending(request, REUSE_KEY)).thenReturn(7L);
 
-        AnalysisSubmissionResult result = analysisService.analyze(request);
+        AnalysisSubmissionResult result = analysisService.analyze(request, CLIENT_IP);
 
         assertThat(result.outcome()).isEqualTo(AnalysisSubmissionResult.Outcome.SUBMITTED);
         assertThat(result.response().analysisId()).isEqualTo(7L);
@@ -93,7 +97,7 @@ class AnalysisServiceTest {
                 new AnalysisResultResolution.Reused(21L, snapshot(), REUSE_KEY)
         );
 
-        AnalysisSubmissionResult result = analysisService.analyze(request);
+        AnalysisSubmissionResult result = analysisService.analyze(request, CLIENT_IP);
 
         assertThat(result.outcome()).isEqualTo(AnalysisSubmissionResult.Outcome.REUSED);
         assertThat(result.response().analysisId()).isEqualTo(21L);
@@ -102,6 +106,7 @@ class AnalysisServiceTest {
         assertThat(result.response().findings()).hasSize(1);
         verify(lifecycleService, never()).createPending(any(), any());
         verify(backgroundJob, never()).process(any(), any());
+        verify(ipLimitGuard, never()).acquire(any());
     }
 
     @Test
@@ -111,7 +116,7 @@ class AnalysisServiceTest {
                 new AnalysisResultResolution.InProgress(22L, AnalysisStatus.PROCESSING, REUSE_KEY)
         );
 
-        AnalysisSubmissionResult result = analysisService.analyze(request);
+        AnalysisSubmissionResult result = analysisService.analyze(request, CLIENT_IP);
 
         assertThat(result.outcome()).isEqualTo(AnalysisSubmissionResult.Outcome.IN_PROGRESS);
         assertThat(result.response().analysisId()).isEqualTo(22L);
@@ -120,6 +125,7 @@ class AnalysisServiceTest {
         assertThat(result.response().findings()).isEmpty();
         verify(lifecycleService, never()).createPending(any(), any());
         verify(backgroundJob, never()).process(any(), any());
+        verify(ipLimitGuard, never()).acquire(any());
     }
 
     @Test
@@ -136,7 +142,7 @@ class AnalysisServiceTest {
         when(lifecycleService.createPending(request, REUSE_KEY)).thenThrow(conflict);
         when(lifecycleService.findActive(REUSE_KEY)).thenReturn(Optional.of(active));
 
-        AnalysisSubmissionResult result = analysisService.analyze(request);
+        AnalysisSubmissionResult result = analysisService.analyze(request, CLIENT_IP);
 
         assertThat(result.outcome()).isEqualTo(AnalysisSubmissionResult.Outcome.IN_PROGRESS);
         assertThat(result.response().analysisId()).isEqualTo(24L);
@@ -154,7 +160,7 @@ class AnalysisServiceTest {
         org.mockito.Mockito.doThrow(rejection)
                 .when(backgroundJob).process(org.mockito.ArgumentMatchers.eq(25L), any());
 
-        assertThatThrownBy(() -> analysisService.analyze(request))
+        assertThatThrownBy(() -> analysisService.analyze(request, CLIENT_IP))
                 .isInstanceOfSatisfying(AnalysisQueueFullException.class, exception -> {
                     assertThat(exception.getStatus()).isEqualTo(HttpStatus.SERVICE_UNAVAILABLE);
                     assertThat(exception.getCode()).isEqualTo("ANALYSIS_QUEUE_FULL");
@@ -177,7 +183,7 @@ class AnalysisServiceTest {
         org.mockito.Mockito.doThrow(failurePersistence)
                 .when(lifecycleService).fail(26L, "분석 작업 대기열이 가득 찼습니다.");
 
-        assertThatThrownBy(() -> analysisService.analyze(request))
+        assertThatThrownBy(() -> analysisService.analyze(request, CLIENT_IP))
                 .isInstanceOfSatisfying(AnalysisQueueFullException.class, exception ->
                         assertThat(exception.getSuppressed()).containsExactly(failurePersistence));
     }
@@ -191,7 +197,7 @@ class AnalysisServiceTest {
                 .thenReturn(new AnalysisResultResolution.NewAnalysis(REUSE_KEY));
         when(lifecycleService.createPending(request, REUSE_KEY)).thenThrow(failure);
 
-        assertThatThrownBy(() -> analysisService.analyze(request)).isSameAs(failure);
+        assertThatThrownBy(() -> analysisService.analyze(request, CLIENT_IP)).isSameAs(failure);
 
         verify(lifecycleService, never()).findActive(any());
         verify(backgroundJob, never()).process(any(), any());
@@ -209,7 +215,7 @@ class AnalysisServiceTest {
         );
         when(lifecycleService.findActive(REUSE_KEY)).thenReturn(Optional.empty());
 
-        assertThatThrownBy(() -> analysisService.analyze(request))
+        assertThatThrownBy(() -> analysisService.analyze(request, CLIENT_IP))
                 .isInstanceOf(AnalysisConflictRecoveryException.class)
                 .hasMessage("동일한 분석 요청의 진행 상태를 확인하지 못했습니다.");
 
@@ -292,7 +298,7 @@ class AnalysisServiceTest {
         doThrow(new DailyAnalysisLimitExceededException(20))
                 .when(dailyLimitGuard).checkAvailable();
 
-        assertThatThrownBy(() -> analysisService.analyze(request))
+        assertThatThrownBy(() -> analysisService.analyze(request, CLIENT_IP))
                 .isInstanceOfSatisfying(DailyAnalysisLimitExceededException.class, exception -> {
                     assertThat(exception.getStatus()).isEqualTo(HttpStatus.TOO_MANY_REQUESTS);
                     assertThat(exception.getCode()).isEqualTo("DAILY_ANALYSIS_LIMIT_EXCEEDED");
@@ -300,6 +306,40 @@ class AnalysisServiceTest {
 
         verify(lifecycleService, never()).createPending(any(), any());
         verify(backgroundJob, never()).process(any(), any());
+        verify(ipLimitGuard, never()).acquire(any());
+    }
+
+    @Test
+    void rejectsNewAnalysisWhenIpDailyLimitExceeded() {
+        CreateAnalysisRequest request = request("광고 문구");
+        when(resultResolver.resolve(request))
+                .thenReturn(new AnalysisResultResolution.NewAnalysis(REUSE_KEY));
+        doThrow(new IpAnalysisLimitExceededException(10))
+                .when(ipLimitGuard).acquire(CLIENT_IP);
+
+        assertThatThrownBy(() -> analysisService.analyze(request, CLIENT_IP))
+                .isInstanceOfSatisfying(IpAnalysisLimitExceededException.class, exception -> {
+                    assertThat(exception.getStatus()).isEqualTo(HttpStatus.TOO_MANY_REQUESTS);
+                    assertThat(exception.getCode()).isEqualTo("IP_ANALYSIS_LIMIT_EXCEEDED");
+                });
+
+        verify(lifecycleService, never()).createPending(any(), any());
+        verify(backgroundJob, never()).process(any(), any());
+    }
+
+    @Test
+    void checksDailyLimitThenIpLimitThenCreatesPendingInOrder() {
+        CreateAnalysisRequest request = request("광고 문구");
+        when(resultResolver.resolve(request))
+                .thenReturn(new AnalysisResultResolution.NewAnalysis(REUSE_KEY));
+        when(lifecycleService.createPending(request, REUSE_KEY)).thenReturn(40L);
+
+        analysisService.analyze(request, CLIENT_IP);
+
+        InOrder order = inOrder(dailyLimitGuard, ipLimitGuard, lifecycleService);
+        order.verify(dailyLimitGuard).checkAvailable();
+        order.verify(ipLimitGuard).acquire(CLIENT_IP);
+        order.verify(lifecycleService).createPending(request, REUSE_KEY);
     }
 
     @Test
@@ -309,7 +349,7 @@ class AnalysisServiceTest {
                 new AnalysisResultResolution.Reused(21L, snapshot(), REUSE_KEY)
         );
 
-        AnalysisSubmissionResult result = analysisService.analyze(request);
+        AnalysisSubmissionResult result = analysisService.analyze(request, CLIENT_IP);
 
         assertThat(result.outcome()).isEqualTo(AnalysisSubmissionResult.Outcome.REUSED);
         verify(dailyLimitGuard, never()).checkAvailable();
