@@ -26,6 +26,9 @@ public class AnalysisProperties {
     @Min(value = 1, message = "adcheck.analysis.daily-limit must be at least 1")
     private int dailyLimit = 20;
 
+    @Min(value = 1, message = "adcheck.analysis.ip-daily-limit must be at least 1")
+    private int ipDailyLimit = 10;
+
     @Valid
     private final Async async = new Async();
 
@@ -59,6 +62,14 @@ public class AnalysisProperties {
 
     public void setDailyLimit(int dailyLimit) {
         this.dailyLimit = dailyLimit;
+    }
+
+    public int getIpDailyLimit() {
+        return ipDailyLimit;
+    }
+
+    public void setIpDailyLimit(int ipDailyLimit) {
+        this.ipDailyLimit = ipDailyLimit;
     }
 
     public Async getAsync() {

@@ -1,16 +1,17 @@
 package com.adcheck.analysis.service;
 
+import java.util.List;
+
+import org.springframework.core.task.TaskRejectedException;
+import org.springframework.dao.DataIntegrityViolationException;
+import org.springframework.stereotype.Service;
+
 import com.adcheck.analysis.domain.Analysis;
 import com.adcheck.analysis.domain.AnalysisStatus;
 import com.adcheck.analysis.dto.AnalysisResponse;
 import com.adcheck.analysis.dto.CreateAnalysisRequest;
 import com.adcheck.analysis.result.AnalysisResultJsonCodec;
 import com.adcheck.analysis.result.AnalysisResultSnapshotMapper;
-import org.springframework.core.task.TaskRejectedException;
-import org.springframework.dao.DataIntegrityViolationException;
-import org.springframework.stereotype.Service;
-
-import java.util.List;
 
 @Service
 public class AnalysisService {
@@ -24,6 +25,7 @@ public class AnalysisService {
     private final AnalysisActiveReuseConstraintDetector activeReuseConstraintDetector;
     private final AnalysisResultJsonCodec resultJsonCodec;
     private final DailyAnalysisLimitGuard dailyLimitGuard;
+    private final IpAnalysisLimitGuard ipLimitGuard;
 
     public AnalysisService(
             AnalysisResultResolver resultResolver,
@@ -32,7 +34,8 @@ public class AnalysisService {
             AnalysisResultSnapshotMapper snapshotMapper,
             AnalysisActiveReuseConstraintDetector activeReuseConstraintDetector,
             AnalysisResultJsonCodec resultJsonCodec,
-            DailyAnalysisLimitGuard dailyLimitGuard
+            DailyAnalysisLimitGuard dailyLimitGuard,
+            IpAnalysisLimitGuard ipLimitGuard
     ) {
         this.resultResolver = resultResolver;
         this.lifecycleService = lifecycleService;
@@ -41,6 +44,7 @@ public class AnalysisService {
         this.activeReuseConstraintDetector = activeReuseConstraintDetector;
         this.resultJsonCodec = resultJsonCodec;
         this.dailyLimitGuard = dailyLimitGuard;
+        this.ipLimitGuard = ipLimitGuard;
     }
 
     public AnalysisResponse getAnalysis(Long analysisId) {
@@ -57,13 +61,13 @@ public class AnalysisService {
         return new AnalysisResponse(analysisId, analysis.getStatus(), null, List.of());
     }
 
-    public AnalysisSubmissionResult analyze(CreateAnalysisRequest request) {
+    public AnalysisSubmissionResult analyze(CreateAnalysisRequest request, String clientIp) {
         AnalysisResultResolution resolution = resultResolver.resolve(request);
 
         return switch (resolution) {
             case AnalysisResultResolution.Reused reused -> reuse(reused);
             case AnalysisResultResolution.InProgress inProgress -> inProgress(inProgress);
-            case AnalysisResultResolution.NewAnalysis newAnalysis -> create(request, newAnalysis.reuseKey());
+            case AnalysisResultResolution.NewAnalysis newAnalysis -> create(request, newAnalysis.reuseKey(), clientIp);
         };
     }
 
@@ -85,8 +89,9 @@ public class AnalysisService {
         ));
     }
 
-    private AnalysisSubmissionResult create(CreateAnalysisRequest request, AnalysisReuseKey reuseKey) {
+    private AnalysisSubmissionResult create(CreateAnalysisRequest request, AnalysisReuseKey reuseKey, String clientIp) {
         dailyLimitGuard.checkAvailable();
+        ipLimitGuard.acquire(clientIp);
         AnalysisJobInput jobInput = AnalysisJobInput.from(request);
         Long analysisId;
         try {

@@ -1,10 +1,5 @@
 package com.adcheck.analysis.controller;
 
-import com.adcheck.analysis.dto.AnalysisResponse;
-import com.adcheck.analysis.dto.CreateAnalysisRequest;
-import com.adcheck.analysis.service.AnalysisService;
-import com.adcheck.analysis.service.AnalysisSubmissionResult;
-import jakarta.validation.Valid;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.GetMapping;
@@ -13,6 +8,14 @@ import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
+
+import com.adcheck.analysis.dto.AnalysisResponse;
+import com.adcheck.analysis.dto.CreateAnalysisRequest;
+import com.adcheck.analysis.service.AnalysisService;
+import com.adcheck.analysis.service.AnalysisSubmissionResult;
+
+import jakarta.servlet.http.HttpServletRequest;
+import jakarta.validation.Valid;
 
 @RestController
 @RequestMapping("/api/v1/analyses")
@@ -25,8 +28,11 @@ public class AnalysisController {
     }
 
     @PostMapping
-    public ResponseEntity<AnalysisResponse> analyze(@Valid @RequestBody CreateAnalysisRequest request) {
-        AnalysisSubmissionResult result = analysisService.analyze(request);
+    public ResponseEntity<AnalysisResponse> analyze(
+        @Valid @RequestBody CreateAnalysisRequest request,
+        HttpServletRequest httpRequest
+    ) {
+        AnalysisSubmissionResult result = analysisService.analyze(request, httpRequest.getRemoteAddr());
         return ResponseEntity.status(statusFor(result.outcome())).body(result.response());
     }
 
