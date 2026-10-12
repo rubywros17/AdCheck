@@ -1,5 +1,57 @@
 //"이 상품 광고 믿고 사도 될까요?" 버튼 있는 첫 화면
 
+import type { ExtensionError, ExtensionErrorCode } from "../../types/message";
+
+interface ErrorCopy {
+  titleLines: [string, string];
+  description: string;
+  icon: "gray" | "red";
+  showRetry: boolean;
+}
+
+// 분석 실패 원인(error.code)별로 다른 문구/버튼을 보여준다. 한도 초과(일일/IP)는 다시 시도해도
+// 같은 이유로 또 막히므로 "다시 시도" 버튼을 숨긴다. 서버가 보낸 error.message(건조체)는 쓰지 않고
+// 화면 톤("~요")에 맞는 고정 문구를 쓴다.
+function getErrorCopy(code: ExtensionErrorCode | undefined): ErrorCopy {
+  switch (code) {
+    case "DAILY_LIMIT_EXCEEDED":
+      return {
+        titleLines: ["오늘 준비된 분석을", "모두 사용했어요"],
+        description: "내일 다시 이용해 주세요.",
+        icon: "gray",
+        showRetry: false,
+      };
+    case "IP_LIMIT_EXCEEDED":
+      return {
+        titleLines: ["오늘 분석 횟수를", "모두 사용했어요"],
+        description: "현재 네트워크의 오늘 분석 횟수를 다 썼어요.\n내일 다시 이용해 주세요.",
+        icon: "gray",
+        showRetry: false,
+      };
+    case "SERVER_BUSY":
+      return {
+        titleLines: ["지금 분석 요청이", "많아요"],
+        description: "잠시 후 다시 시도해 주세요.",
+        icon: "red",
+        showRetry: true,
+      };
+    case "ANALYSIS_TIMEOUT":
+      return {
+        titleLines: ["분석이 예상보다", "오래 걸리고 있어요"],
+        description: "잠시 후 다시 시도하면 결과를 확인할 수 있어요.",
+        icon: "red",
+        showRetry: true,
+      };
+    default:
+      return {
+        titleLines: ["분석 서버에", "연결할 수 없어요"],
+        description: "잠시 후 다시 시도해주세요.",
+        icon: "red",
+        showRetry: true,
+      };
+  }
+}
+
 // CTA 버튼 바로 위 곰돌이 + 물음표 아이콘. 곰돌이(손 든 포즈)와 물음표를 별도 이미지로 분리해
 // 물음표만 둥둥 떠다니는 느낌을 줄 수 있게 함. DetailListView.tsx와 동일한 방식으로 확장 아이콘 경로를 구함
 const BEAR_QUESTION_HAND_ICON_URL =
@@ -14,12 +66,13 @@ const QUESTION_MARK_ICON_URL =
 
 interface Props {
   variant?: "IDLE" | "ERROR" | "UNSUPPORTED" | "HISTORY_LOADING" | "HISTORY_ERROR";
+  error?: ExtensionError | null;
   onAnalyze: () => void;
   onReset: () => void;
   onGoHome?: () => void;
 }
 
-export function IdleView({ variant = "IDLE", onAnalyze, onReset, onGoHome }: Props) {
+export function IdleView({ variant = "IDLE", error, onAnalyze, onReset, onGoHome }: Props) {
   // 점검 기록을 다시 불러오는 중: 실제 백엔드 GET 요청이 보통 1초 안팎으로 끝나는 짧은 대기라,
   // AnalyzingView의 17종 상식 팁 카루셀(수 초짜리 실제 분석용)은 과하다고 판단해 별도 스피너만 둠.
   if (variant === "HISTORY_LOADING") {
@@ -66,25 +119,26 @@ export function IdleView({ variant = "IDLE", onAnalyze, onReset, onGoHome }: Pro
     );
   }
 
-  if (variant !== "IDLE") {
-    const isError = variant === "ERROR";
+  if (variant === "ERROR") {
+    const copy = getErrorCopy(error?.code);
+    const isRed = copy.icon === "red";
 
     return (
       <div className="toss-hero-box">
-        <div className={`hero-icon-circle ${isError ? "icon-circle-red" : "icon-circle-gray"}`}>
+        <div className={`hero-icon-circle ${isRed ? "icon-circle-red" : "icon-circle-gray"}`}>
           <svg
-            width={isError ? 32 : 30}
-            height={isError ? 32 : 30}
+            width={isRed ? 32 : 30}
+            height={isRed ? 32 : 30}
             viewBox="0 0 24 24"
             fill="none"
-            stroke={isError ? "#EF4444" : "#64748B"}
+            stroke={isRed ? "#EF4444" : "#64748B"}
             strokeWidth="2.5"
             strokeLinecap="round"
             strokeLinejoin="round"
             aria-hidden="true"
           >
             <circle cx="12" cy="12" r="10" />
-            {isError ? (
+            {isRed ? (
               <>
                 <line x1="12" y1="8" x2="12" y2="12" />
                 <line x1="12" y1="16" x2="12.01" y2="16" />
@@ -95,24 +149,58 @@ export function IdleView({ variant = "IDLE", onAnalyze, onReset, onGoHome }: Pro
           </svg>
         </div>
         <h2 className="hero-title">
-          {isError ? "분석 서버에" : "현재 페이지는"}<br />
-          {isError ? "연결할 수 없어요" : "분석할 수 없어요"}
+          {copy.titleLines[0]}<br />
+          {copy.titleLines[1]}
         </h2>
-        <p className="hero-sub hero-sub-spacious">
-          {isError ? "잠시 후 다시 시도해주세요." : "상품 상세페이지에서 다시 실행해 주세요."}
+        <p className="hero-sub hero-sub-spacious" style={{ whiteSpace: "pre-line" }}>
+          {copy.description}
         </p>
-        <button
-          className="btn-brand-primary btn-idle-margin"
-          type="button"
-          onClick={isError ? onAnalyze : onReset}
-        >
-          {isError ? "다시 시도" : "처음으로 돌아가기"}
-        </button>
-        {isError && onGoHome && (
-          <button className="btn-idle-secondary" type="button" onClick={onGoHome}>
-            처음으로 돌아가기
+        {copy.showRetry && (
+          <button className="btn-brand-primary btn-idle-margin" type="button" onClick={onAnalyze}>
+            다시 시도
           </button>
         )}
+        <button
+          className={copy.showRetry ? "btn-idle-secondary" : "btn-brand-primary btn-idle-margin"}
+          type="button"
+          onClick={onGoHome ?? onReset}
+        >
+          처음으로 돌아가기
+        </button>
+      </div>
+    );
+  }
+
+  if (variant !== "IDLE") {
+    // 여기 도달하면 variant는 항상 UNSUPPORTED (ERROR/HISTORY_LOADING/HISTORY_ERROR는 위에서 이미 처리됨)
+    return (
+      <div className="toss-hero-box">
+        <div className="hero-icon-circle icon-circle-gray">
+          <svg
+            width={30}
+            height={30}
+            viewBox="0 0 24 24"
+            fill="none"
+            stroke="#64748B"
+            strokeWidth="2.5"
+            strokeLinecap="round"
+            strokeLinejoin="round"
+            aria-hidden="true"
+          >
+            <circle cx="12" cy="12" r="10" />
+            <line x1="4.93" y1="4.93" x2="19.07" y2="19.07" />
+          </svg>
+        </div>
+        <h2 className="hero-title">
+          현재 페이지는<br />
+          분석할 수 없어요
+        </h2>
+        <p className="hero-sub hero-sub-spacious">
+          상품 상세페이지에서 다시 실행해 주세요.
+        </p>
+        <button className="btn-brand-primary btn-idle-margin" type="button" onClick={onReset}>
+          처음으로 돌아가기
+        </button>
       </div>
     );
   }

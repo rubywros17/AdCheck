@@ -6,7 +6,7 @@ import {
 import type { FilterCategory, FindingWithKeyword, ReviewLevel, ScanHistoryItem, TestTarget, ViewStatus } from "../types";
 import { getCategoryTheme } from "../../constants/judgmentCategories";
 import type { AnalysisResponse, FindingResponse } from "../../types/analysis";
-import type { ActiveTabResult, AnalyzePageResult } from "../../types/message";
+import type { ActiveTabResult, AnalyzePageResult, ExtensionError } from "../../types/message";
 import { getAnalysis } from "../../api/analysis-api";
 
 function isScanHistoryItem(value: unknown): value is ScanHistoryItem {
@@ -74,6 +74,8 @@ export function useAdCheck(status: ViewStatus, setStatus: Dispatch<SetStateActio
   const analysisRequestIdRef = useRef(0);
   const [liveFindings, setLiveFindings] = useState<FindingWithKeyword[] | null>(null);
   const [livePageInfo, setLivePageInfo] = useState<{ title: string; url: string } | null>(null);
+  // 마지막 분석 실패 원인을 보관한다 — 한도 초과·대기열 초과 등은 일반 오류와 다른 안내가 필요하다.
+  const [lastError, setLastError] = useState<ExtensionError | null>(null);
 
   // 점검 기록을 볼 때도(성공적으로 불러온 뒤) 방금 분석을 마쳤을 때와 마찬가지로 liveFindings에
   // 실제 결과가 채워진다 — 더 이상 MOCK_FINDINGS를 개수만 맞춰 흉내내지 않는다.
@@ -127,6 +129,7 @@ export function useAdCheck(status: ViewStatus, setStatus: Dispatch<SetStateActio
     resetDetails();
     setViewingHistory(null);
     setIsHistoryOpen(false);
+    setLastError(null);
     setStatus("IDLE");
   }, [cancelAnalysis, resetDetails, setStatus]);
 
@@ -149,6 +152,7 @@ export function useAdCheck(status: ViewStatus, setStatus: Dispatch<SetStateActio
     resetDetails();
     setViewingHistory(null);
     setIsHistoryOpen(false);
+    setLastError(null);
     setStatus("ANALYZING");
 
     // 개발용 테스트 스위치(SAFE/ERROR/INVALID)는 실제 서버 없이 화면을 확인하기 위한
@@ -187,6 +191,7 @@ export function useAdCheck(status: ViewStatus, setStatus: Dispatch<SetStateActio
         // 여기로 들어오며, RESTRICTED_PAGE/CONTENT_SCRIPT_UNAVAILABLE만 별도로 UNSUPPORTED 처리한다.
         const unsupported = analyzeResult.error.code === "RESTRICTED_PAGE"
           || analyzeResult.error.code === "CONTENT_SCRIPT_UNAVAILABLE";
+        setLastError(analyzeResult.error);
         setStatus(unsupported ? "UNSUPPORTED" : "ERROR");
         return;
       }
@@ -303,7 +308,7 @@ export function useAdCheck(status: ViewStatus, setStatus: Dispatch<SetStateActio
   return {
     testTarget, scanHistories, isHistoryOpen, activeFilter, expandedFindings,
     pendingScrollIdx, targetCount, currentPageTitle, findings, level,
-    currentHistoryId, isCurrentFavorite,
+    currentHistoryId, isCurrentFavorite, lastError,
     pageUrl: currentPageUrl,
     showHistory: status !== "ANALYZING",
     goHome, analyze, changeTestTarget, selectHistory, selectBubble, showAllFindings,
