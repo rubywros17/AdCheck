@@ -30,14 +30,8 @@ export async function createAnalysis(request: CreateAnalysisRequest): Promise<An
     );
   }
 
-  if (!response.ok) {
-    throw new AnalysisApiError({
-      code: classifyHttpError(response.status),
-      message:
-        response.status >= 500
-          ? "분석 서버에서 오류가 발생했습니다. 잠시 후 다시 시도해주세요."
-          : "현재 페이지 정보를 분석 요청으로 보낼 수 없습니다.",
-    });
+    if (!response.ok) {
+    throw await toHttpError(response, "현재 페이지 정보를 분석 요청으로 보낼 수 없습니다.");
   }
 
   let payload: unknown;
@@ -68,13 +62,7 @@ export async function getAnalysis(analysisId: number): Promise<AnalysisResponse>
   }
 
   if (!response.ok) {
-    throw new AnalysisApiError({
-      code: classifyHttpError(response.status),
-      message:
-        response.status >= 500
-          ? "분석 서버에서 오류가 발생했습니다. 잠시 후 다시 시도해주세요."
-          : "분석 결과를 조회할 수 없습니다.",
-    });
+    throw await toHttpError(response, "분석 결과를 조회할 수 없습니다.");
   }
 
   let payload: unknown;
@@ -88,6 +76,47 @@ export async function getAnalysis(analysisId: number): Promise<AnalysisResponse>
     throw invalidResponseError();
   }
   return payload;
+}
+
+/**
+ * 실패 응답의 본문({code, message})을 읽어 Extension 에러로 바꾼다.
+ * 비용 방어(한도 초과)·대기열 초과는 사용자에게 다른 안내가 필요해서 따로 구분한다.
+ */
+async function toHttpError(response: Response, clientErrorMessage: string): Promise<AnalysisApiError> {
+  let body: unknown = null;
+  try {
+    body = await response.json();
+  } catch {
+    // 본문이 없거나 JSON이 아니면 상태코드로만 판단한다.
+  }
+  const backendCode = isRecord(body) && typeof body.code === "string" ? body.code : undefined;
+  const backendMessage = isRecord(body) && typeof body.message === "string" ? body.message : undefined;
+
+  switch (backendCode) {
+    case "DAILY_ANALYSIS_LIMIT_EXCEEDED":
+      return new AnalysisApiError({
+        code: "DAILY_LIMIT_EXCEEDED",
+        message: backendMessage ?? "오늘 분석 가능한 횟수를 모두 사용했어요.",
+      });
+    case "IP_ANALYSIS_LIMIT_EXCEEDED":
+      return new AnalysisApiError({
+        code: "IP_LIMIT_EXCEEDED",
+        message: backendMessage ?? "현재 네트워크에서 오늘 분석 가능한 횟수를 모두 사용했어요.",
+      });
+    case "ANALYSIS_QUEUE_FULL":
+      return new AnalysisApiError({
+        code: "SERVER_BUSY",
+        message: backendMessage ?? "분석 요청이 많아요. 잠시 후 다시 시도해주세요.",
+      });
+  }
+
+  return new AnalysisApiError({
+    code: classifyHttpError(response.status),
+    message:
+      response.status >= 500
+        ? "분석 서버에서 오류가 발생했습니다. 잠시 후 다시 시도해주세요."
+        : clientErrorMessage,
+  });
 }
 
 function classifyHttpError(status: number): ExtensionErrorCode {

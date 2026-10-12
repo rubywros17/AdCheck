@@ -54,6 +54,9 @@ export type ExtensionErrorCode =
   | "BACKEND_SERVER_ERROR"
   | "INVALID_BACKEND_RESPONSE"
   | "ANALYSIS_TIMEOUT"
+  | "DAILY_LIMIT_EXCEEDED"
+  | "IP_LIMIT_EXCEEDED"
+  | "SERVER_BUSY"
   | "UNKNOWN_ERROR";
 
 export interface ExtensionError {
