@@ -1,0 +1,16 @@
+# 비밀 정보 / 데이터
+.env
+adcheck_before_flyway.sql
+
+# 내 PC에서 만든 빌드 결과물
+build/
+.gradle/
+bin/
+
+# 로그
+*.log
+
+# 실행에 필요 없는 파일
+data/
+HELP.md
+gradlew.bat
